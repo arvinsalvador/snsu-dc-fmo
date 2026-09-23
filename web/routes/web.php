@@ -9,6 +9,8 @@ use App\Http\Controllers\Locations\LocationManagementController;
 use App\Http\Controllers\Personnel\PersonnelController;
 use App\Http\Controllers\Personnel\SkillController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\WorkOrders\WorkOrderCategoryController;
+use App\Http\Controllers\WorkOrders\WorkOrderController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -27,6 +29,16 @@ Route::middleware('auth')->group(function (): void {
 
     Route::middleware('approved')->group(function (): void {
         Route::view('/dashboard', 'dashboard')->name('dashboard');
+        Route::get('/work-orders', [WorkOrderController::class, 'index'])->name('work-orders.index');
+        Route::get('/work-orders/create', [WorkOrderController::class, 'create'])->name('work-orders.create');
+        Route::post('/work-orders', [WorkOrderController::class, 'store'])->name('work-orders.store');
+        Route::get('/work-orders/{workOrder}', [WorkOrderController::class, 'show'])->name('work-orders.show');
+        Route::put('/work-orders/{workOrder}', [WorkOrderController::class, 'update'])->name('work-orders.update');
+        Route::get('/work-orders/{workOrder}/attachments/{attachment}', [WorkOrderController::class, 'attachment'])->name('work-orders.attachments.show');
+        Route::get('/work-order-categories', [WorkOrderCategoryController::class, 'index'])->name('work-order-categories.index');
+        Route::post('/work-order-categories', [WorkOrderCategoryController::class, 'store'])->name('work-order-categories.store');
+        Route::put('/work-order-categories/{workOrderCategory}', [WorkOrderCategoryController::class, 'update'])->name('work-order-categories.update');
+        Route::delete('/work-order-categories/{workOrderCategory}', [WorkOrderCategoryController::class, 'destroy'])->name('work-order-categories.destroy');
         Route::get('/locations/campuses', [LocationManagementController::class, 'campuses'])->name('campuses.index');
         Route::post('/locations/campuses', [LocationManagementController::class, 'campusStore'])->name('campuses.store');
         Route::put('/locations/campuses/{campus}', [LocationManagementController::class, 'campusUpdate'])->name('campuses.update');

@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\PersonnelController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\WorkOrderCategoryController;
+use App\Http\Controllers\Api\WorkOrderController;
 use App\Http\Controllers\Auth\ApiAuthController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,5 +22,11 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/campuses', [LocationController::class, 'campuses']);
         Route::get('/buildings', [LocationController::class, 'buildings']);
         Route::get('/locations', [LocationController::class, 'locations']);
+        Route::get('/work-orders', [WorkOrderController::class, 'index']);
+        Route::get('/work-order-categories', [WorkOrderCategoryController::class, 'index']);
+        Route::post('/work-orders', [WorkOrderController::class, 'store']);
+        Route::get('/work-orders/{workOrder}', [WorkOrderController::class, 'show']);
+        Route::patch('/work-orders/{workOrder}', [WorkOrderController::class, 'update']);
+        Route::get('/work-orders/{workOrder}/attachments/{attachment}', [WorkOrderController::class, 'attachment']);
     });
 });
