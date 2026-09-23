@@ -14,6 +14,9 @@
             <div class="flex flex-wrap items-center gap-4 text-sm">
                 @auth
                     <a href="{{ route('dashboard') }}">Home</a>
+                    @can('profiles.view_own')<a href="{{ route('profile.show') }}">My Profile</a>@endcan
+                    @can('personnel.view')<a href="{{ route('personnel.index') }}">FMO Staff</a>@endcan
+                    @can('skills.view')<a href="{{ route('skills.index') }}">Skills</a>@endcan
                     @can('users.view_pending_registrations')<a href="{{ route('registrations.index') }}">Registrations</a>@endcan
                     @can('users.view')<a href="{{ route('users.index') }}">Users</a>@endcan
                     @can('roles.view')<a href="{{ route('roles.index') }}">Roles</a>@endcan

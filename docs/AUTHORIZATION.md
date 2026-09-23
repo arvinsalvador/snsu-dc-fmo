@@ -35,3 +35,7 @@ Send `Authorization: Bearer <token>` for protected API routes. A repeated login 
 ## Initial administrator and seeding
 
 Run `./vendor/bin/sail artisan db:seed --class=AuthorizationSeeder` after migrations. The seeder is repeatable and creates the catalog and default role mappings without creating a person. Then run `./vendor/bin/sail artisan app:create-admin` interactively. It asks for identity and a password and safely confirms before updating an existing email. No default password or real account is stored in source control.
+
+## Personnel permissions
+
+Phase 3 adds personnel, skills, and requester-profile permissions. FMO Head receives personnel and skills management rights; Campus Director and Director for Instruction receive personnel visibility; FMO Dispatcher receives personnel and skills visibility. `personnel.view`, `personnel.create`, `personnel.update`, `personnel.manage_status`, `skills.view`, `skills.create`, and `skills.update` are delegable operational permissions. `personnel.delete` and `skills.delete` remain protected from the restricted FMO Head delegation path.
