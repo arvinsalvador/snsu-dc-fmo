@@ -4,7 +4,7 @@ Phase 5 introduces the requester-facing Work Order Request portal. An approved u
 
 Each request has a server-generated ULID primary key and a separate human-readable `WO-YYYY-######` reference. A yearly database sequence row is locked during creation, so references are unique without relying on `MAX(id) + 1`.
 
-New requests are always `SUBMITTED`. Requester identity and status are server controlled. A preferred FMO personnel member is only a preference: it is not an assignment, notification, access grant, or promise of assignment.
+Normal requests start as `SUBMITTED`. Authorized Campus Director direct requests start as `APPROVED` with a distinct audit event. Requester identity and status are server controlled. A preferred FMO personnel member is only a preference: it is not an assignment, notification, access grant, or promise of assignment.
 
 ## Location and categories
 
@@ -20,7 +20,7 @@ Files are stored on Laravel's private `local` disk with generated filenames. Met
 
 ## Visibility and editing
 
-Requesters can see only their own requests. Users with `work_orders.view_all` can read all submitted requests. Ordinary FMO Staff do not receive that permission just by being FMO personnel. Requesters may update their own requests only while the status is `SUBMITTED`; protected requester, number, and status values are never client controlled.
+Requesters can see only their own requests. Users with `work_orders.view_all` can read all requests. Delegated screeners and approvers can access the records in their queues. Ordinary FMO Staff do not receive those permissions just by being FMO personnel. Requesters may edit a `SUBMITTED` request, or update and resubmit a `NEEDS_INFORMATION` request; protected requester, number, and status values are never client controlled.
 
 ## API
 
@@ -32,9 +32,11 @@ Authenticated, approved API endpoints are under `/api/v1`:
 - `GET /work-orders/{workOrder}`
 - `PATCH /work-orders/{workOrder}`
 - `GET /work-orders/{workOrder}/attachments/{attachment}`
+- `POST /work-orders/direct` (authorized Campus Director flow)
+- `POST /work-orders/{workOrder}/workflow/{action}` for explicit screening, decision, and resubmission actions
 
 The work-order collection is permission-scoped to the requester unless the caller has `work_orders.view_all`.
 
 ## Deferred workflow
 
-This phase does not implement screening, approval/disapproval, clarification, assignment, assessment, execution, staff evidence, completion, materials, inventory, or offline synchronization. The later Campus Director approval-bypass rule also remains deferred until the approval workflow exists.
+See [Work Order Workflow](WORK_ORDER_WORKFLOW.md) for Phase 6 statuses, permissions, history, and action rules. Assignment, assessment, execution, staff evidence, completion, materials, inventory, and offline synchronization remain future work.

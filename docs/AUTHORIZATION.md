@@ -6,6 +6,12 @@ Work order permissions are `work_orders.create`, `work_orders.view_own`, `work_o
 
 Requesters receive create, own-view, submitted-update, and category-view access. FMO Head, Campus Director, Director for Instruction, FMO Dispatcher, FMO Oversight, and System Administrator have the required all-request visibility according to their seeded role mappings. Ordinary FMO Staff do not receive all-request visibility automatically. Category create/update/status permissions are delegable through the existing authorization system.
 
+## Phase 6 screening and decisions
+
+The Phase 6 permissions are `work_orders.screen`, `work_orders.request_information`, `work_orders.recommend`, `work_orders.approve`, `work_orders.disapprove`, `work_orders.return_to_screening`, `work_orders.resubmit_own`, and `work_orders.create_direct`. A screener needs `screen` alongside information request or recommendation permissions; final disapproval and return actions also require `approve`. These capabilities are distinct from general `view_all`. Delegated reviewers gain access to their matching work-order queues and details. FMO Head may delegate screening or final decision permissions using the existing permission administration interface. The Campus Director's direct creation capability is not delegable by default.
+
+Default role mapping: FMO Head and System Administrator have all workflow permissions; FMO Dispatcher can screen, request information, and recommend; Campus Director can create direct requests; all roles allowed to create normal requests can resubmit their own correction; Director for Instruction and FMO Oversight retain read-only oversight of other users' requests.
+
 ## Account lifecycle
 
 Public registration collects full name, email, password, and institutional category (`student`, `faculty`, or `staff`). Category describes the person's university relationship; it does not grant application authority. Public registrations start `PENDING` with no role or permission. Approved applicants receive the `Requester` role. Passwords use Laravel's hashed cast.
@@ -20,7 +26,7 @@ The `web` guard is the single Spatie Permission guard for both session and Sanct
 
 The Phase 2 permission catalog is in `web/config/authorization.php`. Campus Director, Director for Instruction, FMO Head, and System Administrator get registration review permissions by default. FMO Staff and FMO Dispatcher do not. The System Administrator receives all Phase 2 permissions and may manage custom roles, user roles, status, and direct permissions.
 
-FMO Head may grant or revoke only the registration review permissions listed in `delegable_permissions`, only to approved users with the FMO Staff role. This includes `users.approve_registration`. The restricted path rejects system administration permissions even if an HTTP request is manipulated. Only users with `permissions.manage` can grant any catalog permission. Role assignment is separate from direct delegation and requires `users.assign_roles`.
+FMO Head may grant or revoke only permissions listed in `delegable_permissions`, only to approved users with the FMO Staff role. This includes selected registration review, personnel, category, location, and work-order review permissions. The restricted path rejects system administration permissions even if an HTTP request is manipulated. Only users with `permissions.manage` can grant any catalog permission. Role assignment is separate from direct delegation and requires `users.assign_roles`.
 
 Core roles cannot be edited or deleted through the web interface. Custom roles may be created and edited by authorized administrators. Assigned custom roles cannot be deleted. Users cannot change their own status, roles, or direct permissions through administration routes. The last active System Administrator cannot be suspended or stripped of that role through the interface.
 
