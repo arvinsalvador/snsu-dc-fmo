@@ -5,6 +5,9 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\RegistrationStatusController;
 use App\Http\Controllers\Auth\WebAuthController;
+use App\Http\Controllers\Personnel\PersonnelController;
+use App\Http\Controllers\Personnel\SkillController;
+use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -23,6 +26,22 @@ Route::middleware('auth')->group(function (): void {
 
     Route::middleware('approved')->group(function (): void {
         Route::view('/dashboard', 'dashboard')->name('dashboard');
+        Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+        Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+        Route::get('/personnel', [PersonnelController::class, 'index'])->name('personnel.index');
+        Route::get('/personnel/create', [PersonnelController::class, 'create'])->name('personnel.create');
+        Route::post('/personnel', [PersonnelController::class, 'store'])->name('personnel.store');
+        Route::get('/personnel/{personnel}', [PersonnelController::class, 'show'])->name('personnel.show');
+        Route::get('/personnel/{personnel}/edit', [PersonnelController::class, 'edit'])->name('personnel.edit');
+        Route::put('/personnel/{personnel}', [PersonnelController::class, 'update'])->name('personnel.update');
+        Route::put('/personnel/{personnel}/status', [PersonnelController::class, 'updateStatus'])->name('personnel.status');
+        Route::delete('/personnel/{personnel}', [PersonnelController::class, 'destroy'])->name('personnel.destroy');
+
+        Route::get('/skills', [SkillController::class, 'index'])->name('skills.index');
+        Route::post('/skills', [SkillController::class, 'store'])->name('skills.store');
+        Route::put('/skills/{skill}', [SkillController::class, 'update'])->name('skills.update');
+        Route::delete('/skills/{skill}', [SkillController::class, 'destroy'])->name('skills.destroy');
 
         Route::get('/admin/registrations', [RegistrationReviewController::class, 'index'])->name('registrations.index');
         Route::get('/admin/registrations/{user}', [RegistrationReviewController::class, 'show'])->name('registrations.show');
