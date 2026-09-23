@@ -32,6 +32,8 @@ return [
         'campuses.view', 'campuses.create', 'campuses.update', 'campuses.manage_status', 'campuses.delete',
         'buildings.view', 'buildings.create', 'buildings.update', 'buildings.manage_status', 'buildings.delete',
         'locations.view', 'locations.create', 'locations.update', 'locations.manage_status', 'locations.delete',
+        'work_orders.create', 'work_orders.view_own', 'work_orders.view_all', 'work_orders.update_own_submitted',
+        'work_order_categories.view', 'work_order_categories.create', 'work_order_categories.update', 'work_order_categories.manage_status', 'work_order_categories.delete',
     ],
     'delegable_permissions' => [
         'users.view_pending_registrations',
@@ -47,6 +49,7 @@ return [
         'skills.update',
         'buildings.view', 'buildings.create', 'buildings.update', 'buildings.manage_status',
         'locations.view', 'locations.create', 'locations.update', 'locations.manage_status',
+        'work_order_categories.create', 'work_order_categories.update', 'work_order_categories.manage_status',
     ],
     'core_roles' => [
         'Requester', 'FMO Staff', 'FMO Dispatcher', 'FMO Head',

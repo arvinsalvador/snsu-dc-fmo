@@ -1,5 +1,11 @@
 # Authentication and authorization
 
+## Phase 5 Work Order permissions
+
+Work order permissions are `work_orders.create`, `work_orders.view_own`, `work_orders.view_all`, and `work_orders.update_own_submitted`. Category permissions are `work_order_categories.view`, `work_order_categories.create`, `work_order_categories.update`, `work_order_categories.manage_status`, and `work_order_categories.delete`.
+
+Requesters receive create, own-view, submitted-update, and category-view access. FMO Head, Campus Director, Director for Instruction, FMO Dispatcher, FMO Oversight, and System Administrator have the required all-request visibility according to their seeded role mappings. Ordinary FMO Staff do not receive all-request visibility automatically. Category create/update/status permissions are delegable through the existing authorization system.
+
 ## Account lifecycle
 
 Public registration collects full name, email, password, and institutional category (`student`, `faculty`, or `staff`). Category describes the person's university relationship; it does not grant application authority. Public registrations start `PENDING` with no role or permission. Approved applicants receive the `Requester` role. Passwords use Laravel's hashed cast.
