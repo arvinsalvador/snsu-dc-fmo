@@ -39,3 +39,7 @@ Run `./vendor/bin/sail artisan db:seed --class=AuthorizationSeeder` after migrat
 ## Personnel permissions
 
 Phase 3 adds personnel, skills, and requester-profile permissions. FMO Head receives personnel and skills management rights; Campus Director and Director for Instruction receive personnel visibility; FMO Dispatcher receives personnel and skills visibility. `personnel.view`, `personnel.create`, `personnel.update`, `personnel.manage_status`, `skills.view`, `skills.create`, and `skills.update` are delegable operational permissions. `personnel.delete` and `skills.delete` remain protected from the restricted FMO Head delegation path.
+
+## Location permissions
+
+Phase 4 adds campus, building, and subordinate-location permission groups. All approved operational roles receive safe read access. FMO Head and System Administrator receive location management permissions. The FMO Head may delegate building and location view/create/update/status capabilities; campus administration and delete permissions remain protected.

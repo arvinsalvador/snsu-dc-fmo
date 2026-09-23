@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\PersonnelController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Auth\ApiAuthController;
@@ -16,5 +17,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/personnel', [PersonnelController::class, 'index']);
         Route::get('/personnel/{personnel}', [PersonnelController::class, 'show']);
         Route::get('/skills', [PersonnelController::class, 'skills']);
+        Route::get('/campuses', [LocationController::class, 'campuses']);
+        Route::get('/buildings', [LocationController::class, 'buildings']);
+        Route::get('/locations', [LocationController::class, 'locations']);
     });
 });

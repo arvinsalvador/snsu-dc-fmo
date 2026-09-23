@@ -49,6 +49,14 @@ class AuthorizationSeeder extends Seeder
         Role::findByName('FMO Dispatcher', 'web')->givePermissionTo(['personnel.view', 'skills.view']);
         Role::findByName('FMO Staff', 'web')->givePermissionTo(['profiles.view_own', 'profiles.update_own']);
         Role::findByName('Requester', 'web')->givePermissionTo(['profiles.view_own', 'profiles.update_own']);
+        foreach (['Requester', 'FMO Staff', 'FMO Dispatcher', 'Campus Director', 'Director for Instruction'] as $role) {
+            Role::findByName($role, 'web')->givePermissionTo(['campuses.view', 'buildings.view', 'locations.view']);
+        }
+        Role::findByName('FMO Head', 'web')->givePermissionTo([
+            'campuses.view', 'campuses.create', 'campuses.update', 'campuses.manage_status', 'campuses.delete',
+            'buildings.view', 'buildings.create', 'buildings.update', 'buildings.manage_status', 'buildings.delete',
+            'locations.view', 'locations.create', 'locations.update', 'locations.manage_status', 'locations.delete',
+        ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
