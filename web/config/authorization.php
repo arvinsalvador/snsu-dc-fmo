@@ -29,6 +29,9 @@ return [
         'profiles.update_own',
         'profiles.view_others',
         'profiles.update_others',
+        'campuses.view', 'campuses.create', 'campuses.update', 'campuses.manage_status', 'campuses.delete',
+        'buildings.view', 'buildings.create', 'buildings.update', 'buildings.manage_status', 'buildings.delete',
+        'locations.view', 'locations.create', 'locations.update', 'locations.manage_status', 'locations.delete',
     ],
     'delegable_permissions' => [
         'users.view_pending_registrations',
@@ -42,6 +45,8 @@ return [
         'skills.view',
         'skills.create',
         'skills.update',
+        'buildings.view', 'buildings.create', 'buildings.update', 'buildings.manage_status',
+        'locations.view', 'locations.create', 'locations.update', 'locations.manage_status',
     ],
     'core_roles' => [
         'Requester', 'FMO Staff', 'FMO Dispatcher', 'FMO Head',

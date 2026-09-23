@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\RegistrationStatusController;
 use App\Http\Controllers\Auth\WebAuthController;
+use App\Http\Controllers\Locations\LocationManagementController;
 use App\Http\Controllers\Personnel\PersonnelController;
 use App\Http\Controllers\Personnel\SkillController;
 use App\Http\Controllers\ProfileController;
@@ -26,6 +27,20 @@ Route::middleware('auth')->group(function (): void {
 
     Route::middleware('approved')->group(function (): void {
         Route::view('/dashboard', 'dashboard')->name('dashboard');
+        Route::get('/locations/campuses', [LocationManagementController::class, 'campuses'])->name('campuses.index');
+        Route::post('/locations/campuses', [LocationManagementController::class, 'campusStore'])->name('campuses.store');
+        Route::put('/locations/campuses/{campus}', [LocationManagementController::class, 'campusUpdate'])->name('campuses.update');
+        Route::delete('/locations/campuses/{campus}', [LocationManagementController::class, 'campusDelete'])->name('campuses.destroy');
+        Route::get('/locations/buildings', [LocationManagementController::class, 'buildings'])->name('buildings.index');
+        Route::post('/locations/buildings', [LocationManagementController::class, 'buildingStore'])->name('buildings.store');
+        Route::get('/locations/buildings/{building}', [LocationManagementController::class, 'buildingShow'])->name('buildings.show');
+        Route::put('/locations/buildings/{building}', [LocationManagementController::class, 'buildingUpdate'])->name('buildings.update');
+        Route::delete('/locations/buildings/{building}', [LocationManagementController::class, 'buildingDelete'])->name('buildings.destroy');
+        Route::post('/locations/buildings/{building}/floors', [LocationManagementController::class, 'floorStore'])->name('floors.store');
+        Route::get('/locations', [LocationManagementController::class, 'locations'])->name('locations.index');
+        Route::post('/locations', [LocationManagementController::class, 'locationStore'])->name('locations.store');
+        Route::put('/locations/{location}', [LocationManagementController::class, 'locationUpdate'])->name('locations.update');
+        Route::delete('/locations/{location}', [LocationManagementController::class, 'locationDelete'])->name('locations.destroy');
         Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
         Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
