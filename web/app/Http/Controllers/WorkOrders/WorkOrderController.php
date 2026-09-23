@@ -12,6 +12,7 @@ use App\Models\FmoPersonnel;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Models\WorkOrderCategory;
+use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -23,7 +24,7 @@ class WorkOrderController extends Controller
     public function index(Request $request)
     {
         abort_unless($request->user()->can('work_orders.view_own') || $request->user()->can('work_orders.view_all'), 403);
-        $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user')->latest('submitted_at');
+        $orders = WorkOrder::with('requester', 'category', 'building', 'location', 'preferredPersonnel.user')->latest('submitted_at');
         if (! $request->user()->can('work_orders.view_all')) {
             $orders->where('requester_id', $request->user()->id);
         }
@@ -45,32 +46,59 @@ class WorkOrderController extends Controller
         return view('work-orders.form', $this->formData());
     }
 
-    public function store(Request $request)
+    public function store(Request $request, WorkOrderWorkflowService $workflow)
     {
         abort_unless($request->user()->can('work_orders.create'), 403);
+
+        return $this->createOrder($request, $workflow, false);
+    }
+
+    public function storeDirect(Request $request, WorkOrderWorkflowService $workflow)
+    {
+        abort_unless($request->user()->can('work_orders.create_direct'), 403);
+
+        return $this->createOrder($request, $workflow, true);
+    }
+
+    private function createOrder(Request $request, WorkOrderWorkflowService $workflow, bool $direct)
+    {
         $data = $this->validated($request);
-        $order = DB::transaction(function () use ($request, $data): WorkOrder {
-            $order = WorkOrder::create([...$data, 'requester_id' => $request->user()->id, 'status' => WorkOrderStatus::Submitted, 'submitted_at' => now(), 'work_order_number' => $this->number()]);
+        $order = DB::transaction(function () use ($request, $data, $workflow, $direct): WorkOrder {
+            $order = WorkOrder::create([...$data, 'requester_id' => $request->user()->id, 'status' => $direct ? WorkOrderStatus::Approved : WorkOrderStatus::Submitted, 'submitted_at' => now(), 'work_order_number' => $this->number(), 'decided_by' => $direct ? $request->user()->id : null, 'decided_at' => $direct ? now() : null]);
             $this->uploads($request, $order);
+            $workflow->recordCreation($order, $request->user(), $direct);
 
             return $order;
         });
 
-        return redirect()->route('work-orders.show', $order)->with('success', "Your Work Order Request {$order->work_order_number} has been submitted successfully.");
+        return redirect()->route('work-orders.show', $order)->with('success', $direct ? "Direct Work Order {$order->work_order_number} was authorized." : "Your Work Order Request {$order->work_order_number} has been submitted successfully.");
     }
 
     public function show(Request $request, WorkOrder $workOrder)
     {
         $this->authorizeWorkOrder($request, $workOrder);
 
-        return view('work-orders.show', ['order' => $workOrder->load('category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments')]);
+        return view('work-orders.show', ['order' => $workOrder->load('requester', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments', 'workflowEvents.actor')]);
+    }
+
+    public function edit(Request $request, WorkOrder $workOrder)
+    {
+        abort_unless($workOrder->requester_id === $request->user()->id && (
+            ($workOrder->status === WorkOrderStatus::Submitted && $request->user()->can('work_orders.update_own_submitted'))
+            || ($workOrder->status === WorkOrderStatus::NeedsInformation && $request->user()->can('work_orders.resubmit_own'))
+        ), 403);
+
+        return view('work-orders.form', [...$this->formData(), 'order' => $workOrder]);
     }
 
     public function update(Request $request, WorkOrder $workOrder)
     {
-        abort_unless($workOrder->requester_id === $request->user()->id && $workOrder->status === WorkOrderStatus::Submitted && $request->user()->can('work_orders.update_own_submitted'), 403);
-        $workOrder->update($this->validated($request));
-        $this->uploads($request, $workOrder);
+        DB::transaction(function () use ($request, $workOrder): void {
+            $locked = WorkOrder::whereKey($workOrder->id)->lockForUpdate()->firstOrFail();
+            abort_unless($locked->requester_id === $request->user()->id && $locked->status === WorkOrderStatus::Submitted && $request->user()->can('work_orders.update_own_submitted'), 403);
+            $locked->update($this->validated($request));
+            $this->uploads($request, $locked);
+        });
 
         return back()->with('success', 'Submitted request updated.');
     }
@@ -85,7 +113,15 @@ class WorkOrderController extends Controller
 
     public function authorizeWorkOrder(Request $request, WorkOrder $workOrder): void
     {
-        abort_unless($workOrder->requester_id === $request->user()->id || $request->user()->can('work_orders.view_all'), 403);
+        abort_unless($this->canViewWorkOrder($request, $workOrder), 403);
+    }
+
+    public function canViewWorkOrder(Request $request, WorkOrder $workOrder): bool
+    {
+        return $workOrder->requester_id === $request->user()->id
+            || $request->user()->can('work_orders.view_all')
+            || ($request->user()->can('work_orders.screen') && in_array($workOrder->status, [WorkOrderStatus::Submitted, WorkOrderStatus::ForScreening, WorkOrderStatus::NeedsInformation, WorkOrderStatus::ForApproval], true))
+            || ($request->user()->can('work_orders.approve') && $workOrder->status === WorkOrderStatus::ForApproval);
     }
 
     public function validated(Request $request): array
@@ -130,7 +166,7 @@ class WorkOrderController extends Controller
         }
     }
 
-    private function formData(): array
+    public function formData(): array
     {
         return ['categories' => WorkOrderCategory::where('is_active', true)->orderBy('display_order')->get(), 'campuses' => Campus::where('is_active', true)->get(), 'buildings' => Building::where('is_active', true)->with('campus')->get(), 'floors' => Floor::where('is_active', true)->get(), 'locations' => BuildingLocation::where('is_active', true)->get(), 'personnel' => FmoPersonnel::with('user', 'skills')->where('personnel_status', 'ACTIVE')->get()->filter->isAssignable()];
     }

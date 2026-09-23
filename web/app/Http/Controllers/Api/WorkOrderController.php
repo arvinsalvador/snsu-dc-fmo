@@ -6,6 +6,7 @@ use App\Enums\WorkOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
+use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -24,18 +25,32 @@ class WorkOrderController extends Controller
 
     public function show(Request $request, WorkOrder $workOrder)
     {
-        abort_unless($workOrder->requester_id === $request->user()->id || $request->user()->can('work_orders.view_all'), 403);
+        app(\App\Http\Controllers\WorkOrders\WorkOrderController::class)->authorizeWorkOrder($request, $workOrder);
 
         return response()->json(['data' => $this->data($workOrder->load('category', 'building', 'location', 'preferredPersonnel.user'))]);
     }
 
-    public function store(Request $request, \App\Http\Controllers\WorkOrders\WorkOrderController $requests)
+    public function store(Request $request, \App\Http\Controllers\WorkOrders\WorkOrderController $requests, WorkOrderWorkflowService $workflow)
     {
         abort_unless($request->user()->can('work_orders.create'), 403);
+
+        return $this->createOrder($request, $requests, $workflow, false);
+    }
+
+    public function storeDirect(Request $request, \App\Http\Controllers\WorkOrders\WorkOrderController $requests, WorkOrderWorkflowService $workflow)
+    {
+        abort_unless($request->user()->can('work_orders.create_direct'), 403);
+
+        return $this->createOrder($request, $requests, $workflow, true);
+    }
+
+    private function createOrder(Request $request, \App\Http\Controllers\WorkOrders\WorkOrderController $requests, WorkOrderWorkflowService $workflow, bool $direct)
+    {
         $data = $requests->validated($request);
-        $order = DB::transaction(function () use ($request, $requests, $data): WorkOrder {
-            $order = WorkOrder::create([...$data, 'requester_id' => $request->user()->id, 'status' => WorkOrderStatus::Submitted, 'submitted_at' => now(), 'work_order_number' => $requests->number()]);
+        $order = DB::transaction(function () use ($request, $requests, $data, $workflow, $direct): WorkOrder {
+            $order = WorkOrder::create([...$data, 'requester_id' => $request->user()->id, 'status' => $direct ? WorkOrderStatus::Approved : WorkOrderStatus::Submitted, 'submitted_at' => now(), 'work_order_number' => $requests->number(), 'decided_by' => $direct ? $request->user()->id : null, 'decided_at' => $direct ? now() : null]);
             $requests->uploads($request, $order);
+            $workflow->recordCreation($order, $request->user(), $direct);
 
             return $order;
         });
@@ -45,9 +60,12 @@ class WorkOrderController extends Controller
 
     public function update(Request $request, WorkOrder $workOrder, \App\Http\Controllers\WorkOrders\WorkOrderController $requests)
     {
-        abort_unless($workOrder->requester_id === $request->user()->id && $workOrder->status === WorkOrderStatus::Submitted && $request->user()->can('work_orders.update_own_submitted'), 403);
-        $workOrder->update($requests->validated($request));
-        $requests->uploads($request, $workOrder);
+        DB::transaction(function () use ($request, $workOrder, $requests): void {
+            $locked = WorkOrder::whereKey($workOrder->id)->lockForUpdate()->firstOrFail();
+            abort_unless($locked->requester_id === $request->user()->id && $locked->status === WorkOrderStatus::Submitted && $request->user()->can('work_orders.update_own_submitted'), 403);
+            $locked->update($requests->validated($request));
+            $requests->uploads($request, $locked);
+        });
 
         return response()->json(['data' => $this->data($workOrder->fresh()->load('category', 'building', 'location', 'preferredPersonnel.user'))]);
     }
@@ -62,6 +80,9 @@ class WorkOrderController extends Controller
 
     private function data(WorkOrder $order): array
     {
-        return ['id' => $order->id, 'number' => $order->work_order_number, 'category' => $order->category->name, 'building' => $order->building->name, 'location' => $order->location?->name, 'subject' => $order->subject, 'description' => $order->description, 'status' => $order->status->value, 'urgency' => $order->urgency, 'preferred_personnel' => $order->preferredPersonnel?->user?->name, 'submitted_at' => $order->submitted_at, 'attachments' => $order->attachments->map(fn ($attachment) => ['id' => $attachment->id, 'filename' => $attachment->original_filename, 'mime_type' => $attachment->mime_type, 'size' => $attachment->file_size])];
+        $management = auth()->user()->can('work_orders.view_all') || auth()->user()->can('work_orders.screen') || auth()->user()->can('work_orders.approve');
+        $events = $order->workflowEvents->when(! $management, fn ($events) => $events->filter(fn ($event) => ! in_array($event->action, ['RECOMMEND_APPROVAL', 'RECOMMEND_DISAPPROVAL', 'RETURN_TO_SCREENING'], true)));
+
+        return ['id' => $order->id, 'number' => $order->work_order_number, 'category' => $order->category->name, 'building' => $order->building->name, 'location' => $order->location?->name, 'subject' => $order->subject, 'description' => $order->description, 'status' => $order->status->value, 'urgency' => $order->urgency, 'preferred_personnel' => $order->preferredPersonnel?->user?->name, 'submitted_at' => $order->submitted_at, 'attachments' => $order->attachments->map(fn ($attachment) => ['id' => $attachment->id, 'filename' => $attachment->original_filename, 'mime_type' => $attachment->mime_type, 'size' => $attachment->file_size]), 'history' => $events->values()->map(fn ($event) => ['action' => $event->action, 'from_status' => $event->from_status, 'to_status' => $event->to_status, 'requester_message' => $event->requester_message, 'internal_note' => $management ? $event->internal_note : null, 'created_at' => $event->created_at])];
     }
 }

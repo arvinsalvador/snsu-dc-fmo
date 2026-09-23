@@ -11,6 +11,7 @@ use App\Http\Controllers\Personnel\SkillController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WorkOrders\WorkOrderCategoryController;
 use App\Http\Controllers\WorkOrders\WorkOrderController;
+use App\Http\Controllers\WorkOrders\WorkOrderWorkflowController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -32,6 +33,10 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/work-orders', [WorkOrderController::class, 'index'])->name('work-orders.index');
         Route::get('/work-orders/create', [WorkOrderController::class, 'create'])->name('work-orders.create');
         Route::post('/work-orders', [WorkOrderController::class, 'store'])->name('work-orders.store');
+        Route::post('/work-orders/direct', [WorkOrderController::class, 'storeDirect'])->name('work-orders.direct');
+        Route::get('/work-orders/queue/{queue}', [WorkOrderWorkflowController::class, 'queue'])->name('work-orders.queue');
+        Route::get('/work-orders/{workOrder}/edit', [WorkOrderController::class, 'edit'])->name('work-orders.edit');
+        Route::post('/work-orders/{workOrder}/workflow/{action}', [WorkOrderWorkflowController::class, 'action'])->name('work-orders.workflow');
         Route::get('/work-orders/{workOrder}', [WorkOrderController::class, 'show'])->name('work-orders.show');
         Route::put('/work-orders/{workOrder}', [WorkOrderController::class, 'update'])->name('work-orders.update');
         Route::get('/work-orders/{workOrder}/attachments/{attachment}', [WorkOrderController::class, 'attachment'])->name('work-orders.attachments.show');

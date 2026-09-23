@@ -1,2 +1,64 @@
-@extends('layouts.app') @section('title',$order->work_order_number) @section('content')
-<a href="{{route('work-orders.index')}}">← Requests</a><h1 class="mt-3 text-2xl font-semibold">{{$order->work_order_number}}</h1><p class="mt-2">Submitted to the Facilities Management Office for review.</p><div class="mt-5 rounded border bg-white p-5"><p><b>Status:</b> Submitted</p><p><b>Category:</b> {{$order->category->name}}</p><p><b>Location:</b> {{$order->campus->name}} — {{$order->building->name}} {{$order->location?'— '.$order->location->name:''}}</p><p><b>Subject:</b> {{$order->subject}}</p><p><b>Description:</b> {{$order->description}}</p><p><b>Preferred personnel:</b> {{$order->preferredPersonnel?->user?->name ?? 'None'}}</p></div><h2 class="mt-5 font-semibold">Initial attachments</h2><ul>@foreach($order->attachments as $a)<li><a class="text-blue-700 underline" href="{{route('work-orders.attachments.show',[$order,$a])}}">{{$a->original_filename}}</a></li>@endforeach</ul>@endsection
+@extends('layouts.app')
+@section('title', $order->work_order_number)
+@section('content')
+@php($management = auth()->user()->can('work_orders.view_all') || auth()->user()->can('work_orders.screen') || auth()->user()->can('work_orders.approve'))
+<a href="{{ route('work-orders.index') }}">← Work Orders</a>
+<h1 class="mt-3 text-2xl font-semibold">{{ $order->work_order_number }}</h1>
+<p class="mt-2">Status: {{ str_replace('_', ' ', $order->status->value) }}</p>
+@if ($order->status === \App\Enums\WorkOrderStatus::Approved)
+    <p class="mt-3 rounded bg-green-100 p-3">Approved by FMO and awaiting assignment.</p>
+@endif
+@if ($order->status === \App\Enums\WorkOrderStatus::NeedsInformation)
+    <p class="mt-3 rounded bg-amber-100 p-3">FMO requires additional information. Please update and resubmit this request.</p>
+@endif
+@if ($order->requester_id === auth()->id() && (($order->status === \App\Enums\WorkOrderStatus::Submitted && auth()->user()->can('work_orders.update_own_submitted')) || ($order->status === \App\Enums\WorkOrderStatus::NeedsInformation && auth()->user()->can('work_orders.resubmit_own'))))
+    <a class="mt-3 inline-block rounded bg-blue-700 px-4 py-2 text-white" href="{{ route('work-orders.edit', $order) }}">{{ $order->status === \App\Enums\WorkOrderStatus::NeedsInformation ? 'Update and Resubmit' : 'Edit Request' }}</a>
+@endif
+<div class="mt-5 space-y-2 rounded border bg-white p-5">
+    <p><b>Submitted:</b> {{ $order->submitted_at?->timezone('Asia/Manila')->format('M j, Y g:i A') }}</p>
+    @if ($management)<p><b>Requester:</b> {{ $order->requester->name }} ({{ $order->requester->user_type }})</p>@endif
+    <p><b>Category:</b> {{ $order->category->name }}</p>
+    <p><b>Location:</b> {{ $order->campus->name }} — {{ $order->building->name }} @if ($order->floor) — {{ $order->floor->name }} @endif @if ($order->location) — {{ $order->location->name }} @endif</p>
+    <p><b>Subject:</b> {{ $order->subject }}</p>
+    <p><b>Description:</b> {{ $order->description }}</p>
+    <p><b>Urgency indicated:</b> {{ $order->urgency }}</p>
+    <p><b>Preferred personnel:</b> {{ $order->preferredPersonnel?->user?->name ?? 'None' }} (preference only)</p>
+    @if ($management && $order->recommendation)<p><b>Screening recommendation:</b> {{ $order->recommendation }}</p>@endif
+</div>
+<h2 class="mt-6 text-lg font-semibold">Initial attachments</h2>
+<ul class="mt-2 list-inside list-disc">
+    @forelse ($order->attachments as $attachment)
+        <li><a class="text-blue-700 underline" href="{{ route('work-orders.attachments.show', [$order, $attachment]) }}">{{ $attachment->original_filename }}</a></li>
+    @empty
+        <li>No attachments</li>
+    @endforelse
+</ul>
+<h2 class="mt-6 text-lg font-semibold">History</h2>
+<ol class="mt-2 space-y-2">
+    @foreach ($order->workflowEvents as $event)
+        @if ($management || !in_array($event->action, ['RECOMMEND_APPROVAL', 'RECOMMEND_DISAPPROVAL', 'RETURN_TO_SCREENING']))
+            <li class="rounded border bg-white p-3"><b>{{ str_replace('_', ' ', $event->action) }}</b> · {{ $event->created_at->timezone('Asia/Manila')->format('M j, Y g:i A') }}
+                @if ($event->requester_message)<p>{{ $event->requester_message }}</p>@endif
+                @if ($management && $event->internal_note)<p>Internal: {{ $event->internal_note }}</p>@endif
+            </li>
+        @endif
+    @endforeach
+</ol>
+@if ($management)
+    <section class="mt-7 rounded border bg-white p-5"><h2 class="text-lg font-semibold">Management actions</h2><div class="mt-4 grid gap-4 md:grid-cols-2">
+        @if ($order->status === \App\Enums\WorkOrderStatus::Submitted)
+            @can('work_orders.screen')<form method="POST" action="{{ route('work-orders.workflow', [$order, 'begin-screening']) }}">@csrf<button class="rounded bg-blue-700 px-4 py-2 text-white">Begin Screening</button></form>@endcan
+        @endif
+        @if ($order->status === \App\Enums\WorkOrderStatus::ForScreening)
+            @can('work_orders.request_information')<form method="POST" action="{{ route('work-orders.workflow', [$order, 'request-information']) }}">@csrf<label>Request more information<textarea class="mt-1 w-full rounded border p-2" name="requester_message" required></textarea></label><button class="mt-2 rounded bg-amber-700 px-4 py-2 text-white">Send to requester</button></form>@endcan
+            @can('work_orders.recommend')<form method="POST" action="{{ route('work-orders.workflow', [$order, 'recommend-approval']) }}">@csrf<label>Internal screening note<textarea class="mt-1 w-full rounded border p-2" name="internal_note"></textarea></label><button class="mt-2 rounded bg-blue-700 px-4 py-2 text-white">Recommend approval</button></form>@endcan
+            @can('work_orders.recommend')<form method="POST" action="{{ route('work-orders.workflow', [$order, 'recommend-disapproval']) }}">@csrf<label>Internal reason<textarea class="mt-1 w-full rounded border p-2" name="internal_note" required></textarea></label><button class="mt-2 rounded bg-slate-700 px-4 py-2 text-white">Recommend disapproval</button></form>@endcan
+        @endif
+        @if ($order->status === \App\Enums\WorkOrderStatus::ForApproval)
+            @can('work_orders.approve')<form method="POST" action="{{ route('work-orders.workflow', [$order, 'approve']) }}">@csrf<label>Internal approval note<textarea class="mt-1 w-full rounded border p-2" name="internal_note"></textarea></label><button class="mt-2 rounded bg-green-700 px-4 py-2 text-white">Approve</button></form>@endcan
+            @can('work_orders.disapprove')<form method="POST" action="{{ route('work-orders.workflow', [$order, 'disapprove']) }}">@csrf<label>Reason shown to requester<textarea class="mt-1 w-full rounded border p-2" name="requester_message" required></textarea></label><button class="mt-2 rounded bg-red-700 px-4 py-2 text-white">Disapprove</button></form>@endcan
+            @can('work_orders.return_to_screening')<form method="POST" action="{{ route('work-orders.workflow', [$order, 'return-to-screening']) }}">@csrf<label>Internal return reason<textarea class="mt-1 w-full rounded border p-2" name="internal_note" required></textarea></label><button class="mt-2 rounded bg-slate-700 px-4 py-2 text-white">Return to screening</button></form>@endcan
+        @endif
+    </div></section>
+@endif
+@endsection

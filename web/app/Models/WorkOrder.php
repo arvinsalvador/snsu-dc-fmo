@@ -12,11 +12,11 @@ class WorkOrder extends Model
 {
     use HasUlids;
 
-    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'subject', 'description', 'urgency', 'preferred_fmo_personnel_id', 'status', 'submitted_at'];
+    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'subject', 'description', 'urgency', 'preferred_fmo_personnel_id', 'status', 'submitted_at', 'recommendation', 'decided_by', 'decided_at'];
 
     protected function casts(): array
     {
-        return ['status' => WorkOrderStatus::class, 'submitted_at' => 'datetime'];
+        return ['status' => WorkOrderStatus::class, 'submitted_at' => 'datetime', 'decided_at' => 'datetime'];
     }
 
     public function requester(): BelongsTo
@@ -57,5 +57,15 @@ class WorkOrder extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(WorkOrderAttachment::class);
+    }
+
+    public function workflowEvents(): HasMany
+    {
+        return $this->hasMany(WorkOrderWorkflowEvent::class)->orderBy('created_at')->orderBy('id');
+    }
+
+    public function decisionMaker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'decided_by');
     }
 }

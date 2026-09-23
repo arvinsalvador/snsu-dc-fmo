@@ -33,6 +33,7 @@ return [
         'buildings.view', 'buildings.create', 'buildings.update', 'buildings.manage_status', 'buildings.delete',
         'locations.view', 'locations.create', 'locations.update', 'locations.manage_status', 'locations.delete',
         'work_orders.create', 'work_orders.view_own', 'work_orders.view_all', 'work_orders.update_own_submitted',
+        'work_orders.screen', 'work_orders.request_information', 'work_orders.recommend', 'work_orders.approve', 'work_orders.disapprove', 'work_orders.return_to_screening', 'work_orders.resubmit_own', 'work_orders.create_direct',
         'work_order_categories.view', 'work_order_categories.create', 'work_order_categories.update', 'work_order_categories.manage_status', 'work_order_categories.delete',
     ],
     'delegable_permissions' => [
@@ -50,6 +51,7 @@ return [
         'buildings.view', 'buildings.create', 'buildings.update', 'buildings.manage_status',
         'locations.view', 'locations.create', 'locations.update', 'locations.manage_status',
         'work_order_categories.create', 'work_order_categories.update', 'work_order_categories.manage_status',
+        'work_orders.screen', 'work_orders.request_information', 'work_orders.recommend', 'work_orders.approve', 'work_orders.disapprove', 'work_orders.return_to_screening',
     ],
     'core_roles' => [
         'Requester', 'FMO Staff', 'FMO Dispatcher', 'FMO Head',
