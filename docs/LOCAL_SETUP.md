@@ -16,9 +16,13 @@ cp .env.example .env
 ./vendor/bin/sail up -d
 ./vendor/bin/sail artisan key:generate
 ./vendor/bin/sail artisan migrate
+./vendor/bin/sail artisan db:seed --class=AuthorizationSeeder
+./vendor/bin/sail artisan app:create-admin
 ```
 
 The provided example uses the Docker service hostname `mysql`, database `snsu_dc_fmo`, user `sail`, and a development-only password. Change local values in `.env` as needed; never commit that file. The MySQL data is retained in the Docker volume `sail-mysql`.
+
+The Phase 2 seeder is repeatable and creates only roles and permissions. The interactive administrator command creates the first real account from information you provide; it has no default credentials. See [authorization](AUTHORIZATION.md) for the account workflow and API contract.
 
 Open `http://localhost` for the Laravel application and check `http://localhost/api/v1/health` for `{"status":"ok"}`. Stop the environment with:
 

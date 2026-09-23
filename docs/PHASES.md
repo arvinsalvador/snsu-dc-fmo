@@ -1,7 +1,7 @@
 # Version 1 roadmap
 
-1. **Local Development Environment & Project Bootstrap** — current phase
-2. Authentication, Registration Approval, Users, Roles & Permissions
+1. **Local Development Environment & Project Bootstrap** — complete
+2. **Authentication, Registration Approval, Users, Roles & Permissions** — complete
 3. Requester Profiles, FMO Personnel, Skills & Staff Management
 4. Campus, Building, Office, Room & Area Management
 5. Work Order Request Portal

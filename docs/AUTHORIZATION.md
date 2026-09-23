@@ -1,0 +1,37 @@
+# Authentication and authorization
+
+## Account lifecycle
+
+Public registration collects full name, email, password, and institutional category (`student`, `faculty`, or `staff`). Category describes the person's university relationship; it does not grant application authority. Public registrations start `PENDING` with no role or permission. Approved applicants receive the `Requester` role. Passwords use Laravel's hashed cast.
+
+An authorized reviewer may approve, reject, or request correction from a pending applicant. Rejection and correction require a reason. A correction request changes status to `NEEDS_CORRECTION`; the applicant can update only name, email, and category, then resubmit to `PENDING`. Review actions, previous/new statuses, reviewer, reason, and timestamps are retained in `registration_reviews`. Rejected applicants remain able to sign in to view their status. `SUSPENDED` and `DEACTIVATED` accounts also retain their history but cannot use protected routes. Approved accounts can use the Phase 2 dashboard.
+
+Status and role are independent: status governs access, while roles and permissions govern capabilities. The `approved` middleware checks current status for web and API requests. Administrative suspension or deactivation revokes all existing API tokens. Direct database changes to status are outside the supported workflow and should be avoided.
+
+## Permissions and roles
+
+The `web` guard is the single Spatie Permission guard for both session and Sanctum users. Effective permissions are the union of permissions granted by all roles and direct user permissions. Default roles are Requester, FMO Staff, FMO Dispatcher, FMO Head, Campus Director, Director for Instruction, FMO Oversight, and System Administrator. Roles may be combined per user.
+
+The Phase 2 permission catalog is in `web/config/authorization.php`. Campus Director, Director for Instruction, FMO Head, and System Administrator get registration review permissions by default. FMO Staff and FMO Dispatcher do not. The System Administrator receives all Phase 2 permissions and may manage custom roles, user roles, status, and direct permissions.
+
+FMO Head may grant or revoke only the registration review permissions listed in `delegable_permissions`, only to approved users with the FMO Staff role. This includes `users.approve_registration`. The restricted path rejects system administration permissions even if an HTTP request is manipulated. Only users with `permissions.manage` can grant any catalog permission. Role assignment is separate from direct delegation and requires `users.assign_roles`.
+
+Core roles cannot be edited or deleted through the web interface. Custom roles may be created and edited by authorized administrators. Assigned custom roles cannot be deleted. Users cannot change their own status, roles, or direct permissions through administration routes. The last active System Administrator cannot be suspended or stripped of that role through the interface.
+
+## Web and API authentication
+
+Web forms use Laravel sessions, CSRF protection, validation, session regeneration on login, invalidation on logout, and login/registration throttling. Pending and other nonapproved users may see only their own status and correction screen. All administrative actions are authorized on the server.
+
+API endpoints are under `/api/v1`:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/auth/login` | Email, password, and `device_name`; issues a 30-day Sanctum bearer token only for approved accounts |
+| GET | `/me` | Returns safe user identity, category, status, roles, and effective permissions |
+| POST | `/auth/logout` | Revokes the current bearer token |
+
+Send `Authorization: Bearer <token>` for protected API routes. A repeated login with the same device name replaces its previous token. Invalid credentials return 401; nonapproved accounts return 403 with status. API routes require a valid bearer token and check account status on each request. A device should store its token securely and treat it as a secret. Full device management and Flutter login UI belong to later phases.
+
+## Initial administrator and seeding
+
+Run `./vendor/bin/sail artisan db:seed --class=AuthorizationSeeder` after migrations. The seeder is repeatable and creates the catalog and default role mappings without creating a person. Then run `./vendor/bin/sail artisan app:create-admin` interactively. It asks for identity and a password and safely confirms before updating an existing email. No default password or real account is stored in source control.
