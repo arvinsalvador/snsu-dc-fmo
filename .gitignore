@@ -1,0 +1,6 @@
+**/.env
+**/.env.*
+!**/.env.example
+mobile/.dart_tool/
+mobile/build/
+mobile/.packages
