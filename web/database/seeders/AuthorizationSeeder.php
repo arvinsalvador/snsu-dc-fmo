@@ -1,0 +1,43 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+
+class AuthorizationSeeder extends Seeder
+{
+    public function run(): void
+    {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        foreach (config('authorization.permissions') as $name) {
+            Permission::findOrCreate($name, 'web');
+        }
+
+        foreach (config('authorization.core_roles') as $name) {
+            Role::findOrCreate($name, 'web');
+        }
+
+        $registration = [
+            'users.view_pending_registrations', 'users.approve_registration',
+            'users.reject_registration', 'users.request_registration_correction',
+        ];
+
+        foreach (['Campus Director', 'Director for Instruction'] as $name) {
+            Role::findByName($name, 'web')->syncPermissions($registration);
+        }
+
+        Role::findByName('FMO Head', 'web')->syncPermissions([
+            ...$registration, 'users.view', 'users.assign_permissions',
+            'permissions.view',
+        ]);
+
+        Role::findByName('System Administrator', 'web')
+            ->syncPermissions(config('authorization.permissions'));
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+}

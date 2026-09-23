@@ -4,6 +4,8 @@
 
 The system uses a Laravel web management platform and REST API backed by MySQL, plus a Flutter app for FMO personnel. Laravel Sail supplies local Docker development only; application logic remains portable to ordinary PHP/MySQL shared hosting. API routes are versioned under `/api/v1`; the initial unauthenticated endpoint is `GET /api/v1/health`.
 
+Phase 2 adds session-based web authentication, Sanctum bearer-token API authentication, and Spatie roles and permissions. The shared `web` permission guard applies to both. Account status is checked separately from permission checks. See [authorization](AUTHORIZATION.md) for the lifecycle, delegation rules, and API contract.
+
 Laravel conventions for later phases: models represent persisted records; controllers stay thin; Form Requests validate input; API Resources shape public responses; policies enforce authorization. Add Services/Actions only when business logic becomes complex, Jobs only for genuine background work, and Events/Listeners for meaningful domain side effects. Feature tests cover HTTP behavior; unit tests cover isolated logic. Successful responses should use normal Laravel JSON and validation should retain Laravel's standard API validation format unless a later documented need requires otherwise.
 
 ## Data, time, and storage
