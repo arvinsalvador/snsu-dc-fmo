@@ -36,6 +36,7 @@ return [
         'work_orders.screen', 'work_orders.request_information', 'work_orders.recommend', 'work_orders.approve', 'work_orders.disapprove', 'work_orders.return_to_screening', 'work_orders.resubmit_own', 'work_orders.create_direct',
         'work_orders.assign', 'work_orders.reassign', 'work_orders.remove_assignee', 'work_orders.assign_direct', 'work_orders.view_assigned',
         'work_orders.assess_assigned', 'work_orders.view_assessments', 'work_orders.resolve_assessment', 'work_orders.cancel', 'work_orders.mark_beyond_scope', 'work_orders.refer_external',
+        'work_orders.start_assigned', 'work_orders.update_assigned', 'work_orders.end_session', 'work_orders.submit_completion', 'work_orders.view_execution', 'work_orders.verify_completion', 'work_orders.return_for_work', 'work_orders.manage_sessions',
         'work_order_categories.view', 'work_order_categories.create', 'work_order_categories.update', 'work_order_categories.manage_status', 'work_order_categories.delete',
     ],
     'delegable_permissions' => [
@@ -56,6 +57,7 @@ return [
         'work_orders.screen', 'work_orders.request_information', 'work_orders.recommend', 'work_orders.approve', 'work_orders.disapprove', 'work_orders.return_to_screening',
         'work_orders.assign', 'work_orders.reassign', 'work_orders.remove_assignee',
         'work_orders.resolve_assessment', 'work_orders.cancel', 'work_orders.mark_beyond_scope', 'work_orders.refer_external',
+        'work_orders.view_execution', 'work_orders.verify_completion', 'work_orders.return_for_work', 'work_orders.manage_sessions',
     ],
     'core_roles' => [
         'Requester', 'FMO Staff', 'FMO Dispatcher', 'FMO Head',

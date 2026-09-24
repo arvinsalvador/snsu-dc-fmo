@@ -25,6 +25,7 @@
                     @if(auth()->user()->can('work_orders.assign') || auth()->user()->can('work_orders.assign_direct'))<a href="{{ route('work-orders.assignment-queue') }}">For Assignment</a>@endif
                     @can('work_orders.view_assigned')<a href="{{ route('work-orders.my-tasks') }}">My Tasks</a>@endcan
                     @can('work_orders.view_assessments')<a href="{{ route('work-orders.assessment-queue') }}">Assessment Review</a>@endcan
+                    @can('work_orders.view_execution')<a href="{{ route('work-orders.execution-queue', 'active') }}">Active Work</a><a href="{{ route('work-orders.execution-queue', 'verification') }}">For Verification</a>@endcan
                     @can('work_order_categories.view')<a href="{{ route('work-order-categories.index') }}">Work Categories</a>@endcan
                     @can('users.view_pending_registrations')<a href="{{ route('registrations.index') }}">Registrations</a>@endcan
                     @can('users.view')<a href="{{ route('users.index') }}">Users</a>@endcan

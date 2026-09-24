@@ -79,7 +79,7 @@ class WorkOrderController extends Controller
     {
         $this->authorizeWorkOrder($request, $workOrder);
 
-        return view('work-orders.show', ['order' => $workOrder->load('requester', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'assessments.attachments'), 'assignablePersonnel' => FmoPersonnel::with('user', 'skills')->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->filter->isAssignable()]);
+        return view('work-orders.show', ['order' => $workOrder->load('requester', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'assessments.attachments', 'sessions.personnel.user', 'sessions.updates.attachments', 'updates.personnel.user'), 'assignablePersonnel' => FmoPersonnel::with('user', 'skills')->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->filter->isAssignable()]);
     }
 
     public function edit(Request $request, WorkOrder $workOrder)
@@ -109,6 +109,7 @@ class WorkOrderController extends Controller
         $this->authorizeWorkOrder($request, $workOrder);
         abort_unless($attachment->work_order_id === $workOrder->id, 404);
         abort_if($attachment->purpose === 'ASSESSMENT' && ! ($request->user()->can('work_orders.view_assessments') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user())), 403);
+        abort_if($attachment->purpose === 'EXECUTION' && ! ($request->user()->can('work_orders.view_execution') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user()) || ($workOrder->requester_id === $request->user()->id && $attachment->requester_visible)), 403);
 
         return Storage::disk('local')->download($attachment->stored_path, $attachment->original_filename);
     }
@@ -122,6 +123,7 @@ class WorkOrderController extends Controller
     {
         return $workOrder->requester_id === $request->user()->id
             || $request->user()->can('work_orders.view_all')
+            || $request->user()->can('work_orders.view_execution')
             || ($request->user()->can('work_orders.view_assigned') && app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user()))
             || (app(WorkOrderAssignmentService::class)->mayManage($workOrder, $request->user()) && in_array($workOrder->status, [WorkOrderStatus::Approved, WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview, WorkOrderStatus::ReadyForWork], true))
             || ($request->user()->can('work_orders.screen') && in_array($workOrder->status, [WorkOrderStatus::Submitted, WorkOrderStatus::ForScreening, WorkOrderStatus::NeedsInformation, WorkOrderStatus::ForApproval], true))

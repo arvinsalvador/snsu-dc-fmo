@@ -55,3 +55,9 @@ Phase 3 adds personnel, skills, and requester-profile permissions. FMO Head rece
 ## Location permissions
 
 Phase 4 adds campus, building, and subordinate-location permission groups. All approved operational roles receive safe read access. FMO Head and System Administrator receive location management permissions. The FMO Head may delegate building and location view/create/update/status capabilities; campus administration and delete permissions remain protected.
+
+## Phase 9 execution permissions
+
+`work_orders.start_assigned`, `update_assigned`, `end_session`, and `submit_completion` belong to FMO Staff by default and still require an active assignment to the specific order. `work_orders.view_execution` belongs to FMO Head, Dispatcher, Campus Director, Director for Instruction, FMO Oversight, and System Administrator. FMO Head and System Administrator additionally have `verify_completion`, `return_for_work`, and `manage_sessions`. Dispatcher and oversight roles cannot verify by default. `verify_completion`, `return_for_work`, `manage_sessions`, and `view_execution` can be delegated by the FMO Head through the restricted approval path; all catalog permissions remain under System Administrator control. Campus Director verification is permission-based, not role-name hard-coded.
+
+Requesters see only their own safe progress summaries; private technical updates/evidence require an active assignment or execution-view permission. A completed Work Order cannot be modified by ordinary staff. See [Work Order execution](WORK_ORDER_EXECUTION.md) for state and API rules.

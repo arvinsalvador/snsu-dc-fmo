@@ -37,6 +37,6 @@ Authenticated, approved API endpoints are under `/api/v1`:
 
 The work-order collection is permission-scoped to the requester unless the caller has `work_orders.view_all`.
 
-## Deferred workflow
+## Workflow after submission
 
-See [Work Order Workflow](WORK_ORDER_WORKFLOW.md) for Phase 6 statuses, permissions, history, and action rules. Assignment, assessment, execution, staff evidence, completion, materials, inventory, and offline synchronization remain future work.
+See [Work Order Workflow](WORK_ORDER_WORKFLOW.md) for Phase 6 screening and approval, [Assignment and Assessment](ASSIGNMENT_ASSESSMENT.md) for Phases 7–8, and [Work Order Execution](WORK_ORDER_EXECUTION.md) for Phase 9 work sessions, evidence, and verification. Inventory and mobile offline synchronization remain future work.

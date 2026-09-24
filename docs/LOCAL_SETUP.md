@@ -26,6 +26,8 @@ The Phase 2 seeder is repeatable and creates only roles and permissions. The int
 
 After updating the project for Phases 7–8, run `./vendor/bin/sail artisan migrate` and repeat `./vendor/bin/sail artisan db:seed --class=AuthorizationSeeder` to add assignment/assessment tables and permissions. Existing orders are not reassigned automatically. See [assignment and assessment](ASSIGNMENT_ASSESSMENT.md).
 
+After updating for Phase 9, repeat those migration and permission-seeder commands to add execution tables and permission mappings. Existing Work Orders and assignment history are preserved. Execution evidence defaults can be adjusted through the `WORK_ORDER_REQUIRE_*` values shown in `.env.example`.
+
 Open `http://localhost` for the Laravel application and check `http://localhost/api/v1/health` for `{"status":"ok"}`. Stop the environment with:
 
 ```bash

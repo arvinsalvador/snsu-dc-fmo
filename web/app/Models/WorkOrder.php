@@ -12,11 +12,11 @@ class WorkOrder extends Model
 {
     use HasUlids;
 
-    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'subject', 'description', 'urgency', 'preferred_fmo_personnel_id', 'status', 'submitted_at', 'recommendation', 'decided_by', 'decided_at', 'information_context'];
+    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'subject', 'description', 'urgency', 'preferred_fmo_personnel_id', 'status', 'submitted_at', 'recommendation', 'decided_by', 'decided_at', 'information_context', 'completion_summary', 'work_performed_summary', 'non_photo_reason', 'completion_submitted_by', 'completion_submitted_at', 'verified_by', 'verified_at', 'verification_note', 'execution_cycle'];
 
     protected function casts(): array
     {
-        return ['status' => WorkOrderStatus::class, 'submitted_at' => 'datetime', 'decided_at' => 'datetime'];
+        return ['status' => WorkOrderStatus::class, 'submitted_at' => 'datetime', 'decided_at' => 'datetime', 'completion_submitted_at' => 'datetime', 'verified_at' => 'datetime'];
     }
 
     public function requester(): BelongsTo
@@ -82,5 +82,20 @@ class WorkOrder extends Model
     public function assessments(): HasMany
     {
         return $this->hasMany(WorkOrderAssessment::class)->orderBy('assessed_at');
+    }
+
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(WorkSession::class)->orderBy('started_at');
+    }
+
+    public function activeSessions(): HasMany
+    {
+        return $this->hasMany(WorkSession::class)->whereNull('ended_at');
+    }
+
+    public function updates(): HasMany
+    {
+        return $this->hasMany(WorkUpdate::class);
     }
 }

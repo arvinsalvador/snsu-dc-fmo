@@ -29,7 +29,7 @@
 </div>
 <h2 class="mt-6 text-lg font-semibold">Initial attachments</h2>
 <ul class="mt-2 list-inside list-disc">
-    @forelse ($order->attachments->where('purpose', '!=', 'ASSESSMENT') as $attachment)
+    @forelse ($order->attachments->where('purpose', 'REQUEST_INITIAL') as $attachment)
         <li><a class="text-blue-700 underline" href="{{ route('work-orders.attachments.show', [$order, $attachment]) }}">{{ $attachment->original_filename }}</a></li>
     @empty
         <li>No attachments</li>
@@ -46,14 +46,14 @@
         @endif
     @endforeach
 </ol>
-@if (in_array($order->status, [\App\Enums\WorkOrderStatus::Assigned, \App\Enums\WorkOrderStatus::ForAssessment, \App\Enums\WorkOrderStatus::AssessmentReview, \App\Enums\WorkOrderStatus::ReadyForWork]))
+@if (in_array($order->status, [\App\Enums\WorkOrderStatus::Assigned, \App\Enums\WorkOrderStatus::ForAssessment, \App\Enums\WorkOrderStatus::AssessmentReview, \App\Enums\WorkOrderStatus::ReadyForWork, \App\Enums\WorkOrderStatus::InProgress, \App\Enums\WorkOrderStatus::ForContinuation, \App\Enums\WorkOrderStatus::Paused, \App\Enums\WorkOrderStatus::WaitingForMaterials, \App\Enums\WorkOrderStatus::NeedsInvestigation, \App\Enums\WorkOrderStatus::ForVerification, \App\Enums\WorkOrderStatus::Completed]))
     <section class="mt-6 rounded border bg-white p-5"><h2 class="text-lg font-semibold">Assigned FMO personnel</h2>
         <ul class="mt-2 list-disc pl-5">@forelse ($order->activeAssignments as $assignment)<li>{{ $assignment->personnel->user->name }} — {{ $assignment->personnel->designation }}
             @if ($canAssign && auth()->user()->can('work_orders.remove_assignee') && $order->status !== \App\Enums\WorkOrderStatus::ReadyForWork)<form method="POST" action="{{ route('work-orders.assignments.destroy', [$order, $assignment]) }}" class="inline">@csrf @method('DELETE')<input name="reason" required placeholder="Removal reason" class="rounded border p-1"><button class="text-red-700">Remove</button></form>@endif
         </li>@empty<li>None</li>@endforelse</ul>
     </section>
 @endif
-@if ($canAssign && in_array($order->status, [\App\Enums\WorkOrderStatus::Approved, \App\Enums\WorkOrderStatus::Assigned, \App\Enums\WorkOrderStatus::ForAssessment, \App\Enums\WorkOrderStatus::AssessmentReview]))
+@if ($canAssign && in_array($order->status, [\App\Enums\WorkOrderStatus::Approved, \App\Enums\WorkOrderStatus::Assigned, \App\Enums\WorkOrderStatus::ForAssessment, \App\Enums\WorkOrderStatus::AssessmentReview, \App\Enums\WorkOrderStatus::ReadyForWork, \App\Enums\WorkOrderStatus::InProgress, \App\Enums\WorkOrderStatus::ForContinuation, \App\Enums\WorkOrderStatus::Paused, \App\Enums\WorkOrderStatus::WaitingForMaterials, \App\Enums\WorkOrderStatus::NeedsInvestigation]))
     <section class="mt-6 rounded border bg-white p-5"><h2 class="text-lg font-semibold">Assign personnel</h2><p class="text-sm">Preferred personnel is advisory. Select active personnel; assess skills and current workload before assigning.</p>
         <form method="POST" action="{{ route('work-orders.assignments.store', $order) }}" class="mt-3 space-y-3">@csrf
             <select name="personnel_ids[]" multiple required class="w-full rounded border p-2">@foreach ($assignablePersonnel as $person)<option value="{{ $person->id }}">{{ $person->user->name }} — {{ $person->designation }} — {{ $person->skills->pluck('name')->join(', ') }} ({{ $person->workOrderAssignments()->whereNull('unassigned_at')->count() }} active)</option>@endforeach</select>
@@ -88,6 +88,7 @@
         @endif
     @endforeach</section>
 @endif
+@include('work-orders.execution')
 @if ($management)
     <section class="mt-7 rounded border bg-white p-5"><h2 class="text-lg font-semibold">Management actions</h2><div class="mt-4 grid gap-4 md:grid-cols-2">
         @if ($order->status === \App\Enums\WorkOrderStatus::Submitted)
