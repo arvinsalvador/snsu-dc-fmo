@@ -12,7 +12,7 @@ class WorkOrder extends Model
 {
     use HasUlids;
 
-    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'subject', 'description', 'urgency', 'preferred_fmo_personnel_id', 'status', 'submitted_at', 'recommendation', 'decided_by', 'decided_at'];
+    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'subject', 'description', 'urgency', 'preferred_fmo_personnel_id', 'status', 'submitted_at', 'recommendation', 'decided_by', 'decided_at', 'information_context'];
 
     protected function casts(): array
     {
@@ -67,5 +67,20 @@ class WorkOrder extends Model
     public function decisionMaker(): BelongsTo
     {
         return $this->belongsTo(User::class, 'decided_by');
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(WorkOrderAssignment::class);
+    }
+
+    public function activeAssignments(): HasMany
+    {
+        return $this->assignments()->whereNull('unassigned_at');
+    }
+
+    public function assessments(): HasMany
+    {
+        return $this->hasMany(WorkOrderAssessment::class)->orderBy('assessed_at');
     }
 }

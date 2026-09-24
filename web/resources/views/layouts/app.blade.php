@@ -22,6 +22,9 @@
                     @can('work_orders.view_all')<a href="{{ route('work-orders.index') }}">All Work Orders</a>@endcan
                     @can('work_orders.screen')<a href="{{ route('work-orders.queue', 'screening') }}">For Screening</a>@endcan
                     @can('work_orders.approve')<a href="{{ route('work-orders.queue', 'approval') }}">For Approval</a>@endcan
+                    @if(auth()->user()->can('work_orders.assign') || auth()->user()->can('work_orders.assign_direct'))<a href="{{ route('work-orders.assignment-queue') }}">For Assignment</a>@endif
+                    @can('work_orders.view_assigned')<a href="{{ route('work-orders.my-tasks') }}">My Tasks</a>@endcan
+                    @can('work_orders.view_assessments')<a href="{{ route('work-orders.assessment-queue') }}">Assessment Review</a>@endcan
                     @can('work_order_categories.view')<a href="{{ route('work-order-categories.index') }}">Work Categories</a>@endcan
                     @can('users.view_pending_registrations')<a href="{{ route('registrations.index') }}">Registrations</a>@endcan
                     @can('users.view')<a href="{{ route('users.index') }}">Users</a>@endcan

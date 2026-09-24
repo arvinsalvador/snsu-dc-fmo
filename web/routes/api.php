@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\PersonnelController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\WorkOrderAssessmentController;
+use App\Http\Controllers\Api\WorkOrderAssignmentController;
 use App\Http\Controllers\Api\WorkOrderCategoryController;
 use App\Http\Controllers\Api\WorkOrderController;
 use App\Http\Controllers\Api\WorkOrderWorkflowController;
@@ -24,10 +26,17 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/buildings', [LocationController::class, 'buildings']);
         Route::get('/locations', [LocationController::class, 'locations']);
         Route::get('/work-orders', [WorkOrderController::class, 'index']);
+        Route::get('/work-orders/assigned', [WorkOrderController::class, 'assigned']);
         Route::get('/work-order-categories', [WorkOrderCategoryController::class, 'index']);
         Route::post('/work-orders', [WorkOrderController::class, 'store']);
         Route::post('/work-orders/direct', [WorkOrderController::class, 'storeDirect']);
         Route::post('/work-orders/{workOrder}/workflow/{action}', [WorkOrderWorkflowController::class, 'action']);
+        Route::post('/work-orders/{workOrder}/assignments', [WorkOrderAssignmentController::class, 'store']);
+        Route::delete('/work-orders/{workOrder}/assignments/{assignment}', [WorkOrderAssignmentController::class, 'destroy']);
+        Route::get('/work-orders/{workOrder}/assessments', [WorkOrderAssessmentController::class, 'index']);
+        Route::post('/work-orders/{workOrder}/assessment/acknowledge', [WorkOrderAssessmentController::class, 'acknowledge']);
+        Route::post('/work-orders/{workOrder}/assessments', [WorkOrderAssessmentController::class, 'store']);
+        Route::post('/work-orders/{workOrder}/assessment/resolve/{decision}', [WorkOrderAssessmentController::class, 'resolve']);
         Route::get('/work-orders/{workOrder}', [WorkOrderController::class, 'show']);
         Route::patch('/work-orders/{workOrder}', [WorkOrderController::class, 'update']);
         Route::get('/work-orders/{workOrder}/attachments/{attachment}', [WorkOrderController::class, 'attachment']);

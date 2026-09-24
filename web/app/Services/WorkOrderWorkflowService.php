@@ -10,6 +10,23 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class WorkOrderWorkflowService
 {
+    private const OPERATIONAL = [
+        'ASSIGNED' => ['from' => [WorkOrderStatus::Approved], 'to' => WorkOrderStatus::Assigned],
+        'ASSIGNEE_ADDED' => ['from' => [WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview], 'to' => null],
+        'ASSIGNEE_REMOVED' => ['from' => [WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview], 'to' => null],
+        'UNASSIGNED' => ['from' => [WorkOrderStatus::Assigned], 'to' => WorkOrderStatus::Approved],
+        'ASSESSMENT_ACKNOWLEDGED' => ['from' => [WorkOrderStatus::Assigned], 'to' => WorkOrderStatus::ForAssessment],
+        'ASSESSMENT_READY' => ['from' => [WorkOrderStatus::ForAssessment, WorkOrderStatus::ReadyForWork], 'to' => WorkOrderStatus::ReadyForWork],
+        'ASSESSMENT_EXCEPTION' => ['from' => [WorkOrderStatus::ForAssessment, WorkOrderStatus::ReadyForWork], 'to' => WorkOrderStatus::AssessmentReview],
+        'ASSESSMENT_PROCEED' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => WorkOrderStatus::ReadyForWork],
+        'ASSESSMENT_INVESTIGATE' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => WorkOrderStatus::ForAssessment],
+        'ASSESSMENT_REQUEST_INFORMATION' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => WorkOrderStatus::NeedsInformation],
+        'ASSESSMENT_HOLD_MATERIALS' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => null],
+        'ASSESSMENT_REFER_EXTERNAL' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => null],
+        'ASSESSMENT_BEYOND_SCOPE' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => null],
+        'ASSESSMENT_CANCELLED' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => WorkOrderStatus::Cancelled],
+    ];
+
     private const ACTIONS = [
         'begin-screening' => ['permission' => 'work_orders.screen', 'from' => WorkOrderStatus::Submitted, 'to' => WorkOrderStatus::ForScreening],
         'request-information' => ['permission' => 'work_orders.request_information', 'from' => WorkOrderStatus::ForScreening, 'to' => WorkOrderStatus::NeedsInformation],
@@ -45,7 +62,10 @@ class WorkOrderWorkflowService
             }
 
             $old = $locked->status;
-            $locked->status = $rule['to'];
+            $locked->status = $action === 'resubmit' && $locked->information_context === 'ASSESSMENT' ? WorkOrderStatus::ForAssessment : $rule['to'];
+            if ($action === 'resubmit') {
+                $locked->information_context = null;
+            }
             if (str_starts_with($action, 'recommend-')) {
                 $locked->recommendation = $action === 'recommend-approval' ? 'APPROVE' : 'DISAPPROVE';
             } elseif ($action === 'return-to-screening') {
@@ -84,5 +104,31 @@ class WorkOrderWorkflowService
         if ($action === 'resubmit') {
             abort_unless($order->requester_id === $actor->id, 403);
         }
+    }
+
+    /** Call inside a transaction after locking the Work Order and authorizing the actor. */
+    public function recordOperational(WorkOrder $order, User $actor, string $action, ?string $internalNote = null, ?string $requesterMessage = null): WorkOrder
+    {
+        $rule = self::OPERATIONAL[$action] ?? null;
+        abort_unless($rule, 404);
+        if (! in_array($order->status, $rule['from'], true)) {
+            throw new ConflictHttpException('This Work Order has already changed status. Please refresh and review the latest state.');
+        }
+        $previous = $order->status;
+        if ($rule['to']) {
+            $order->status = $rule['to'];
+            $order->save();
+        }
+        $order->workflowEvents()->create([
+            'actor_id' => $actor->id,
+            'action' => $action,
+            'from_status' => $previous->value,
+            'to_status' => $order->status->value,
+            'internal_note' => $internalNote,
+            'requester_message' => $requesterMessage,
+            'created_at' => now(),
+        ]);
+
+        return $order;
     }
 }
