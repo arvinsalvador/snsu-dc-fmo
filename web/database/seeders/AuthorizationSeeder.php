@@ -58,15 +58,21 @@ class AuthorizationSeeder extends Seeder
             'locations.view', 'locations.create', 'locations.update', 'locations.manage_status', 'locations.delete',
             'work_orders.create', 'work_orders.view_all', 'work_orders.update_own_submitted', 'work_orders.resubmit_own', 'work_order_categories.view', 'work_order_categories.create', 'work_order_categories.update', 'work_order_categories.manage_status', 'work_order_categories.delete',
             'work_orders.screen', 'work_orders.request_information', 'work_orders.recommend', 'work_orders.approve', 'work_orders.disapprove', 'work_orders.return_to_screening',
+            'work_orders.assign', 'work_orders.reassign', 'work_orders.remove_assignee',
+            'work_orders.view_assessments', 'work_orders.resolve_assessment', 'work_orders.cancel', 'work_orders.mark_beyond_scope', 'work_orders.refer_external',
         ]);
         foreach (['Requester', 'FMO Staff'] as $role) {
             Role::findByName($role, 'web')->givePermissionTo(['work_orders.create', 'work_orders.view_own', 'work_orders.update_own_submitted', 'work_orders.resubmit_own', 'work_order_categories.view']);
         }
+        Role::findByName('FMO Staff', 'web')->givePermissionTo(['work_orders.view_assigned', 'work_orders.assess_assigned']);
         foreach (['Campus Director', 'Director for Instruction', 'FMO Dispatcher', 'FMO Oversight'] as $role) {
             Role::findByName($role, 'web')->givePermissionTo(['work_orders.create', 'work_orders.view_all', 'work_orders.update_own_submitted', 'work_orders.resubmit_own', 'work_order_categories.view']);
         }
-        Role::findByName('FMO Dispatcher', 'web')->givePermissionTo(['work_orders.screen', 'work_orders.request_information', 'work_orders.recommend']);
-        Role::findByName('Campus Director', 'web')->givePermissionTo(['work_orders.create_direct']);
+        Role::findByName('FMO Dispatcher', 'web')->givePermissionTo(['work_orders.screen', 'work_orders.request_information', 'work_orders.recommend', 'work_orders.assign', 'work_orders.reassign', 'work_orders.remove_assignee', 'work_orders.view_assessments']);
+        Role::findByName('Campus Director', 'web')->givePermissionTo(['work_orders.create_direct', 'work_orders.assign_direct', 'work_orders.view_assessments']);
+        foreach (['Director for Instruction', 'FMO Oversight'] as $role) {
+            Role::findByName($role, 'web')->givePermissionTo(['work_orders.view_assessments']);
+        }
         Role::findByName('System Administrator', 'web')->givePermissionTo(config('authorization.permissions'));
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

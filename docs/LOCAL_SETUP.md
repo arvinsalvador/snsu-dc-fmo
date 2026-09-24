@@ -24,6 +24,8 @@ The provided example uses the Docker service hostname `mysql`, database `snsu_dc
 
 The Phase 2 seeder is repeatable and creates only roles and permissions. The interactive administrator command creates the first real account from information you provide; it has no default credentials. See [authorization](AUTHORIZATION.md) for the account workflow and API contract.
 
+After updating the project for Phases 7–8, run `./vendor/bin/sail artisan migrate` and repeat `./vendor/bin/sail artisan db:seed --class=AuthorizationSeeder` to add assignment/assessment tables and permissions. Existing orders are not reassigned automatically. See [assignment and assessment](ASSIGNMENT_ASSESSMENT.md).
+
 Open `http://localhost` for the Laravel application and check `http://localhost/api/v1/health` for `{"status":"ok"}`. Stop the environment with:
 
 ```bash
