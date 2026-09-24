@@ -35,7 +35,7 @@ class WorkOrderAssignmentService
     {
         return DB::transaction(function () use ($order, $actor, $personnelIds, $note): WorkOrder {
             $locked = WorkOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
-            if (! in_array($locked->status, [WorkOrderStatus::Approved, WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview], true)) {
+            if (! in_array($locked->status, [WorkOrderStatus::Approved, WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview, WorkOrderStatus::ReadyForWork, WorkOrderStatus::InProgress, WorkOrderStatus::ForContinuation, WorkOrderStatus::Paused, WorkOrderStatus::WaitingForMaterials, WorkOrderStatus::NeedsInvestigation], true)) {
                 throw new ConflictHttpException('This Work Order is not available for assignment. Refresh its current status.');
             }
             abort_unless($this->mayManage($locked, $actor, $locked->status !== WorkOrderStatus::Approved), 403);
@@ -66,15 +66,18 @@ class WorkOrderAssignmentService
             $locked = WorkOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
             abort_unless($assignment->work_order_id === $locked->id, 404);
             abort_unless($actor->can('work_orders.remove_assignee') || $this->mayManage($locked, $actor, true), 403);
-            if (! in_array($locked->status, [WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview], true)) {
+            if (! in_array($locked->status, [WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview, WorkOrderStatus::ReadyForWork, WorkOrderStatus::InProgress, WorkOrderStatus::ForContinuation, WorkOrderStatus::Paused, WorkOrderStatus::WaitingForMaterials, WorkOrderStatus::NeedsInvestigation], true)) {
                 throw new ConflictHttpException('Assignments cannot be changed in this Work Order state.');
             }
             $active = $locked->activeAssignments()->whereKey($assignment->id)->lockForUpdate()->first();
             if (! $active) {
                 throw new ConflictHttpException('This assignment has already changed. Refresh the assignment list.');
             }
+            if ($locked->activeSessions()->where('fmo_personnel_id', $active->fmo_personnel_id)->exists()) {
+                throw ValidationException::withMessages(['assignment' => 'End or administratively resolve this person’s active work session before removing the assignment.']);
+            }
             if ($locked->status !== WorkOrderStatus::Assigned && $locked->activeAssignments()->count() === 1) {
-                throw ValidationException::withMessages(['assignment' => 'At least one assignee must remain during assessment.']);
+                throw ValidationException::withMessages(['assignment' => 'At least one assignee must remain during assessment or execution.']);
             }
             $active->update(['active_marker' => null, 'unassigned_at' => now(), 'unassigned_by_user_id' => $actor->id, 'unassignment_reason' => $reason]);
             $this->workflow->recordOperational($locked, $actor, 'ASSIGNEE_REMOVED', "Removed {$active->personnel->user->name}. Reason: {$reason}");

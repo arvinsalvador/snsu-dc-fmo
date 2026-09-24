@@ -13,6 +13,7 @@ use App\Http\Controllers\WorkOrders\WorkOrderAssessmentController;
 use App\Http\Controllers\WorkOrders\WorkOrderAssignmentController;
 use App\Http\Controllers\WorkOrders\WorkOrderCategoryController;
 use App\Http\Controllers\WorkOrders\WorkOrderController;
+use App\Http\Controllers\WorkOrders\WorkOrderExecutionController;
 use App\Http\Controllers\WorkOrders\WorkOrderWorkflowController;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +40,15 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/work-orders/assignment-queue', [WorkOrderAssignmentController::class, 'queue'])->name('work-orders.assignment-queue');
         Route::get('/work-orders/my-tasks', [WorkOrderAssignmentController::class, 'mine'])->name('work-orders.my-tasks');
         Route::get('/work-orders/assessment-review', [WorkOrderAssessmentController::class, 'queue'])->name('work-orders.assessment-queue');
+        Route::get('/work-orders/execution/{queue}', [WorkOrderExecutionController::class, 'queue'])->name('work-orders.execution-queue');
+        Route::post('/work-orders/{workOrder}/start-work', [WorkOrderExecutionController::class, 'start'])->name('work-orders.start-work');
+        Route::post('/work-orders/{workOrder}/sessions/{session}/updates', [WorkOrderExecutionController::class, 'update'])->name('work-orders.execution.update');
+        Route::post('/work-orders/{workOrder}/sessions/{session}/end', [WorkOrderExecutionController::class, 'end'])->name('work-orders.execution.end');
+        Route::post('/work-orders/{workOrder}/sessions/{session}/force-end', [WorkOrderExecutionController::class, 'forceEnd'])->name('work-orders.execution.force-end');
+        Route::post('/work-orders/{workOrder}/submit-for-verification', [WorkOrderExecutionController::class, 'submit'])->name('work-orders.submit-verification');
+        Route::post('/work-orders/{workOrder}/verify', [WorkOrderExecutionController::class, 'verify'])->name('work-orders.verify');
+        Route::post('/work-orders/{workOrder}/return-for-work', [WorkOrderExecutionController::class, 'returnForWork'])->name('work-orders.return-for-work');
+        Route::post('/work-orders/{workOrder}/release-investigation', [WorkOrderExecutionController::class, 'releaseInvestigation'])->name('work-orders.release-investigation');
         Route::post('/work-orders/{workOrder}/assessment/acknowledge', [WorkOrderAssessmentController::class, 'acknowledge'])->name('work-orders.assessment.acknowledge');
         Route::post('/work-orders/{workOrder}/assessments', [WorkOrderAssessmentController::class, 'store'])->name('work-orders.assessments.store');
         Route::post('/work-orders/{workOrder}/assessment/resolve/{decision}', [WorkOrderAssessmentController::class, 'resolve'])->name('work-orders.assessment.resolve');

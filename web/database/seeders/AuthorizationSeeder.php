@@ -60,15 +60,20 @@ class AuthorizationSeeder extends Seeder
             'work_orders.screen', 'work_orders.request_information', 'work_orders.recommend', 'work_orders.approve', 'work_orders.disapprove', 'work_orders.return_to_screening',
             'work_orders.assign', 'work_orders.reassign', 'work_orders.remove_assignee',
             'work_orders.view_assessments', 'work_orders.resolve_assessment', 'work_orders.cancel', 'work_orders.mark_beyond_scope', 'work_orders.refer_external',
+            'work_orders.view_execution', 'work_orders.verify_completion', 'work_orders.return_for_work', 'work_orders.manage_sessions',
         ]);
         foreach (['Requester', 'FMO Staff'] as $role) {
             Role::findByName($role, 'web')->givePermissionTo(['work_orders.create', 'work_orders.view_own', 'work_orders.update_own_submitted', 'work_orders.resubmit_own', 'work_order_categories.view']);
         }
         Role::findByName('FMO Staff', 'web')->givePermissionTo(['work_orders.view_assigned', 'work_orders.assess_assigned']);
+        Role::findByName('FMO Staff', 'web')->givePermissionTo(['work_orders.start_assigned', 'work_orders.update_assigned', 'work_orders.end_session', 'work_orders.submit_completion']);
         foreach (['Campus Director', 'Director for Instruction', 'FMO Dispatcher', 'FMO Oversight'] as $role) {
             Role::findByName($role, 'web')->givePermissionTo(['work_orders.create', 'work_orders.view_all', 'work_orders.update_own_submitted', 'work_orders.resubmit_own', 'work_order_categories.view']);
         }
         Role::findByName('FMO Dispatcher', 'web')->givePermissionTo(['work_orders.screen', 'work_orders.request_information', 'work_orders.recommend', 'work_orders.assign', 'work_orders.reassign', 'work_orders.remove_assignee', 'work_orders.view_assessments']);
+        foreach (['FMO Dispatcher', 'Campus Director', 'Director for Instruction', 'FMO Oversight'] as $role) {
+            Role::findByName($role, 'web')->givePermissionTo(['work_orders.view_execution']);
+        }
         Role::findByName('Campus Director', 'web')->givePermissionTo(['work_orders.create_direct', 'work_orders.assign_direct', 'work_orders.view_assessments']);
         foreach (['Director for Instruction', 'FMO Oversight'] as $role) {
             Role::findByName($role, 'web')->givePermissionTo(['work_orders.view_assessments']);

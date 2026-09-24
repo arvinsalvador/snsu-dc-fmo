@@ -14,5 +14,12 @@ enum WorkOrderStatus: string
     case ForAssessment = 'FOR_ASSESSMENT';
     case AssessmentReview = 'ASSESSMENT_REVIEW';
     case ReadyForWork = 'READY_FOR_WORK';
+    case InProgress = 'IN_PROGRESS';
+    case ForContinuation = 'FOR_CONTINUATION';
+    case Paused = 'PAUSED';
+    case WaitingForMaterials = 'WAITING_FOR_MATERIALS';
+    case NeedsInvestigation = 'NEEDS_INVESTIGATION';
+    case ForVerification = 'FOR_VERIFICATION';
+    case Completed = 'COMPLETED';
     case Cancelled = 'CANCELLED';
 }

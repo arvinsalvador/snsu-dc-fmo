@@ -12,8 +12,8 @@ class WorkOrderWorkflowService
 {
     private const OPERATIONAL = [
         'ASSIGNED' => ['from' => [WorkOrderStatus::Approved], 'to' => WorkOrderStatus::Assigned],
-        'ASSIGNEE_ADDED' => ['from' => [WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview], 'to' => null],
-        'ASSIGNEE_REMOVED' => ['from' => [WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview], 'to' => null],
+        'ASSIGNEE_ADDED' => ['from' => [WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview, WorkOrderStatus::ReadyForWork, WorkOrderStatus::InProgress, WorkOrderStatus::ForContinuation, WorkOrderStatus::Paused, WorkOrderStatus::WaitingForMaterials, WorkOrderStatus::NeedsInvestigation], 'to' => null],
+        'ASSIGNEE_REMOVED' => ['from' => [WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview, WorkOrderStatus::ReadyForWork, WorkOrderStatus::InProgress, WorkOrderStatus::ForContinuation, WorkOrderStatus::Paused, WorkOrderStatus::WaitingForMaterials, WorkOrderStatus::NeedsInvestigation], 'to' => null],
         'UNASSIGNED' => ['from' => [WorkOrderStatus::Assigned], 'to' => WorkOrderStatus::Approved],
         'ASSESSMENT_ACKNOWLEDGED' => ['from' => [WorkOrderStatus::Assigned], 'to' => WorkOrderStatus::ForAssessment],
         'ASSESSMENT_READY' => ['from' => [WorkOrderStatus::ForAssessment, WorkOrderStatus::ReadyForWork], 'to' => WorkOrderStatus::ReadyForWork],
@@ -25,6 +25,19 @@ class WorkOrderWorkflowService
         'ASSESSMENT_REFER_EXTERNAL' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => null],
         'ASSESSMENT_BEYOND_SCOPE' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => null],
         'ASSESSMENT_CANCELLED' => ['from' => [WorkOrderStatus::AssessmentReview], 'to' => WorkOrderStatus::Cancelled],
+        'WORK_STARTED' => ['from' => [WorkOrderStatus::ReadyForWork, WorkOrderStatus::ForContinuation, WorkOrderStatus::Paused, WorkOrderStatus::WaitingForMaterials], 'to' => WorkOrderStatus::InProgress],
+        'TEAM_WORK_STARTED' => ['from' => [WorkOrderStatus::InProgress], 'to' => null],
+        'WORK_UPDATE' => ['from' => [WorkOrderStatus::InProgress], 'to' => null],
+        'SESSION_ENDED' => ['from' => [WorkOrderStatus::InProgress, WorkOrderStatus::NeedsInvestigation], 'to' => null],
+        'SESSION_FORCE_ENDED' => ['from' => [WorkOrderStatus::InProgress, WorkOrderStatus::NeedsInvestigation], 'to' => null],
+        'WORK_CONTINUATION' => ['from' => [WorkOrderStatus::InProgress], 'to' => WorkOrderStatus::ForContinuation],
+        'WORK_PAUSED' => ['from' => [WorkOrderStatus::InProgress], 'to' => WorkOrderStatus::Paused],
+        'WORK_WAITING_MATERIALS' => ['from' => [WorkOrderStatus::InProgress], 'to' => WorkOrderStatus::WaitingForMaterials],
+        'WORK_NEEDS_INVESTIGATION' => ['from' => [WorkOrderStatus::InProgress], 'to' => WorkOrderStatus::NeedsInvestigation],
+        'INVESTIGATION_RELEASED' => ['from' => [WorkOrderStatus::NeedsInvestigation], 'to' => WorkOrderStatus::ReadyForWork],
+        'COMPLETION_SUBMITTED' => ['from' => [WorkOrderStatus::InProgress, WorkOrderStatus::ForContinuation], 'to' => WorkOrderStatus::ForVerification],
+        'COMPLETION_VERIFIED' => ['from' => [WorkOrderStatus::ForVerification], 'to' => WorkOrderStatus::Completed],
+        'COMPLETION_RETURNED' => ['from' => [WorkOrderStatus::ForVerification], 'to' => WorkOrderStatus::ForContinuation],
     ];
 
     private const ACTIONS = [

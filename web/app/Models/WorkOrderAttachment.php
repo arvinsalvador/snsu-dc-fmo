@@ -10,7 +10,12 @@ class WorkOrderAttachment extends Model
 {
     use HasUlids;
 
-    protected $fillable = ['work_order_id', 'work_order_assessment_id', 'uploaded_by', 'purpose', 'original_filename', 'stored_path', 'mime_type', 'file_size', 'caption'];
+    protected $fillable = ['work_order_id', 'work_order_assessment_id', 'work_session_id', 'work_update_id', 'evidence_type', 'requester_visible', 'uploaded_by', 'purpose', 'original_filename', 'stored_path', 'mime_type', 'file_size', 'caption'];
+
+    protected function casts(): array
+    {
+        return ['requester_visible' => 'boolean'];
+    }
 
     public function workOrder(): BelongsTo
     {
