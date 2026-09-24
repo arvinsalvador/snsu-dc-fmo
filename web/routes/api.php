@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\LocationController;
+use App\Http\Controllers\Api\MobileSyncController;
 use App\Http\Controllers\Api\PersonnelController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\WorkOrderAssessmentController;
@@ -20,6 +21,9 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/auth/logout', [ApiAuthController::class, 'logout']);
         Route::get('/me/profile', [ProfileController::class, 'show']);
         Route::get('/me/active-work-session', [WorkOrderExecutionController::class, 'active']);
+        Route::get('/mobile/bootstrap', [MobileSyncController::class, 'bootstrap']);
+        Route::post('/mobile/operations', [MobileSyncController::class, 'operation']);
+        Route::post('/mobile/media', [MobileSyncController::class, 'media']);
         Route::patch('/me/profile', [ProfileController::class, 'update']);
         Route::get('/personnel', [PersonnelController::class, 'index']);
         Route::get('/personnel/{personnel}', [PersonnelController::class, 'show']);
