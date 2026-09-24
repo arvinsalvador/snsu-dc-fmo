@@ -104,13 +104,13 @@ class WorkOrderExecutionService
             if ($outcome === WorkSessionOutcome::Continuation && blank($data['remaining_work'] ?? null)) {
                 throw ValidationException::withMessages(['remaining_work' => 'Describe the work remaining.']);
             }
-            if ($outcome === WorkSessionOutcome::Continuation && config('work_orders.execution.require_continuation_evidence') && ! count($files)) {
+            if ($outcome === WorkSessionOutcome::Continuation && config('work_orders.execution.require_continuation_evidence') && ! count($files) && ! $active->updates()->whereIn('type', [WorkUpdateType::Progress->value, WorkUpdateType::Issue->value])->whereHas('attachments')->exists()) {
                 throw ValidationException::withMessages(['evidence' => 'Current-state evidence is required for continuation.']);
             }
             if ($outcome === WorkSessionOutcome::WaitingForMaterials && blank($data['material_description'] ?? null)) {
                 throw ValidationException::withMessages(['material_description' => 'Describe the required materials or resources.']);
             }
-            if ($outcome === WorkSessionOutcome::NeedsFurtherInvestigation && ! count($files)) {
+            if ($outcome === WorkSessionOutcome::NeedsFurtherInvestigation && ! count($files) && ! $active->updates()->where('type', WorkUpdateType::Issue->value)->whereHas('attachments')->exists()) {
                 throw ValidationException::withMessages(['evidence' => 'Provide evidence of the issue requiring investigation.']);
             }
             if ($outcome === WorkSessionOutcome::WorkOrderCompletionSubmitted && ! $actor->can('work_orders.submit_completion')) {

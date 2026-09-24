@@ -28,6 +28,8 @@ After updating the project for Phases 7–8, run `./vendor/bin/sail artisan migr
 
 After updating for Phase 9, repeat those migration and permission-seeder commands to add execution tables and permission mappings. Existing Work Orders and assignment history are preserved. Execution evidence defaults can be adjusted through the `WORK_ORDER_REQUIRE_*` values shown in `.env.example`.
 
+After updating for Phase 10, run `./vendor/bin/sail artisan migrate` to add the processed mobile operation ledger. No new permission seeding is needed for the mobile routes.
+
 Open `http://localhost` for the Laravel application and check `http://localhost/api/v1/health` for `{"status":"ok"}`. Stop the environment with:
 
 ```bash
@@ -51,6 +53,7 @@ After installing a stable Flutter SDK, run:
 
 ```bash
 cd /home/arvin/projects/snsu-dc-fmo/mobile
+flutter create --platforms=android .
 flutter pub get
 dart format lib test
 flutter analyze
@@ -69,4 +72,4 @@ Use the value appropriate to the target:
 - Physical Android device: use `http://<development-computer-LAN-IP>` while the device is on the same trusted network; do not commit that IP.
 - Flutter desktop or web on the development computer: normally `http://localhost`.
 
-The API check screen calls `/api/v1/health`. If a physical device cannot connect, confirm host firewall/network access and the Docker port mapping. Do not assume a device's `localhost` is the development computer.
+The mobile app signs in against `/api/v1/auth/login` and syncs through `/api/v1/mobile/*`. The Phase 1 health client remains in the source but is no longer the home screen. If a physical device cannot connect, confirm host firewall/network access and the Docker port mapping. Do not assume a device's `localhost` is the development computer. The Flutter SDK and generated Android platform project were not available for Phase 10 verification; see [mobile app](MOBILE_APP.md) for platform/security review items.

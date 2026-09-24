@@ -18,7 +18,7 @@ Files will use Laravel's filesystem abstraction. Database records will store med
 
 Synchronizable records should use application-generated ULIDs or UUIDs rather than relying only on sequential database IDs. Future records and APIs should account for server timestamps, device-local timestamps, monotonically managed record versions, sync status, device identifiers, and conflict detection. Write operations must use idempotency keys so retries do not duplicate work. The mobile client will queue media uploads separately, retain local upload state, and reconcile them after record synchronization. The intended model is server-authoritative with explicit conflict handling, not silent last-write-wins.
 
-The Flutter Phase 1 source has application configuration and a small core network client. `API_BASE_URL` is supplied with `--dart-define`, allowing local, device, and production endpoints without committing a URL.
+The Phase 10 Flutter source now adds a per-account SQLite cache/outbox and secure bearer-token storage. `API_BASE_URL` is still supplied with `--dart-define`, allowing local, device, and production endpoints without committing a URL. See [offline sync](OFFLINE_SYNC.md) for the implemented full-snapshot/idempotency contract and current limitations.
 
 ## Future business context
 
