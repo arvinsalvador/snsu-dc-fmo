@@ -14,6 +14,8 @@
             <div class="flex flex-wrap items-center gap-4 text-sm">
                 @auth
                     <a href="{{ route('dashboard') }}">Home</a>
+                    <a href="{{ route('notifications.index') }}">Notifications @if (($unreadCount = auth()->user()->unreadNotifications()->count()) > 0)<span class="rounded-full bg-blue-700 px-2 py-0.5 text-xs text-white">{{ $unreadCount }}</span>@endif</a>
+                    @if(auth()->user()->can('reports.view_work_orders') || auth()->user()->can('work_orders.view_own') || auth()->user()->can('work_orders.view_assigned'))<a href="{{ route('reports.history') }}">History & Reports</a>@endif
                     @can('profiles.view_own')<a href="{{ route('profile.show') }}">My Profile</a>@endcan
                     @can('personnel.view')<a href="{{ route('personnel.index') }}">FMO Staff</a>@endcan
                     @can('skills.view')<a href="{{ route('skills.index') }}">Skills</a>@endcan

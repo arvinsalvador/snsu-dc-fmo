@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\RegistrationReview;
+use App\Models\WorkOrderWorkflowEvent;
+use App\Observers\RegistrationReviewObserver;
+use App\Observers\WorkOrderWorkflowEventObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        WorkOrderWorkflowEvent::observe(WorkOrderWorkflowEventObserver::class);
+        RegistrationReview::observe(RegistrationReviewObserver::class);
     }
 }

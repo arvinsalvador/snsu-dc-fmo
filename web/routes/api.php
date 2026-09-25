@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\MobileSyncController;
+use App\Http\Controllers\Api\NotificationsController;
 use App\Http\Controllers\Api\PersonnelController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\WorkOrderAssessmentController;
@@ -18,6 +19,9 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/auth/login', [ApiAuthController::class, 'login'])->middleware('throttle:5,1');
     Route::middleware(['auth:sanctum', 'api.token', 'approved'])->group(function (): void {
         Route::get('/me', [ApiAuthController::class, 'me']);
+        Route::get('/notifications', [NotificationsController::class, 'index']);
+        Route::post('/notifications/read-all', [NotificationsController::class, 'readAll']);
+        Route::post('/notifications/{notification}/read', [NotificationsController::class, 'read']);
         Route::post('/auth/logout', [ApiAuthController::class, 'logout']);
         Route::get('/me/profile', [ProfileController::class, 'show']);
         Route::get('/me/active-work-session', [WorkOrderExecutionController::class, 'active']);

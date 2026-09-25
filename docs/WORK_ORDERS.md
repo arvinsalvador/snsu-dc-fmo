@@ -39,4 +39,8 @@ The work-order collection is permission-scoped to the requester unless the calle
 
 ## Workflow after submission
 
-See [Work Order Workflow](WORK_ORDER_WORKFLOW.md) for Phase 6 screening and approval, [Assignment and Assessment](ASSIGNMENT_ASSESSMENT.md) for Phases 7–8, and [Work Order Execution](WORK_ORDER_EXECUTION.md) for Phase 9 work sessions, evidence, and verification. Inventory and mobile offline synchronization remain future work.
+See [Work Order Workflow](WORK_ORDER_WORKFLOW.md) for Phase 6 screening and approval, [Assignment and Assessment](ASSIGNMENT_ASSESSMENT.md) for Phases 7–8, and [Work Order Execution](WORK_ORDER_EXECUTION.md) for Phase 9 work sessions, evidence, and verification. Inventory remains future work; mobile offline synchronization is under development in Phase 10.
+
+## History and reporting
+
+Phase 11 adds permission-scoped, paginated Work Order history at `/reports/work-orders`, filtered CSV, and an authorized browser-printable Work Order record. Reports derive from the existing lifecycle, assignment, assessment, and session records rather than duplicate tables. Requesters see only their own records; ordinary FMO staff see their historical assignments; authorized management can filter across personnel, categories, and locations. See [Reporting](REPORTING.md) and [Notifications](NOTIFICATIONS.md). Mobile offline synchronization is covered in [Offline sync](OFFLINE_SYNC.md); it remains in progress pending SDK/device verification.

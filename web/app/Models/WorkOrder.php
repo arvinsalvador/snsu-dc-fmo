@@ -69,6 +69,16 @@ class WorkOrder extends Model
         return $this->belongsTo(User::class, 'decided_by');
     }
 
+    public function completionSubmitter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completion_submitted_by');
+    }
+
+    public function verifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
+    }
+
     public function assignments(): HasMany
     {
         return $this->hasMany(WorkOrderAssignment::class);

@@ -38,6 +38,8 @@ return [
         'work_orders.assess_assigned', 'work_orders.view_assessments', 'work_orders.resolve_assessment', 'work_orders.cancel', 'work_orders.mark_beyond_scope', 'work_orders.refer_external',
         'work_orders.start_assigned', 'work_orders.update_assigned', 'work_orders.end_session', 'work_orders.submit_completion', 'work_orders.view_execution', 'work_orders.verify_completion', 'work_orders.return_for_work', 'work_orders.manage_sessions',
         'work_order_categories.view', 'work_order_categories.create', 'work_order_categories.update', 'work_order_categories.manage_status', 'work_order_categories.delete',
+        'dashboard.view_management', 'dashboard.view_oversight',
+        'reports.view_work_orders', 'reports.export_work_orders', 'reports.view_personnel_history', 'reports.view_location_history',
     ],
     'delegable_permissions' => [
         'users.view_pending_registrations',
