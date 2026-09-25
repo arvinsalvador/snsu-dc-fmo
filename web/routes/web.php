@@ -9,6 +9,9 @@ use App\Http\Controllers\Locations\LocationManagementController;
 use App\Http\Controllers\Personnel\PersonnelController;
 use App\Http\Controllers\Personnel\SkillController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\NotificationsController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\WorkOrders\WorkOrderAssessmentController;
 use App\Http\Controllers\WorkOrders\WorkOrderAssignmentController;
 use App\Http\Controllers\WorkOrders\WorkOrderCategoryController;
@@ -32,7 +35,13 @@ Route::middleware('auth')->group(function (): void {
     Route::put('/registration/correction', [RegistrationStatusController::class, 'resubmit'])->name('registration.resubmit');
 
     Route::middleware('approved')->group(function (): void {
-        Route::view('/dashboard', 'dashboard')->name('dashboard');
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/reports/work-orders', [ReportsController::class, 'history'])->name('reports.history');
+        Route::get('/reports/work-orders.csv', [ReportsController::class, 'export'])->name('reports.export');
+        Route::get('/reports/work-orders/{workOrder}/print', [ReportsController::class, 'print'])->name('reports.print');
+        Route::get('/notifications', [NotificationsController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/read-all', [NotificationsController::class, 'readAll'])->name('notifications.read-all');
+        Route::post('/notifications/{notification}/read', [NotificationsController::class, 'read'])->name('notifications.read');
         Route::get('/work-orders', [WorkOrderController::class, 'index'])->name('work-orders.index');
         Route::get('/work-orders/create', [WorkOrderController::class, 'create'])->name('work-orders.create');
         Route::post('/work-orders', [WorkOrderController::class, 'store'])->name('work-orders.store');

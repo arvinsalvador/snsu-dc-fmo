@@ -12,6 +12,11 @@ class RegistrationReview extends Model
 
     protected $fillable = ['user_id', 'reviewer_id', 'action', 'previous_status', 'new_status', 'reason'];
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewer_id');
