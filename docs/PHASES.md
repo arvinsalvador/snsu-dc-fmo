@@ -11,4 +11,6 @@
 9. **Work Execution, Individual Updates, Evidence & Completion** — complete
 10. **Flutter Offline Application, Local Database & Synchronization** — current, in progress (Flutter SDK/device verification and native background schedule outstanding)
 11. **Notifications, Management Dashboard, Work History & Reports** — current, in progress
-12. Security, Testing, UAT, Hardening & Release Preparation
+12. **Security, Testing, UAT, Hardening & Release Preparation** — current, partially complete (Flutter/device verification, formal UAT and deployment-readiness checks outstanding)
+
+Version 1 is **not yet release-ready**. See [Release readiness](RELEASE_READINESS_V1.md) and [UAT plan](UAT.md). Suggested release designation: `v1.0.0` (no tag created).

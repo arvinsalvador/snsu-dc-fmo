@@ -17,28 +17,28 @@ class WorkOrderController extends Controller
     public function index(Request $request)
     {
         abort_unless($request->user()->can('work_orders.view_own') || $request->user()->can('work_orders.view_all'), 403);
-        $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user')
+        $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
             ->when(! $request->user()->can('work_orders.view_all'), fn ($q) => $q->where('requester_id', $request->user()->id))
-            ->latest('submitted_at')->get();
+            ->latest('submitted_at')->paginate(50);
 
-        return response()->json(['data' => $orders->map(fn ($order) => $this->data($order))]);
+        return response()->json(['data' => $orders->getCollection()->map(fn ($order) => $this->data($order)), 'current_page' => $orders->currentPage(), 'last_page' => $orders->lastPage()]);
     }
 
     public function show(Request $request, WorkOrder $workOrder)
     {
         app(\App\Http\Controllers\WorkOrders\WorkOrderController::class)->authorizeWorkOrder($request, $workOrder);
 
-        return response()->json(['data' => $this->data($workOrder->load('category', 'building', 'location', 'preferredPersonnel.user'))]);
+        return response()->json(['data' => $this->data($workOrder->load('category', 'building', 'location', 'preferredPersonnel.user', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates'))]);
     }
 
     public function assigned(Request $request)
     {
         abort_unless($request->user()->can('work_orders.view_assigned'), 403);
-        $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'activeAssignments.personnel.user')
+        $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
             ->whereHas('activeAssignments.personnel', fn ($query) => $query->where('user_id', $request->user()->id))
-            ->latest('submitted_at')->get();
+            ->latest('submitted_at')->paginate(50);
 
-        return response()->json(['data' => $orders->map(fn ($order) => $this->data($order))]);
+        return response()->json(['data' => $orders->getCollection()->map(fn ($order) => $this->data($order)), 'current_page' => $orders->currentPage(), 'last_page' => $orders->lastPage()]);
     }
 
     public function store(Request $request, \App\Http\Controllers\WorkOrders\WorkOrderController $requests, WorkOrderWorkflowService $workflow)
@@ -97,6 +97,6 @@ class WorkOrderController extends Controller
         $privateActions = ['RECOMMEND_APPROVAL', 'RECOMMEND_DISAPPROVAL', 'RETURN_TO_SCREENING', 'ASSIGNEE_ADDED', 'ASSIGNEE_REMOVED', 'ASSESSMENT_EXCEPTION', 'ASSESSMENT_HOLD_MATERIALS', 'ASSESSMENT_REFER_EXTERNAL', 'ASSESSMENT_BEYOND_SCOPE'];
         $events = $order->workflowEvents->when(! $management, fn ($events) => $events->filter(fn ($event) => ! in_array($event->action, $privateActions, true)));
 
-        return ['id' => $order->id, 'number' => $order->work_order_number, 'category' => $order->category->name, 'building' => $order->building->name, 'location' => $order->location?->name, 'subject' => $order->subject, 'description' => $order->description, 'status' => $order->status->value, 'urgency' => $order->urgency, 'preferred_personnel' => $order->preferredPersonnel?->user?->name, 'assignees' => $order->activeAssignments->map(fn ($assignment) => ['id' => $assignment->id, 'personnel_id' => $assignment->fmo_personnel_id, 'name' => $assignment->personnel->user->name]), 'submitted_at' => $order->submitted_at, 'completed_at' => $order->verified_at, 'work_performed_summary' => $order->status === WorkOrderStatus::Completed ? $order->work_performed_summary : null, 'progress' => $order->updates()->whereNotNull('requester_summary')->orderBy('recorded_at')->get(['type', 'requester_summary', 'recorded_at'])->map(fn ($update) => ['type' => $update->type->value, 'summary' => $update->requester_summary, 'at' => $update->recorded_at]), 'attachments' => $order->attachments->where('purpose', 'REQUEST_INITIAL')->map(fn ($attachment) => ['id' => $attachment->id, 'filename' => $attachment->original_filename, 'mime_type' => $attachment->mime_type, 'size' => $attachment->file_size])->values(), 'history' => $events->values()->map(fn ($event) => ['action' => $event->action, 'from_status' => $event->from_status, 'to_status' => $event->to_status, 'requester_message' => $event->requester_message, 'internal_note' => $management ? $event->internal_note : null, 'created_at' => $event->created_at])];
+        return ['id' => $order->id, 'number' => $order->work_order_number, 'category' => $order->category->name, 'building' => $order->building->name, 'location' => $order->location?->name, 'subject' => $order->subject, 'description' => $order->description, 'status' => $order->status->value, 'urgency' => $order->urgency, 'preferred_personnel' => $order->preferredPersonnel?->user?->name, 'assignees' => $order->activeAssignments->map(fn ($assignment) => ['id' => $assignment->id, 'personnel_id' => $assignment->fmo_personnel_id, 'name' => $assignment->personnel->user->name]), 'submitted_at' => $order->submitted_at, 'completed_at' => $order->verified_at, 'work_performed_summary' => $order->status === WorkOrderStatus::Completed ? $order->work_performed_summary : null, 'progress' => $order->updates->whereNotNull('requester_summary')->sortBy('recorded_at')->map(fn ($update) => ['type' => $update->type->value, 'summary' => $update->requester_summary, 'at' => $update->recorded_at])->values(), 'attachments' => $order->attachments->where('purpose', 'REQUEST_INITIAL')->map(fn ($attachment) => ['id' => $attachment->id, 'filename' => $attachment->original_filename, 'mime_type' => $attachment->mime_type, 'size' => $attachment->file_size])->values(), 'history' => $events->values()->map(fn ($event) => ['action' => $event->action, 'from_status' => $event->from_status, 'to_status' => $event->to_status, 'requester_message' => $event->requester_message, 'internal_note' => $management ? $event->internal_note : null, 'created_at' => $event->created_at])];
     }
 }
