@@ -79,7 +79,14 @@ class WorkOrderController extends Controller
     {
         $this->authorizeWorkOrder($request, $workOrder);
 
-        return view('work-orders.show', ['order' => $workOrder->load('requester', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'assessments.attachments', 'sessions.personnel.user', 'sessions.updates.attachments', 'updates.personnel.user'), 'assignablePersonnel' => FmoPersonnel::with('user', 'skills')->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->filter->isAssignable()]);
+        $assignablePersonnel = collect();
+        if ($request->user()->can('work_orders.assign') || $request->user()->can('work_orders.assign_direct') || $request->user()->can('work_orders.reassign')) {
+            $assignablePersonnel = FmoPersonnel::with('user', 'skills')
+                ->withCount(['workOrderAssignments as active_workload_count' => fn ($query) => $query->whereNull('unassigned_at')])
+                ->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->filter->isAssignable();
+        }
+
+        return view('work-orders.show', ['order' => $workOrder->load('requester', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'assessments.attachments', 'sessions.personnel.user', 'sessions.updates.attachments', 'updates.personnel.user'), 'assignablePersonnel' => $assignablePersonnel]);
     }
 
     public function edit(Request $request, WorkOrder $workOrder)
@@ -111,7 +118,7 @@ class WorkOrderController extends Controller
         abort_if($attachment->purpose === 'ASSESSMENT' && ! ($request->user()->can('work_orders.view_assessments') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user())), 403);
         abort_if($attachment->purpose === 'EXECUTION' && ! ($request->user()->can('work_orders.view_execution') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user()) || ($workOrder->requester_id === $request->user()->id && $attachment->requester_visible)), 403);
 
-        return Storage::disk('local')->download($attachment->stored_path, $attachment->original_filename);
+        return Storage::disk('local')->download($attachment->stored_path, $attachment->safeDownloadName());
     }
 
     public function authorizeWorkOrder(Request $request, WorkOrder $workOrder): void
@@ -145,6 +152,10 @@ class WorkOrderController extends Controller
         }
         if (($data['preferred_fmo_personnel_id'] ?? null) && ! FmoPersonnel::with('user')->findOrFail($data['preferred_fmo_personnel_id'])->isAssignable()) {
             $errors['preferred_fmo_personnel_id'] = 'The selected personnel member is not currently available.';
+        }
+        $existing = $request->route('workOrder')?->attachments()->where('purpose', 'REQUEST_INITIAL')->count() ?? 0;
+        if ($existing + count($request->file('attachments', [])) > config('work_orders.attachments.max_count')) {
+            $errors['attachments'] = 'The Work Order has reached its initial attachment limit.';
         }
         if ($errors) {
             throw ValidationException::withMessages($errors);

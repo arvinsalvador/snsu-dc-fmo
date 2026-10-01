@@ -57,13 +57,14 @@ class UserController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $user, $data): void {
+            $approvedAdministrators = $this->approvedAdministratorCountLocked();
             $managed = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             abort_unless(in_array($managed->status, [
                 AccountStatus::Approved, AccountStatus::Suspended, AccountStatus::Deactivated,
             ], true), 409);
             abort_if($managed->hasRole('System Administrator') &&
                 $data['status'] !== AccountStatus::Approved->value &&
-                User::role('System Administrator')->where('status', AccountStatus::Approved->value)->count() <= 1, 409);
+                $approvedAdministrators <= 1, 409);
 
             $previous = $managed->status->value;
             $managed->status = AccountStatus::from($data['status']);
@@ -92,10 +93,13 @@ class UserController extends Controller
             'roles.*' => ['string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
         ]);
         $names = $data['roles'] ?? [];
-        abort_if($user->hasRole('System Administrator') &&
-            ! in_array('System Administrator', $names, true) &&
-            User::role('System Administrator')->where('status', AccountStatus::Approved->value)->count() <= 1, 409);
-        $user->syncRoles($names);
+        DB::transaction(function () use ($user, $names): void {
+            $approvedAdministrators = $this->approvedAdministratorCountLocked();
+            $managed = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            abort_if($managed->isApproved() && $managed->hasRole('System Administrator') &&
+                ! in_array('System Administrator', $names, true) && $approvedAdministrators <= 1, 409);
+            $managed->syncRoles($names);
+        });
 
         return back()->with('success', 'Roles updated.');
     }
@@ -121,5 +125,11 @@ class UserController extends Controller
         $user->syncPermissions($selected);
 
         return back()->with('success', 'Direct permissions updated.');
+    }
+
+    private function approvedAdministratorCountLocked(): int
+    {
+        return User::role('System Administrator')->where('status', AccountStatus::Approved->value)
+            ->orderBy('users.id')->lockForUpdate()->get(['users.id'])->count();
     }
 }

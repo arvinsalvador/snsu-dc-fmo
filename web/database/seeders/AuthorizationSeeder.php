@@ -21,6 +21,8 @@ class AuthorizationSeeder extends Seeder
             Role::findOrCreate($name, 'web');
         }
 
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         $registration = [
             'users.view_pending_registrations', 'users.approve_registration',
             'users.reject_registration', 'users.request_registration_correction',

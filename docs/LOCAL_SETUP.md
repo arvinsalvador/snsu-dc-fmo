@@ -30,6 +30,8 @@ After updating for Phase 9, repeat those migration and permission-seeder command
 
 After updating for Phase 10, run `./vendor/bin/sail artisan migrate` to add the processed mobile operation ledger. No new permission seeding is needed for the mobile routes.
 
+After updating for Phase 11 or 12, run migrations and repeat the production-safe authorization seeder to add notifications, reporting indexes and permissions. On a **fresh disposable** installation, `./vendor/bin/sail artisan migrate` followed by `./vendor/bin/sail artisan db:seed` loads authorization and reference data without creating real users or fake Work Orders. Create the first administrator interactively afterward. Do not run `migrate:fresh` against a database containing user data.
+
 Open `http://localhost` for the Laravel application and check `http://localhost/api/v1/health` for `{"status":"ok"}`. Stop the environment with:
 
 ```bash
@@ -46,6 +48,7 @@ Useful commands:
 ```
 
 `APP_DEBUG=true` is appropriate only for local development. A later production environment must set `APP_DEBUG=false` and provide its own secrets.
+For production preparation and backup/restore requirements, see [production checklist](PRODUCTION_CHECKLIST.md). It is not a deployment authorization.
 
 ## Flutter
 

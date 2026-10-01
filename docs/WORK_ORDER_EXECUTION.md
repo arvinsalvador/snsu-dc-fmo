@@ -27,4 +27,4 @@ The web UI offers Active Work and For Verification queues, staff task controls, 
 - `POST /api/v1/work-orders/{id}/release-investigation`
 - `POST /api/v1/work-orders/{id}/sessions/{session}/force-end` (elevated permission)
 
-Session and update identity are always derived server-side; status is never accepted from an arbitrary client payload. Critical transitions lock the order and reject stale actions. Phase 10 may build an offline client on these APIs, but retry idempotency and synchronization remain future work.
+Session and update identity are always derived server-side; status is never accepted from an arbitrary client payload. Critical transitions lock the order and reject stale actions. Phase 10 added a client UUID operation ledger and Flutter offline outbox for idempotent retries; device validation and native background scheduling remain outstanding. See [Offline sync](OFFLINE_SYNC.md).

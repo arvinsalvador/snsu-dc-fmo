@@ -35,7 +35,7 @@ Authenticated, approved API endpoints are under `/api/v1`:
 - `POST /work-orders/direct` (authorized Campus Director flow)
 - `POST /work-orders/{workOrder}/workflow/{action}` for explicit screening, decision, and resubmission actions
 
-The work-order collection is permission-scoped to the requester unless the caller has `work_orders.view_all`.
+The work-order collection is permission-scoped to the requester unless the caller has `work_orders.view_all`. General and assigned API collections are paginated at 50 records per page and include `current_page`/`last_page`; clients should request subsequent pages. The mobile field bootstrap remains a separate complete assigned-only snapshot.
 
 ## Workflow after submission
 

@@ -14,3 +14,4 @@ Phase 7–8 assignment and assessment behavior is in [assignment and assessment]
 Phase 9 execution behavior is in [Work Order execution](docs/WORK_ORDER_EXECUTION.md).
 Phase 10 mobile/offline work is in [mobile app](docs/MOBILE_APP.md), [offline sync](docs/OFFLINE_SYNC.md), and [mobile API](docs/API_MOBILE.md). Phase 10 remains in progress pending Flutter/device verification and native background scheduling.
 Phase 11 in-app alerts and operational reporting are described in [notifications](docs/NOTIFICATIONS.md) and [reporting](docs/REPORTING.md).
+Phase 12 validation is tracked in the [UAT plan](docs/UAT.md), [production checklist](docs/PRODUCTION_CHECKLIST.md), [release notes](docs/RELEASE_NOTES_V1.md), and [release readiness report](docs/RELEASE_READINESS_V1.md). The candidate is not yet approved for deployment.
