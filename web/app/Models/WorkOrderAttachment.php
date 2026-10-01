@@ -21,4 +21,13 @@ class WorkOrderAttachment extends Model
     {
         return $this->belongsTo(WorkOrder::class);
     }
+
+    public function safeDownloadName(): string
+    {
+        $basename = basename(str_replace('\\', '/', $this->original_filename));
+        $safe = preg_replace('/[^\pL\pN._ -]/u', '_', $basename);
+        $safe = trim($safe ?? '', ' .');
+
+        return $safe === '' ? 'attachment' : $safe;
+    }
 }

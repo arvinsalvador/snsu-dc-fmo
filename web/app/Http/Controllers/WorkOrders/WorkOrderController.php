@@ -118,7 +118,7 @@ class WorkOrderController extends Controller
         abort_if($attachment->purpose === 'ASSESSMENT' && ! ($request->user()->can('work_orders.view_assessments') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user())), 403);
         abort_if($attachment->purpose === 'EXECUTION' && ! ($request->user()->can('work_orders.view_execution') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user()) || ($workOrder->requester_id === $request->user()->id && $attachment->requester_visible)), 403);
 
-        return Storage::disk('local')->download($attachment->stored_path, $attachment->original_filename);
+        return Storage::disk('local')->download($attachment->stored_path, $attachment->safeDownloadName());
     }
 
     public function authorizeWorkOrder(Request $request, WorkOrder $workOrder): void

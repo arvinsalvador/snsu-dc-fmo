@@ -123,4 +123,22 @@ class ReleaseHardeningTest extends TestCase
         ])->options('/api/v1/health');
         $this->assertNull($response->headers->get('Access-Control-Allow-Origin'));
     }
+
+    public function test_inactive_assignee_cannot_submit_an_assessment(): void
+    {
+        $head = $this->user('FMO Head');
+        $staff = $this->user('FMO Staff');
+        $person = FmoPersonnel::create(['user_id' => $staff->id, 'personnel_identifier' => 'P-'.$staff->id,
+            'designation' => 'Technician', 'personnel_status' => 'ACTIVE']);
+        $order = $this->order($this->user('Requester'), WorkOrderStatus::Approved);
+        app(WorkOrderAssignmentService::class)->add($order, $head, [$person->id]);
+        $order->forceFill(['status' => WorkOrderStatus::ForAssessment])->save();
+        $person->update(['personnel_status' => 'INACTIVE', 'archived_at' => now()]);
+        $token = $staff->createToken('inactive-assessment')->plainTextToken;
+        app('auth')->forgetGuards();
+        $this->withToken($token)->postJson("/api/v1/work-orders/{$order->id}/assessments", [
+            'outcome' => 'READY_FOR_WORK', 'findings' => 'Attempt while inactive',
+        ])->assertForbidden();
+        $this->assertDatabaseCount('work_order_assessments', 0);
+    }
 }
