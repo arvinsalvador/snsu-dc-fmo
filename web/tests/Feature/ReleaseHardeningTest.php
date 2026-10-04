@@ -6,9 +6,11 @@ use App\Enums\WorkOrderStatus;
 use App\Models\Building;
 use App\Models\Campus;
 use App\Models\FmoPersonnel;
+use App\Models\ProcessedClientOperation;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderCategory;
+use App\Services\StoredFileTransaction;
 use App\Services\WorkOrderAssignmentService;
 use Database\Seeders\AuthorizationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -140,5 +142,96 @@ class ReleaseHardeningTest extends TestCase
             'outcome' => 'READY_FOR_WORK', 'findings' => 'Attempt while inactive',
         ])->assertForbidden();
         $this->assertDatabaseCount('work_order_assessments', 0);
+    }
+
+    public function test_private_files_from_nested_transactions_are_removed_if_outer_database_work_fails(): void
+    {
+        Storage::fake('local');
+        $requester = $this->user('Requester');
+        $order = $this->order($requester);
+        $files = app(StoredFileTransaction::class);
+        $storedPath = null;
+
+        try {
+            $files->run(function () use ($files, $order, $requester, &$storedPath): void {
+                $files->run(function () use ($files, $order, $requester, &$storedPath): void {
+                    $upload = UploadedFile::fake()->image('evidence.jpg');
+                    $storedPath = $files->store($upload, 'work-orders/'.$order->id);
+                    $order->attachments()->create([
+                        'uploaded_by' => $requester->id, 'purpose' => 'REQUEST_INITIAL',
+                        'original_filename' => 'evidence.jpg', 'stored_path' => $storedPath,
+                        'mime_type' => 'image/jpeg', 'file_size' => $upload->getSize(),
+                    ]);
+                });
+
+                throw new \RuntimeException('Later transaction work failed.');
+            });
+            $this->fail('The outer transaction should have failed.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('Later transaction work failed.', $exception->getMessage());
+        }
+
+        $this->assertNotNull($storedPath);
+        Storage::disk('local')->assertMissing($storedPath);
+        $this->assertDatabaseMissing('work_order_attachments', ['stored_path' => $storedPath]);
+    }
+
+    public function test_personnel_with_assignment_history_cannot_be_deleted(): void
+    {
+        $head = $this->user('FMO Head');
+        $staff = $this->user('FMO Staff');
+        $personnel = FmoPersonnel::create(['user_id' => $staff->id, 'personnel_identifier' => 'P-'.$staff->id,
+            'designation' => 'Technician', 'personnel_status' => 'ACTIVE']);
+        $order = $this->order($this->user('Requester'), WorkOrderStatus::Approved);
+        app(WorkOrderAssignmentService::class)->add($order, $head, [$personnel->id]);
+
+        $this->actingAs($head)->delete('/personnel/'.$personnel->id)->assertStatus(409);
+        $this->assertDatabaseHas('fmo_personnel', ['id' => $personnel->id]);
+    }
+
+    public function test_mobile_media_is_removed_when_idempotency_ledger_write_fails(): void
+    {
+        Storage::fake('local');
+        $head = $this->user('FMO Head');
+        $staff = $this->user('FMO Staff');
+        $person = FmoPersonnel::create(['user_id' => $staff->id, 'personnel_identifier' => 'P-'.$staff->id,
+            'designation' => 'Technician', 'personnel_status' => 'ACTIVE']);
+        $order = $this->order($this->user('Requester'), WorkOrderStatus::Approved);
+        app(WorkOrderAssignmentService::class)->add($order, $head, [$person->id]);
+        $order->forceFill(['status' => WorkOrderStatus::ForAssessment])->save();
+        $assessment = $order->assessments()->create(['work_order_assignment_id' => $order->activeAssignments()->firstOrFail()->id,
+            'fmo_personnel_id' => $person->id, 'outcome' => 'READY_FOR_WORK', 'findings' => 'Safe', 'assessed_at' => now()]);
+        ProcessedClientOperation::creating(function (): void {
+            throw new \RuntimeException('Simulated ledger failure');
+        });
+        $token = $staff->createToken('rollback-media')->plainTextToken;
+        app('auth')->forgetGuards();
+
+        $this->withToken($token)->post('/api/v1/mobile/media', [
+            'client_operation_id' => (string) Str::uuid(), 'target_kind' => 'ASSESSMENT', 'target_id' => $assessment->id,
+            'file' => UploadedFile::fake()->image('rollback.jpg'),
+        ])->assertStatus(500);
+        $this->assertSame([], Storage::disk('local')->allFiles('work-orders/'.$order->id.'/mobile'));
+        $this->assertDatabaseCount('work_order_attachments', 0);
+    }
+
+    public function test_inactive_personnel_cannot_read_still_assigned_field_tasks(): void
+    {
+        $head = $this->user('FMO Head');
+        $staff = $this->user('FMO Staff');
+        $person = FmoPersonnel::create(['user_id' => $staff->id, 'personnel_identifier' => 'P-'.$staff->id,
+            'designation' => 'Technician', 'personnel_status' => 'ACTIVE']);
+        $order = $this->order($this->user('Requester'), WorkOrderStatus::Approved);
+        app(WorkOrderAssignmentService::class)->add($order, $head, [$person->id]);
+        $person->update(['personnel_status' => 'INACTIVE', 'archived_at' => now()]);
+
+        $this->actingAs($staff)->get('/work-orders/'.$order->id)->assertForbidden();
+        $this->actingAs($staff)->get('/reports/work-orders')->assertOk()->assertDontSee($order->work_order_number);
+        $this->actingAs($staff)->get('/reports/work-orders/'.$order->id.'/print')->assertForbidden();
+        $token = $staff->createToken('inactive-read')->plainTextToken;
+        app('auth')->forgetGuards();
+        $this->withToken($token)->getJson('/api/v1/work-orders/assigned')->assertOk()->assertJsonCount(0, 'data');
+        $this->withToken($token)->getJson('/api/v1/work-orders/'.$order->id)->assertForbidden();
+        $this->withToken($token)->getJson('/api/v1/mobile/bootstrap')->assertForbidden();
     }
 }

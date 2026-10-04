@@ -1,21 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Register')
+@section('title', 'Request access')
 @section('content')
-<div class="mx-auto max-w-lg rounded-lg border bg-white p-6 shadow-sm">
-    <h1 class="mb-2 text-2xl font-semibold">Request an account</h1>
-    <p class="mb-5 text-sm text-slate-600">An authorized reviewer must approve your registration before you can use the FMO system.</p>
-    <form method="POST" action="{{ route('register') }}" class="space-y-4">@csrf
-        <label class="block">Full name<input class="mt-1 w-full rounded border p-2" name="name" value="{{ old('name') }}" required maxlength="255"></label>
-        <label class="block">Email<input class="mt-1 w-full rounded border p-2" type="email" name="email" value="{{ old('email') }}" required></label>
-        <label class="block">Institutional category<select class="mt-1 w-full rounded border p-2" name="user_type" required>
-            <option value="">Select one</option>
-            @foreach (['student' => 'Student', 'faculty' => 'Faculty', 'staff' => 'Staff'] as $value => $label)
-                <option value="{{ $value }}" @selected(old('user_type') === $value)>{{ $label }}</option>
-            @endforeach
-        </select></label>
-        <label class="block">Password (12 characters minimum)<input class="mt-1 w-full rounded border p-2" type="password" name="password" required autocomplete="new-password"></label>
-        <label class="block">Confirm password<input class="mt-1 w-full rounded border p-2" type="password" name="password_confirmation" required autocomplete="new-password"></label>
-        <button class="rounded bg-blue-700 px-4 py-2 text-white" type="submit">Submit registration</button>
-    </form>
-</div>
+<div class="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-300/30 sm:p-10"><div class="flex items-center gap-3"><div class="grid size-10 place-items-center rounded-lg bg-blue-700 font-bold text-white">SNSU</div><div><p class="text-sm font-semibold text-blue-700">Facilities Management Office</p><h1 class="mt-0.5 text-2xl">Request an account</h1></div></div><div class="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Registration requires approval before system access is granted.</div><form method="POST" action="{{ route('register') }}" class="mt-7 space-y-6">@csrf<div class="form-section"><h2>Account information</h2><p>Use your current institutional information.</p><div class="grid gap-5 sm:grid-cols-2"><label class="sm:col-span-2">Full name <span class="text-rose-600">*</span><input name="name" value="{{ old('name') }}" required maxlength="255"></label><label class="sm:col-span-2">Email address <span class="text-rose-600">*</span><input type="email" name="email" value="{{ old('email') }}" required></label><label>Institutional category <span class="text-rose-600">*</span><select name="user_type" required><option value="">Select one</option>@foreach(['student'=>'Student','faculty'=>'Faculty','staff'=>'Staff'] as $value=>$label)<option value="{{ $value }}" @selected(old('user_type') === $value)>{{ $label }}</option>@endforeach</select></label></div></div><div class="form-section"><h2>Set a password</h2><p>Use at least 12 characters.</p><div class="grid gap-5 sm:grid-cols-2"><label>Password <span class="text-rose-600">*</span><input type="password" name="password" required autocomplete="new-password"></label><label>Confirm password <span class="text-rose-600">*</span><input type="password" name="password_confirmation" required autocomplete="new-password"></label></div></div><div class="flex flex-wrap items-center gap-3"><button class="btn btn-primary" type="submit">Submit registration</button><a class="btn btn-ghost" href="{{ route('login') }}">Back to sign in</a></div></form></div>
 @endsection

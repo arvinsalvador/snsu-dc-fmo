@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\ProcessedClientOperation;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class ClientOperationService
@@ -14,7 +13,7 @@ class ClientOperationService
     {
         $hash = hash('sha256', json_encode(['type' => $type, 'payload' => $this->canonical($payload)], JSON_THROW_ON_ERROR));
 
-        return DB::transaction(function () use ($actor, $operationId, $installationId, $type, $hash, $clientCreatedAt, $perform): array {
+        return app(StoredFileTransaction::class)->run(function () use ($actor, $operationId, $installationId, $type, $hash, $clientCreatedAt, $perform): array {
             // Serializes concurrent retries by the same account before the unique operation insert.
             User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
             $existing = ProcessedClientOperation::where('user_id', $actor->id)->where('client_operation_id', $operationId)->first();

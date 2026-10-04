@@ -4,6 +4,55 @@
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+    --color-brand-50: #eff6ff;
+    --color-brand-100: #dbeafe;
+    --color-brand-600: #1d4ed8;
+    --color-brand-700: #1e3a8a;
+    --color-brand-800: #172554;
+}
+
+@layer base {
+    body { @apply antialiased; }
+    h1 { @apply text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl; }
+    h2 { @apply font-semibold text-slate-900; }
+    label { @apply text-sm font-medium text-slate-700; }
+    input:not([type='hidden']):not([type='checkbox']):not([type='radio']), select, textarea { @apply mt-1 w-full rounded-lg border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-3 focus:ring-blue-100; }
+    input[type='checkbox'], input[type='radio'] { @apply size-4 accent-blue-700; }
+    textarea { @apply min-h-24; }
+    button { @apply cursor-pointer; }
+    button:focus-visible, a:focus-visible { @apply outline-2 outline-offset-2 outline-blue-600; }
+    table { @apply w-full border-collapse text-left text-sm; }
+    th { @apply whitespace-nowrap bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500; }
+    td { @apply border-t border-slate-100 px-4 py-3.5 align-middle text-slate-700; }
+    tbody tr { @apply transition-colors hover:bg-slate-50/80; }
+}
+
+@layer components {
+    .app-card { @apply rounded-xl border border-slate-200 bg-white shadow-xs; }
+    .table-wrap { @apply overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs; }
+    .btn { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-3 disabled:cursor-not-allowed disabled:opacity-60; }
+    .btn-primary { @apply bg-blue-700 text-white hover:bg-blue-800 focus:ring-blue-200; }
+    .btn-secondary { @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200; }
+    .btn-success { @apply bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-200; }
+    .btn-danger { @apply bg-rose-700 text-white hover:bg-rose-800 focus:ring-rose-200; }
+    .btn-ghost { @apply text-blue-800 hover:bg-blue-50 focus:ring-blue-100; }
+    .section-card { @apply rounded-xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6; }
+    .filter-bar { @apply flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs; }
+    .status-badge { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset; }
+    .status-open { @apply bg-blue-50 text-blue-800 ring-blue-200; }
+    .status-pending { @apply bg-amber-50 text-amber-800 ring-amber-200; }
+    .status-active { @apply bg-indigo-50 text-indigo-800 ring-indigo-200; }
+    .status-success { @apply bg-emerald-50 text-emerald-800 ring-emerald-200; }
+    .status-danger { @apply bg-rose-50 text-rose-800 ring-rose-200; }
+    .status-neutral { @apply bg-slate-100 text-slate-700 ring-slate-200; }
+    .nav-link { @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/10 hover:text-white; }
+    .nav-link-active { @apply bg-blue-600 text-white shadow-sm; }
+    .nav-heading { @apply mt-6 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400; }
+    .sidebar-icon { @apply grid size-5 place-items-center text-current; }
+    .form-section { @apply rounded-xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6; }
+    .form-section > h2 { @apply mb-1 text-lg; }
+    .form-section > p { @apply mb-5 text-sm text-slate-500; }
+    .timeline-item { @apply relative border-l border-slate-200 pb-6 pl-6 last:border-transparent last:pb-0; }
+    .timeline-item::before { content: ''; @apply absolute -left-[5px] top-1 size-2.5 rounded-full bg-blue-600 ring-4 ring-blue-100; }
 }

@@ -6,10 +6,10 @@ use App\Enums\WorkOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
+use App\Services\StoredFileTransaction;
 use App\Services\WorkOrderAssignmentService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class WorkOrderController extends Controller
@@ -35,7 +35,8 @@ class WorkOrderController extends Controller
     {
         abort_unless($request->user()->can('work_orders.view_assigned'), 403);
         $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
-            ->whereHas('activeAssignments.personnel', fn ($query) => $query->where('user_id', $request->user()->id))
+            ->whereHas('activeAssignments.personnel', fn ($query) => $query->where('user_id', $request->user()->id)
+                ->where('personnel_status', 'ACTIVE')->whereNull('archived_at'))
             ->latest('submitted_at')->paginate(50);
 
         return response()->json(['data' => $orders->getCollection()->map(fn ($order) => $this->data($order)), 'current_page' => $orders->currentPage(), 'last_page' => $orders->lastPage()]);
@@ -58,7 +59,7 @@ class WorkOrderController extends Controller
     private function createOrder(Request $request, \App\Http\Controllers\WorkOrders\WorkOrderController $requests, WorkOrderWorkflowService $workflow, bool $direct)
     {
         $data = $requests->validated($request);
-        $order = DB::transaction(function () use ($request, $requests, $data, $workflow, $direct): WorkOrder {
+        $order = app(StoredFileTransaction::class)->run(function () use ($request, $requests, $data, $workflow, $direct): WorkOrder {
             $order = WorkOrder::create([...$data, 'requester_id' => $request->user()->id, 'status' => $direct ? WorkOrderStatus::Approved : WorkOrderStatus::Submitted, 'submitted_at' => now(), 'work_order_number' => $requests->number(), 'decided_by' => $direct ? $request->user()->id : null, 'decided_at' => $direct ? now() : null]);
             $requests->uploads($request, $order);
             $workflow->recordCreation($order, $request->user(), $direct);
@@ -71,7 +72,7 @@ class WorkOrderController extends Controller
 
     public function update(Request $request, WorkOrder $workOrder, \App\Http\Controllers\WorkOrders\WorkOrderController $requests)
     {
-        DB::transaction(function () use ($request, $workOrder, $requests): void {
+        app(StoredFileTransaction::class)->run(function () use ($request, $workOrder, $requests): void {
             $locked = WorkOrder::whereKey($workOrder->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->requester_id === $request->user()->id && $locked->status === WorkOrderStatus::Submitted && $request->user()->can('work_orders.update_own_submitted'), 403);
             $locked->update($requests->validated($request));

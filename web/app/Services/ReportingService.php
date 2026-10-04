@@ -65,7 +65,8 @@ class ReportingService
             return WorkOrder::query();
         }
         abort_unless($user->can('work_orders.view_own') || $user->can('work_orders.view_assigned'), 403);
-        $personnelId = $user->personnelProfile?->id;
+        $personnel = $user->personnelProfile;
+        $personnelId = $personnel?->isAssignable() ? $personnel->id : null;
         if (! $user->can('work_orders.view_own') && ! $personnelId) {
             return WorkOrder::whereRaw('1 = 0');
         }
@@ -89,7 +90,8 @@ class ReportingService
 
         abort_unless($user->can('work_orders.view_own') || $user->can('work_orders.view_assigned'), 403);
         $own = $user->can('work_orders.view_own');
-        $personnelId = $user->can('work_orders.view_assigned') ? $user->personnelProfile?->id : null;
+        $personnel = $user->can('work_orders.view_assigned') ? $user->personnelProfile : null;
+        $personnelId = $personnel?->isAssignable() ? $personnel->id : null;
         if (! $own && ! $personnelId) {
             return WorkOrder::whereRaw('1 = 0');
         }

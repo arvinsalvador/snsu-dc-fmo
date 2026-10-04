@@ -1,52 +1,35 @@
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'SNSU-DC FMO') · SNSU-DC FMO</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><title>@yield('title', 'SNSU FMO') | SNSU FMO</title>@vite(['resources/css/app.css', 'resources/js/app.js'])</head>
 <body class="min-h-screen bg-slate-50 text-slate-900">
-    <header class="border-b bg-white">
-        <nav class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-4">
-            <a class="font-semibold" href="{{ route('dashboard') }}">SNSU-DC FMO</a>
-            <div class="flex flex-wrap items-center gap-4 text-sm">
-                @auth
-                    <a href="{{ route('dashboard') }}">Home</a>
-                    <a href="{{ route('notifications.index') }}">Notifications @if (($unreadCount = auth()->user()->unreadNotifications()->count()) > 0)<span class="rounded-full bg-blue-700 px-2 py-0.5 text-xs text-white">{{ $unreadCount }}</span>@endif</a>
-                    @if(auth()->user()->can('reports.view_work_orders') || auth()->user()->can('work_orders.view_own') || auth()->user()->can('work_orders.view_assigned'))<a href="{{ route('reports.history') }}">History & Reports</a>@endif
-                    @can('profiles.view_own')<a href="{{ route('profile.show') }}">My Profile</a>@endcan
-                    @can('personnel.view')<a href="{{ route('personnel.index') }}">FMO Staff</a>@endcan
-                    @can('skills.view')<a href="{{ route('skills.index') }}">Skills</a>@endcan
-                    @can('buildings.view')<a href="{{ route('buildings.index') }}">Location Management</a>@endcan
-                    @can('work_orders.view_own')<a href="{{ route('work-orders.index') }}">My Requests</a>@endcan
-                    @can('work_orders.view_all')<a href="{{ route('work-orders.index') }}">All Work Orders</a>@endcan
-                    @can('work_orders.screen')<a href="{{ route('work-orders.queue', 'screening') }}">For Screening</a>@endcan
-                    @can('work_orders.approve')<a href="{{ route('work-orders.queue', 'approval') }}">For Approval</a>@endcan
-                    @if(auth()->user()->can('work_orders.assign') || auth()->user()->can('work_orders.assign_direct'))<a href="{{ route('work-orders.assignment-queue') }}">For Assignment</a>@endif
-                    @can('work_orders.view_assigned')<a href="{{ route('work-orders.my-tasks') }}">My Tasks</a>@endcan
-                    @can('work_orders.view_assessments')<a href="{{ route('work-orders.assessment-queue') }}">Assessment Review</a>@endcan
-                    @can('work_orders.view_execution')<a href="{{ route('work-orders.execution-queue', 'active') }}">Active Work</a><a href="{{ route('work-orders.execution-queue', 'verification') }}">For Verification</a>@endcan
-                    @can('work_order_categories.view')<a href="{{ route('work-order-categories.index') }}">Work Categories</a>@endcan
-                    @can('users.view_pending_registrations')<a href="{{ route('registrations.index') }}">Registrations</a>@endcan
-                    @can('users.view')<a href="{{ route('users.index') }}">Users</a>@endcan
-                    @can('roles.view')<a href="{{ route('roles.index') }}">Roles</a>@endcan
-                    <a href="{{ route('registration.status') }}">Account</a>
-                    <form method="POST" action="{{ route('logout') }}">@csrf <button type="submit">Sign out</button></form>
-                @else
-                    <a href="{{ route('login') }}">Sign in</a>
-                    <a href="{{ route('register') }}">Register</a>
-                @endauth
-            </div>
-        </nav>
-    </header>
-    <main class="mx-auto max-w-6xl px-5 py-8">
-        @if (session('success'))<p class="mb-5 rounded bg-green-100 p-3 text-green-900">{{ session('success') }}</p>@endif
-        @if ($errors->any())
-            <div class="mb-5 rounded bg-red-100 p-3 text-red-900"><ul class="list-inside list-disc">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
-        @endif
-        @yield('content')
-    </main>
-</body>
-</html>
+@auth
+    @php($user = auth()->user())
+    <div data-sidebar-backdrop class="fixed inset-0 z-30 hidden bg-slate-950/40 lg:hidden"></div>
+    <aside data-sidebar class="fixed inset-y-0 left-0 z-40 flex w-72 -translate-x-full flex-col bg-slate-900 px-4 py-5 shadow-2xl transition-transform duration-200 lg:translate-x-0">
+        <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 text-white"><span class="grid size-10 place-items-center rounded-lg bg-blue-600 text-sm font-bold">SNSU</span><span><span class="block font-semibold leading-tight">Facilities Management</span><span class="mt-0.5 block text-xs text-slate-400">Del Carmen Campus</span></span></a>
+        <nav class="mt-6 flex-1 overflow-y-auto pb-6">
+            <p class="nav-heading !mt-0">Overview</p><a class="nav-link {{ request()->routeIs('dashboard') ? 'nav-link-active' : '' }}" href="{{ route('dashboard') }}"><span class="sidebar-icon">⌂</span>Dashboard</a>
+            <p class="nav-heading">Work Orders</p>
+            @can('work_orders.view_own')<a class="nav-link {{ request()->routeIs('work-orders.index') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.index') }}"><span class="sidebar-icon">▤</span>My Work Orders</a>@endcan
+            @can('work_orders.view_all')<a class="nav-link {{ request()->routeIs('work-orders.index') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.index') }}"><span class="sidebar-icon">▤</span>All Work Orders</a>@endcan
+            @can('work_orders.screen')<a class="nav-link {{ request()->is('work-orders/queue/screening') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.queue', 'screening') }}"><span class="sidebar-icon">⌕</span>For Screening</a>@endcan
+            @can('work_orders.approve')<a class="nav-link {{ request()->is('work-orders/queue/approval') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.queue', 'approval') }}"><span class="sidebar-icon">✓</span>For Approval</a>@endcan
+            @if($user->can('work_orders.assign') || $user->can('work_orders.assign_direct'))<a class="nav-link {{ request()->routeIs('work-orders.assignment-queue') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.assignment-queue') }}"><span class="sidebar-icon">⇄</span>For Assignment</a>@endif
+            @can('work_orders.view_assigned')<a class="nav-link {{ request()->routeIs('work-orders.my-tasks') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.my-tasks') }}"><span class="sidebar-icon">▣</span>My Tasks</a>@endcan
+            @can('work_orders.view_assessments')<a class="nav-link {{ request()->routeIs('work-orders.assessment-queue') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.assessment-queue') }}"><span class="sidebar-icon">◈</span>Assessment Review</a>@endcan
+            @can('work_orders.view_execution')<a class="nav-link {{ request()->is('work-orders/execution/*') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.execution-queue', 'active') }}"><span class="sidebar-icon">◉</span>Active & Verification</a>@endcan
+            @if($user->can('personnel.view') || $user->can('skills.view') || $user->can('buildings.view') || $user->can('work_order_categories.view'))
+                <p class="nav-heading">Management</p>@can('personnel.view')<a class="nav-link {{ request()->routeIs('personnel.*') ? 'nav-link-active' : '' }}" href="{{ route('personnel.index') }}"><span class="sidebar-icon">♙</span>FMO Staff</a>@endcan @can('skills.view')<a class="nav-link {{ request()->routeIs('skills.*') ? 'nav-link-active' : '' }}" href="{{ route('skills.index') }}"><span class="sidebar-icon">◇</span>Skills</a>@endcan @can('buildings.view')<a class="nav-link {{ request()->is('locations/*') ? 'nav-link-active' : '' }}" href="{{ route('buildings.index') }}"><span class="sidebar-icon">⌂</span>Locations</a>@endcan @can('work_order_categories.view')<a class="nav-link {{ request()->routeIs('work-order-categories.*') ? 'nav-link-active' : '' }}" href="{{ route('work-order-categories.index') }}"><span class="sidebar-icon">≡</span>Work Categories</a>@endcan
+            @endif
+            @if($user->can('users.view_pending_registrations') || $user->can('users.view') || $user->can('roles.view'))
+                <p class="nav-heading">Administration</p>@can('users.view_pending_registrations')<a class="nav-link {{ request()->routeIs('registrations.*') ? 'nav-link-active' : '' }}" href="{{ route('registrations.index') }}"><span class="sidebar-icon">◷</span>Registrations</a>@endcan @can('users.view')<a class="nav-link {{ request()->routeIs('users.*') ? 'nav-link-active' : '' }}" href="{{ route('users.index') }}"><span class="sidebar-icon">♙</span>Users</a>@endcan @can('roles.view')<a class="nav-link {{ request()->routeIs('roles.*') ? 'nav-link-active' : '' }}" href="{{ route('roles.index') }}"><span class="sidebar-icon">⚿</span>Roles & Permissions</a>@endcan
+            @endif
+            @if($user->can('reports.view_work_orders') || $user->can('work_orders.view_own') || $user->can('work_orders.view_assigned'))<p class="nav-heading">Reports</p><a class="nav-link {{ request()->routeIs('reports.*') ? 'nav-link-active' : '' }}" href="{{ route('reports.history') }}"><span class="sidebar-icon">▥</span>Work History</a>@endif
+        </nav><div class="border-t border-white/10 pt-3"><a class="nav-link {{ request()->routeIs('profile.*') ? 'nav-link-active' : '' }}" href="{{ route('profile.show') }}"><span class="sidebar-icon">⚙</span>My Profile</a></div>
+    </aside>
+    <div class="min-h-screen lg:pl-72"><header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur"><div class="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8"><button data-sidebar-toggle class="btn btn-secondary !min-h-9 !px-2.5 lg:hidden" type="button" aria-label="Toggle navigation">☰</button><p class="hidden text-sm font-medium text-slate-500 sm:block">Facilities Management Office</p><div class="ml-auto flex items-center gap-2 sm:gap-4"><a class="relative btn btn-ghost !min-h-9 !px-2.5" href="{{ route('notifications.index') }}" aria-label="Notifications">♧ @if(($unreadCount = $user->unreadNotifications()->count()) > 0)<span class="absolute right-1 top-0 grid min-w-4 place-items-center rounded-full bg-rose-600 px-1 text-[10px] text-white">{{ $unreadCount }}</span>@endif</a><div class="hidden border-l border-slate-200 pl-4 sm:block"><p class="text-sm font-semibold text-slate-800">{{ $user->name }}</p><p class="text-xs text-slate-500">{{ $user->getRoleNames()->first() ?? ucfirst($user->user_type) }}</p></div><form method="POST" action="{{ route('logout') }}">@csrf<button class="btn btn-secondary !min-h-9 !px-3" type="submit">Sign out</button></form></div></div></header>
+    <main class="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">@if(session('success'))<div role="status" class="mb-6 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"><span>✓</span><p>{{ session('success') }}</p></div>@endif @if($errors->any())<div role="alert" class="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"><p class="font-semibold">Please review the highlighted information.</p><ul class="mt-2 list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif @yield('content')</main></div>
+@else
+    <main class="min-h-screen bg-slate-100 px-4 py-8 sm:grid sm:place-items-center"><div class="w-full max-w-5xl">@if($errors->any())<div role="alert" class="mx-auto mb-5 max-w-lg rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"><ul class="list-inside list-disc">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif @yield('content')</div></main>
+@endauth
+</body></html>

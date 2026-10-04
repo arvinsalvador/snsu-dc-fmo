@@ -101,7 +101,11 @@ class PersonnelController extends Controller
     public function destroy(Request $request, FmoPersonnel $personnel): RedirectResponse
     {
         abort_unless($request->user()->can('personnel.delete'), 403);
-        // Future work-order relations belong in this guard before profile deletion.
+        abort_if($personnel->workOrderAssignments()->exists()
+            || DB::table('work_orders')->where('preferred_fmo_personnel_id', $personnel->id)->exists()
+            || DB::table('work_order_assessments')->where('fmo_personnel_id', $personnel->id)->exists()
+            || DB::table('work_sessions')->where('fmo_personnel_id', $personnel->id)->exists()
+            || DB::table('work_updates')->where('fmo_personnel_id', $personnel->id)->exists(), 409, 'Personnel with Work Order history cannot be deleted. Archive the profile instead.');
         $personnel->delete();
 
         return redirect()->route('personnel.index')->with('success', 'Unused personnel profile deleted. The user account was retained.');

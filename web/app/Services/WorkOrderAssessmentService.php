@@ -43,7 +43,7 @@ class WorkOrderAssessmentService
     /** @param array<string, mixed> $data @param array<int, UploadedFile> $files */
     public function submit(WorkOrder $order, User $actor, array $data, array $files = []): WorkOrderAssessment
     {
-        return DB::transaction(function () use ($order, $actor, $data, $files): WorkOrderAssessment {
+        return app(StoredFileTransaction::class)->run(function () use ($order, $actor, $data, $files): WorkOrderAssessment {
             $locked = WorkOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $assignment = $this->assignment($locked, $actor);
             if (! in_array($locked->status, [WorkOrderStatus::ForAssessment, WorkOrderStatus::ReadyForWork], true)) {
@@ -51,7 +51,7 @@ class WorkOrderAssessmentService
             }
             $assessment = $locked->assessments()->create(['work_order_assignment_id' => $assignment->id, 'fmo_personnel_id' => $assignment->fmo_personnel_id, 'outcome' => $data['outcome'], 'findings' => $data['findings'], 'resource_notes' => $data['resource_notes'] ?? null, 'assessed_at' => now()]);
             foreach ($files as $file) {
-                $path = $file->store('work-orders/'.$locked->id.'/assessments/'.$assessment->id, 'local');
+                $path = app(StoredFileTransaction::class)->store($file, 'work-orders/'.$locked->id.'/assessments/'.$assessment->id);
                 $assessment->attachments()->create(['work_order_id' => $locked->id, 'uploaded_by' => $actor->id, 'purpose' => 'ASSESSMENT', 'original_filename' => $file->getClientOriginalName(), 'stored_path' => $path, 'mime_type' => $file->getMimeType(), 'file_size' => $file->getSize()]);
             }
             $this->workflow->recordOperational($locked, $actor, $data['outcome'] === AssessmentOutcome::ReadyForWork->value ? 'ASSESSMENT_READY' : 'ASSESSMENT_EXCEPTION', 'Assessment '.$data['outcome'].': '.$data['findings'], $data['outcome'] === AssessmentOutcome::ReadyForWork->value ? 'Staff assessment completed. Awaiting authorization to begin work.' : 'Staff assessment requires FMO review.');

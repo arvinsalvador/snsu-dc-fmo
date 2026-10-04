@@ -64,7 +64,7 @@ class WorkOrderExecutionService
     /** @param array<string, mixed> $data @param array<int, UploadedFile> $files */
     public function update(WorkOrder $order, WorkSession $session, User $actor, array $data, array $files = []): WorkUpdate
     {
-        return DB::transaction(function () use ($order, $session, $actor, $data, $files): WorkUpdate {
+        return app(StoredFileTransaction::class)->run(function () use ($order, $session, $actor, $data, $files): WorkUpdate {
             $locked = WorkOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $active = $this->activeSession($locked, $session, $actor, 'work_orders.update_assigned');
             if ($locked->status !== WorkOrderStatus::InProgress) {
@@ -86,7 +86,7 @@ class WorkOrderExecutionService
     private function evidence(WorkOrder $order, WorkSession $session, WorkUpdate $update, User $actor, array $files, string $type): void
     {
         foreach ($files as $file) {
-            $path = $file->store('work-orders/'.$order->id.'/execution/'.$update->id, 'local');
+            $path = app(StoredFileTransaction::class)->store($file, 'work-orders/'.$order->id.'/execution/'.$update->id);
             $update->attachments()->create(['work_order_id' => $order->id, 'work_session_id' => $session->id, 'uploaded_by' => $actor->id, 'purpose' => 'EXECUTION', 'evidence_type' => $type, 'requester_visible' => false, 'original_filename' => $file->getClientOriginalName(), 'stored_path' => $path, 'mime_type' => $file->getMimeType(), 'file_size' => $file->getSize()]);
         }
     }
@@ -94,7 +94,7 @@ class WorkOrderExecutionService
     /** @param array<string, mixed> $data @param array<int, UploadedFile> $files */
     public function end(WorkOrder $order, WorkSession $session, User $actor, array $data, array $files = []): WorkOrder
     {
-        return DB::transaction(function () use ($order, $session, $actor, $data, $files): WorkOrder {
+        return app(StoredFileTransaction::class)->run(function () use ($order, $session, $actor, $data, $files): WorkOrder {
             $locked = WorkOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $active = $this->activeSession($locked, $session, $actor, 'work_orders.end_session');
             if ($locked->status !== WorkOrderStatus::InProgress) {

@@ -17,6 +17,11 @@ class WorkOrderAssignmentService
 
     public function assignedTo(WorkOrder $order, User $user): bool
     {
+        $personnel = FmoPersonnel::with('user')->where('user_id', $user->id)->first();
+        if (! $personnel?->isAssignable()) {
+            return false;
+        }
+
         return $order->activeAssignments()->whereHas('personnel', fn ($query) => $query->where('user_id', $user->id))->exists();
     }
 

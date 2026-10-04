@@ -12,6 +12,7 @@ use App\Models\FmoPersonnel;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Models\WorkOrderCategory;
+use App\Services\StoredFileTransaction;
 use App\Services\WorkOrderAssignmentService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
@@ -64,7 +65,7 @@ class WorkOrderController extends Controller
     private function createOrder(Request $request, WorkOrderWorkflowService $workflow, bool $direct)
     {
         $data = $this->validated($request);
-        $order = DB::transaction(function () use ($request, $data, $workflow, $direct): WorkOrder {
+        $order = app(StoredFileTransaction::class)->run(function () use ($request, $data, $workflow, $direct): WorkOrder {
             $order = WorkOrder::create([...$data, 'requester_id' => $request->user()->id, 'status' => $direct ? WorkOrderStatus::Approved : WorkOrderStatus::Submitted, 'submitted_at' => now(), 'work_order_number' => $this->number(), 'decided_by' => $direct ? $request->user()->id : null, 'decided_at' => $direct ? now() : null]);
             $this->uploads($request, $order);
             $workflow->recordCreation($order, $request->user(), $direct);
@@ -101,7 +102,7 @@ class WorkOrderController extends Controller
 
     public function update(Request $request, WorkOrder $workOrder)
     {
-        DB::transaction(function () use ($request, $workOrder): void {
+        app(StoredFileTransaction::class)->run(function () use ($request, $workOrder): void {
             $locked = WorkOrder::whereKey($workOrder->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->requester_id === $request->user()->id && $locked->status === WorkOrderStatus::Submitted && $request->user()->can('work_orders.update_own_submitted'), 403);
             $locked->update($this->validated($request));
@@ -178,7 +179,7 @@ class WorkOrderController extends Controller
     public function uploads(Request $request, WorkOrder $workOrder): void
     {
         foreach ($request->file('attachments', []) as $file) {
-            $path = $file->store('work-orders/'.$workOrder->id, 'local');
+            $path = app(StoredFileTransaction::class)->store($file, 'work-orders/'.$workOrder->id);
             $workOrder->attachments()->create(['uploaded_by' => $request->user()->id, 'purpose' => 'REQUEST_INITIAL', 'original_filename' => $file->getClientOriginalName(), 'stored_path' => $path, 'mime_type' => $file->getMimeType(), 'file_size' => $file->getSize()]);
         }
     }

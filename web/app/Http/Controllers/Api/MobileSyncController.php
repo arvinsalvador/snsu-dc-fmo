@@ -11,6 +11,7 @@ use App\Models\WorkOrderAssessment;
 use App\Models\WorkSession;
 use App\Models\WorkUpdate;
 use App\Services\ClientOperationService;
+use App\Services\StoredFileTransaction;
 use App\Services\WorkOrderAssessmentService;
 use App\Services\WorkOrderAssignmentService;
 use App\Services\WorkOrderExecutionService;
@@ -105,7 +106,7 @@ class MobileSyncController extends Controller
             if ($target->attachments()->count() >= config('work_orders.attachments.max_count')) {
                 throw ValidationException::withMessages(['file' => 'The evidence limit for this record has been reached.']);
             }
-            $path = $file->store('work-orders/'.$order->id.'/mobile/'.$target->id, 'local');
+            $path = app(StoredFileTransaction::class)->store($file, 'work-orders/'.$order->id.'/mobile/'.$target->id);
             $attachment = $target->attachments()->create(['work_order_id' => $order->id, 'work_session_id' => $target instanceof WorkUpdate ? $target->work_session_id : null, 'uploaded_by' => $request->user()->id, 'purpose' => $data['target_kind'] === 'ASSESSMENT' ? 'ASSESSMENT' : 'EXECUTION', 'evidence_type' => $data['target_kind'] === 'ASSESSMENT' ? 'ASSESSMENT' : $target->type->value, 'requester_visible' => false, 'original_filename' => $file->getClientOriginalName(), 'stored_path' => $path, 'mime_type' => $file->getMimeType(), 'file_size' => $file->getSize()]);
 
             return ['attachment_id' => $attachment->id];
