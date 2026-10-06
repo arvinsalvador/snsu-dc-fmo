@@ -35,7 +35,13 @@
             </div>
         </section>
 
-        <section class="form-section">
+        <section
+            class="form-section"
+            data-work-order-location
+            data-buildings-url="{{ route('work-orders.location-buildings') }}"
+            data-floors-url="{{ route('work-orders.location-floors') }}"
+            data-areas-url="{{ route('work-orders.location-areas') }}"
+        >
             <div class="flex flex-wrap items-start justify-between gap-3"><div><h2>2. Location</h2><p>Choose the most specific available location. Building is required; floor and area are optional.</p></div>@can('buildings.view')<a class="text-sm font-semibold text-blue-800 hover:underline" href="{{ route('locations.index') }}">Manage Locations</a>@endcan</div>
             <div class="grid gap-5 sm:grid-cols-2">
                 <label>Campus <span class="text-rose-600">*</span>
@@ -84,43 +90,4 @@
         <div class="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur"><a class="btn btn-secondary" href="{{ route('work-orders.mine') }}">Cancel</a><div class="flex flex-wrap gap-3"><button class="btn btn-primary" type="submit">{{ isset($order) ? 'Save and resubmit' : 'Submit Work Order' }}</button>@if (! isset($order)) @can('work_orders.create_direct')<button class="btn btn-success" type="submit" formaction="{{ route('work-orders.direct') }}">Create direct authorized Work Order</button>@endcan @endif</div></div>
     </form>
 
-    <script>
-        const campus = document.querySelector('#campus');
-        const building = document.querySelector('#building');
-        const floor = document.querySelector('#floor');
-        const location = document.querySelector('#location');
-        const summary = document.querySelector('#location-summary');
-        const summaryText = document.querySelector('[data-location-summary]');
-
-        const filterOptions = (select, predicate) => {
-            [...select.options].forEach((option, index) => {
-                if (index === 0) return;
-                option.hidden = !predicate(option);
-                option.disabled = option.hidden;
-            });
-            if (select.selectedOptions[0]?.disabled) select.value = '';
-        };
-        const selectedText = select => select.selectedOptions[0]?.textContent?.trim();
-        const sync = () => {
-            const hasCampus = Boolean(campus.value);
-            building.disabled = !hasCampus;
-            filterOptions(building, option => option.dataset.campus === campus.value);
-            const hasBuilding = Boolean(building.value);
-            floor.disabled = !hasBuilding;
-            location.disabled = !hasBuilding;
-            filterOptions(floor, option => option.dataset.building === building.value);
-            filterOptions(location, option => option.dataset.building === building.value && (!option.dataset.floor || option.dataset.floor === floor.value));
-            const parts = [selectedText(campus), selectedText(building), selectedText(floor), selectedText(location)].filter(Boolean);
-            summary.classList.toggle('hidden', parts.length < 2);
-            summaryText.textContent = parts.join(' · ');
-        };
-        campus.addEventListener('change', sync);
-        building.addEventListener('change', sync);
-        floor.addEventListener('change', sync);
-        document.querySelector('input[type="file"]')?.addEventListener('change', event => {
-            const files = [...event.target.files].map(file => file.name);
-            document.querySelector('#attachment-summary').textContent = files.length ? files.join(', ') : 'No files selected';
-        });
-        sync();
-    </script>
 @endsection

@@ -45,6 +45,9 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/my-work-orders', [WorkOrderController::class, 'mine'])->name('work-orders.mine');
         Route::get('/work-orders', [WorkOrderController::class, 'index'])->name('work-orders.index');
         Route::get('/work-orders/create', [WorkOrderController::class, 'create'])->name('work-orders.create');
+        Route::get('/work-orders/location-options/buildings', [\App\Http\Controllers\Api\LocationController::class, 'buildings'])->name('work-orders.location-buildings');
+        Route::get('/work-orders/location-options/floors', [\App\Http\Controllers\Api\LocationController::class, 'floors'])->name('work-orders.location-floors');
+        Route::get('/work-orders/location-options/areas', [\App\Http\Controllers\Api\LocationController::class, 'locations'])->name('work-orders.location-areas');
         Route::post('/work-orders', [WorkOrderController::class, 'store'])->name('work-orders.store');
         Route::post('/work-orders/direct', [WorkOrderController::class, 'storeDirect'])->name('work-orders.direct');
         Route::get('/work-orders/assignment-queue', [WorkOrderAssignmentController::class, 'queue'])->name('work-orders.assignment-queue');
