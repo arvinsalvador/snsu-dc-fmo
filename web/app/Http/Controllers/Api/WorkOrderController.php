@@ -44,7 +44,7 @@ class WorkOrderController extends Controller
 
     public function store(Request $request, \App\Http\Controllers\WorkOrders\WorkOrderController $requests, WorkOrderWorkflowService $workflow)
     {
-        abort_unless($request->user()->can('work_orders.create'), 403);
+        abort_unless($request->user()->can('work-orders.create-request'), 403);
 
         return $this->createOrder($request, $requests, $workflow, false);
     }
