@@ -10,7 +10,7 @@ The local schema version is 1: `orders` (server JSON, active flag, sync timestam
 2. Process operations in creation order. A progress update referencing an offline Start Work waits for the server session ID from the Start Work result.
 3. After a parent assessment/update is accepted, upload its queued media before later operations. End-session evidence rules can therefore see the uploaded current-session media. Media is not deleted on failure.
 4. Fetch a complete authorized snapshot and reconcile server state. Missing assignments disappear from the active task list. A revoked task with unresolved local work remains retained only for recovery.
-5. Retry transient failures; preserve 403/404/409/422 cases as conflicts. Do not auto-merge lifecycle conflicts. A conflict on an order prevents later queued actions for that order from being pushed.
+5. Retry transient failures; preserve 403/404/409/422 cases as conflicts. Do not auto-merge lifecycle conflicts. Any earlier unresolved action or media on an order prevents later queued actions for that order from being pushed; this also covers an operation waiting for a session dependency.
 
 The server serializes an account's operations and records `(user_id, client_operation_id)` uniquely. An identical retry returns the stored result; reusing an operation ID for different content returns HTTP 409. Media idempotency includes a SHA-256 of the uploaded bytes and its target. Do not regenerate IDs during retry. Operations use existing assessment/execution services so authorization and lifecycle rules remain server-side.
 
@@ -20,4 +20,4 @@ An expired token pauses synchronization without deleting local records. Renew si
 
 Automatic triggers are manual Sync Now, login/start, resume, connectivity return, and a one-hour in-process timer. Native scheduled background execution is not implemented in this checkout. Even once implemented, Android/iOS may delay or suppress scheduled work; there is no exactly-hourly guarantee.
 
-This foundation still needs device validation, a reliable native background scheduler, richer conflict recovery/export, and expanded automated Flutter storage/sync tests before Phase 10 can be marked complete.
+This foundation still needs Flutter SDK/analyze/tests, an Android platform build, backup-policy review and device validation before Phase 10 can be marked technically verified. Native exact-hourly background work and polished media conflict export are Version 1 limitations; the retained queue and copyable issue text avoid silently dropping field notes.

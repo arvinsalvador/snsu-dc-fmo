@@ -4,7 +4,7 @@
 @php($management = auth()->user()->can('work_orders.view_all') || auth()->user()->can('work_orders.screen') || auth()->user()->can('work_orders.approve') || auth()->user()->can('work_orders.view_assessments'))
 @php($assigned = auth()->user()->can('work_orders.view_assigned') && app(\App\Services\WorkOrderAssignmentService::class)->assignedTo($order, auth()->user()))
 @php($canAssign = app(\App\Services\WorkOrderAssignmentService::class)->mayManage($order, auth()->user(), $order->status !== \App\Enums\WorkOrderStatus::Approved))
-<a class="text-sm font-medium text-blue-800 hover:underline" href="{{ route('work-orders.index') }}">← Back to Work Orders</a>
+<a class="text-sm font-medium text-blue-800 hover:underline" href="{{ route(auth()->user()->can('work_orders.view_all') ? 'work-orders.index' : 'work-orders.mine') }}">← Back to Work Orders</a>
 <div class="mt-4 flex flex-wrap items-start justify-between gap-4"><div><p class="text-sm font-semibold text-blue-700">{{ $order->work_order_number }}</p><h1 class="mt-1">{{ $order->subject }}</h1><p class="mt-2 text-sm text-slate-600">{{ $order->campus->name }} · {{ $order->building->name }}@if($order->location) · {{ $order->location->name }}@endif</p></div><x-status-badge :status="$order->status" /></div>
 @if ($order->status === \App\Enums\WorkOrderStatus::Approved)
     <p class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">Approved by FMO and awaiting assignment.</p>

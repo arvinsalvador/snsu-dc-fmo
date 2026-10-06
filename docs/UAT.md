@@ -26,6 +26,8 @@ Preconditions: seed production-safe roles/permissions, create a System Administr
 | M03 | FMO Staff mobile offline | Reconnect and sync M02; repeat sync after response loss/timeout | Each operation/media exists once on server; local items reconcile |  | Not run |  |  |  |
 | M04 | FMO Staff mobile | Remove assignment or suspend account while offline; then sync | Server rejects stale write; local content remains recoverable and is not silently deleted |  | Not run |  |  |  |
 | M05 | Shared test device | Staff A syncs, resolves pending work, logs out; Staff B logs in | Staff B sees none of A's tasks, files, queue or notifications |  | Not run |  |  |  |
+| M06 | FMO Staff mobile | Receive an in-app notification, list it and mark it read; then lose assignment | Own notification is visible/readable; unrelated notifications absent and any destination requires authorization |  | Not run |  |  |  |
+| M07 | FMO Staff mobile | Cause an assignment/state conflict, open sync issues and copy recovery details | Original text/operation ID remain locally; copied text matches the issue; media remains private and recoverable on device |  | Not run |  |  |  |
 | T01 | Two FMO Staff | Both assess/work on shared Work Order with separate sessions/updates | Both see shared task; each owns their actions; unrelated tasks remain hidden |  | Not run |  |  |  |
 | C01 | Campus Director | Create direct Work Order and inspect decision/audit; requester attempts same API | Director path works; requester is denied; no auto-assignment |  | Not run |  |  |  |
 | I01 | Director for Instruction | View oversight dashboard/reports; attempt approval/assignment | Read access works; mutation denied by default |  | Not run |  |  |  |

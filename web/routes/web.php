@@ -42,6 +42,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/notifications', [NotificationsController::class, 'index'])->name('notifications.index');
         Route::post('/notifications/read-all', [NotificationsController::class, 'readAll'])->name('notifications.read-all');
         Route::post('/notifications/{notification}/read', [NotificationsController::class, 'read'])->name('notifications.read');
+        Route::get('/my-work-orders', [WorkOrderController::class, 'mine'])->name('work-orders.mine');
         Route::get('/work-orders', [WorkOrderController::class, 'index'])->name('work-orders.index');
         Route::get('/work-orders/create', [WorkOrderController::class, 'create'])->name('work-orders.create');
         Route::post('/work-orders', [WorkOrderController::class, 'store'])->name('work-orders.store');

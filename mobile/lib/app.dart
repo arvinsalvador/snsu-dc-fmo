@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'core/app_controller.dart';
@@ -80,6 +81,9 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('My Work Orders'), actions: [
+      IconButton(tooltip: 'Notifications', onPressed: () => Navigator.push(context,
+        MaterialPageRoute(builder: (_) => NotificationsPage(controller: controller))),
+        icon: const Icon(Icons.notifications_outlined)),
       IconButton(tooltip: 'Renew sign-in', onPressed: () async {
         final email = TextEditingController();
         final password = TextEditingController();
@@ -126,6 +130,60 @@ class HomePage extends StatelessWidget {
   );
 }
 
+class NotificationsPage extends StatefulWidget {
+  const NotificationsPage({super.key, required this.controller});
+  final AppController controller;
+
+  @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  late Future<Map<String, dynamic>> result;
+
+  @override
+  void initState() {
+    super.initState();
+    result = widget.controller.api.notifications();
+  }
+
+  void refresh() => setState(() => result = widget.controller.api.notifications());
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Notifications'), actions: [
+      IconButton(tooltip: 'Refresh notifications', onPressed: refresh, icon: const Icon(Icons.refresh)),
+    ]),
+    body: FutureBuilder<Map<String, dynamic>>(future: result, builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (snapshot.hasError) {
+        return const Center(child: Text('Connect and renew sign-in to load notifications.'));
+      }
+      final items = snapshot.data?['data'] as List<dynamic>? ?? [];
+      if (items.isEmpty) return const Center(child: Text('No notifications yet.'));
+      return ListView(children: items.map((value) {
+        final item = Map<String, dynamic>.from(value as Map);
+        return ListTile(
+          title: Text(item['title'] as String? ?? 'Notification'),
+          subtitle: Text(item['message'] as String? ?? ''),
+          leading: Icon(item['read_at'] == null ? Icons.markunread : Icons.drafts_outlined),
+          onTap: item['read_at'] != null ? null : () async {
+            try {
+              await widget.controller.api.markNotificationRead(item['id'] as String);
+              if (mounted) refresh();
+            } catch (_) {
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Could not mark notification as read. Retry when online.')));
+            }
+          },
+        );
+      }).toList());
+    }),
+  );
+}
+
 class IssuesPage extends StatelessWidget {
   const IssuesPage({super.key, required this.controller});
   final AppController controller;
@@ -136,10 +194,20 @@ class IssuesPage extends StatelessWidget {
       if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
       final rows = snapshot.data!;
       if (rows.isEmpty) return const Center(child: Text('All local work is synchronized.'));
-      return ListView(children: rows.map((row) => ListTile(
+      return ListView(children: [
+        const Padding(padding: EdgeInsets.all(16), child: Text(
+          'Local work is never discarded automatically. Review a conflict before retrying. '
+          'Copy its details for support; evidence files remain in private app storage.')),
+        ...rows.map((row) => ListTile(
         title: Text('${row['type'] ?? 'Evidence'} • ${row['state']}'),
         subtitle: Text('${row['error'] ?? 'Saved on device. Waiting to sync.'}\n${row['payload'] ?? row['file_path'] ?? ''}'),
-      )).toList());
+        trailing: IconButton(tooltip: 'Copy recovery details', icon: const Icon(Icons.copy), onPressed: () async {
+          await Clipboard.setData(ClipboardData(text: row.toString()));
+          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Recovery details copied. Keep them private.')));
+        }),
+      )),
+      ]);
     }),
   );
 }

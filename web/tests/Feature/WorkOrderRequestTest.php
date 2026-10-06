@@ -67,7 +67,8 @@ class WorkOrderRequestTest extends TestCase
         $one = WorkOrder::create([...$this->payload($context), 'requester_id' => $first->id, 'work_order_number' => 'WO-2026-000001', 'status' => WorkOrderStatus::Submitted, 'submitted_at' => now()]);
         $two = WorkOrder::create([...$this->payload($context, ['subject' => 'Repair chair']), 'requester_id' => $second->id, 'work_order_number' => 'WO-2026-000002', 'status' => WorkOrderStatus::Submitted, 'submitted_at' => now()]);
         $this->actingAs($first)->get('/work-orders/'.$two->id)->assertForbidden();
-        $this->actingAs($first)->get('/work-orders')->assertSee($one->work_order_number)->assertDontSee($two->work_order_number);
+        $this->actingAs($first)->get('/my-work-orders')->assertSee($one->work_order_number)->assertDontSee($two->work_order_number);
+        $this->actingAs($first)->get('/work-orders')->assertForbidden();
         $this->actingAs($head)->get('/work-orders')->assertSee($one->work_order_number)->assertSee($two->work_order_number);
     }
 

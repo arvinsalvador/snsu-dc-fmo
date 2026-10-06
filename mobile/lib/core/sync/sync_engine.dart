@@ -30,8 +30,8 @@ class SyncEngine {
         if (state == 'SYNCED' || state == 'CONFLICT') continue;
         final id = row['id'] as String;
         final orderId = row['order_id'] as String;
-        // A conflict on an earlier action makes later actions on that order unsafe.
-        if (await _hasEarlierConflict(orderId, row['created_at'] as String)) continue;
+        // Never overtake an unresolved action or evidence upload for this order.
+        if (await _hasEarlierUnresolved(row)) continue;
         final payload = Map<String, dynamic>.from(jsonDecode(row['payload'] as String) as Map);
         final sessionOperation = payload.remove('session_client_operation_id');
         if (sessionOperation != null) {
@@ -115,13 +115,13 @@ class SyncEngine {
     return true;
   }
 
-  Future<bool> _hasEarlierConflict(String orderId, String createdAt) async {
+  Future<bool> _hasEarlierUnresolved(Map<String, Object?> current) async {
     final operations = await store.operations();
     final media = await store.media();
-    return operations.any((row) => row['order_id'] == orderId && row['state'] == 'CONFLICT' &&
-      (row['created_at'] as String).compareTo(createdAt) <= 0) ||
-      media.any((row) => row['order_id'] == orderId && row['state'] == 'CONFLICT' &&
-      (row['created_at'] as String).compareTo(createdAt) <= 0);
+    return operations.takeWhile((row) => row['id'] != current['id']).any((row) =>
+      row['order_id'] == current['order_id'] && row['state'] != 'SYNCED') ||
+      media.any((row) => row['order_id'] == current['order_id'] && row['state'] != 'SYNCED' &&
+        (row['created_at'] as String).compareTo(current['created_at'] as String) <= 0);
   }
 
   Future<SyncReport> _report(String message, bool offline) async {

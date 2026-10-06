@@ -25,9 +25,22 @@ class WorkOrderController extends Controller
 {
     public function index(Request $request)
     {
+        abort_unless($request->user()->can('work_orders.view_all'), 403);
+
+        return $this->listOrders($request, true);
+    }
+
+    public function mine(Request $request)
+    {
         abort_unless($request->user()->can('work_orders.view_own') || $request->user()->can('work_orders.view_all'), 403);
+
+        return $this->listOrders($request, false);
+    }
+
+    private function listOrders(Request $request, bool $all)
+    {
         $orders = WorkOrder::with('requester', 'category', 'building', 'location', 'preferredPersonnel.user')->latest('submitted_at');
-        if (! $request->user()->can('work_orders.view_all')) {
+        if (! $all) {
             $orders->where('requester_id', $request->user()->id);
         }
         if ($request->filled('search')) {
@@ -38,7 +51,7 @@ class WorkOrderController extends Controller
             $orders->where('status', $request->string('status')->value());
         }
 
-        return view('work-orders.index', ['orders' => $orders->paginate(20)->withQueryString(), 'all' => $request->user()->can('work_orders.view_all')]);
+        return view('work-orders.index', ['orders' => $orders->paginate(20)->withQueryString(), 'all' => $all]);
     }
 
     public function create(Request $request)

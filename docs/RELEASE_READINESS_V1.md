@@ -1,50 +1,47 @@
 # Version 1 release-readiness assessment
 
-## Release candidate
+Assessment updated 2026-10-04. Suggested designation: **`v1.0.0`**; no tag or deployment was made.
 
-Suggested designation: **`v1.0.0`**. No Git tag or deployment was made. Assessment: **NOT READY — BLOCKERS REMAIN**. The Laravel backend/web candidate passes the current automated suite, but the field-mobile and human acceptance gates have not been completed.
+## Decision
 
-## Completed modules
+**NOT READY — BLOCKERS REMAIN** for the complete web-plus-field-mobile Version 1. The Laravel backend/web candidate passes its automated checks, but the Flutter SDK is unavailable on this machine and the repository still lacks generated Android platform files. The changed mobile source, Android backup policy, build, and actual offline/device behavior therefore cannot be validated. This is a technical/mobile gate, **not** a conclusion that development is incomplete merely because formal human UAT has not happened. Web-only UAT can proceed on disposable test data; this report does not approve a complete Version 1 mobile UAT or pilot.
 
-Laravel web/API: approval-gated authentication; roles, permissions and delegation; requester/personnel/skills; campus/building/location reference data; Work Order request/screening/decision; direct Campus Director requests; multiple assignments; assessment/management review; individual sessions, updates and protected evidence; completion/verification; in-app notifications; management dashboards, scoped history, CSV and printable records. Flutter source: secure token storage, per-account SQLite cache/outbox, assigned-only snapshot, idempotent queued operations/media and conflict-preserving retries. The latter is **source implementation, not a verified device release**.
+## Verified technical results
 
-## Automated test and build summary
-
-| Check | Actual result |
+| Check | Result |
 | --- | --- |
-| Final full Laravel suite | **63 passed, 578 assertions** |
-| Phase 12 security/hardening feature tests | Included in full run: 5 tests covering private-download IDOR/safe filenames, API pagination/scope, mobile evidence cap, CORS and inactive-assignee assessment denial |
-| Laravel Pint on Phase 12 PHP files | **9 files passed** |
-| Vite frontend build | **Passed**; optional font-fallback optimization notice only |
-| Fresh `testing` MySQL database migrations + production-safe `db:seed` | **Passed** after fixing permission-cache refresh; repeat seed passed |
-| Disposable rollback of final reporting-index migration and re-migrate | **Passed** |
-| Local HTTP smoke | `/api/v1/health` and `/login` returned **200** |
-| Flutter analyze/tests/Android build/device validation | **Not run:** Flutter and Dart SDKs unavailable in Windows and WSL environment |
+| Complete Laravel suite after release fixes | **67 passed, 595 assertions**, no failures/skips reported |
+| Security-sensitive coverage | Included registration injection, RBAC/delegation, requester/assigned-only scope, evidence privacy, workflow transitions, direct authorization, notification/report scope, and mobile idempotency/conflicts |
+| New rollback/history regression cases | Nested private-file rollback, mobile media ledger failure cleanup, personnel-with-assignment-history delete denial, and inactive-personnel read-scope denial passed |
+| Laravel Pint | 12 changed PHP files passed `--test` |
+| Vite frontend production build | Passed; optional font-fallback optimization notice only |
+| Fresh disposable MySQL `testing` database | Database identity confirmed as `testing`; `migrate:fresh --seed --force` passed (21 migrations; authorization/reference seeders) |
+| Fresh bootstrap | 8 roles, 84 permissions, 0 default users; `app:create-admin` command registered |
+| Local Docker/HTTP | Laravel container up, MySQL healthy; `/api/v1/health` and `/login` returned 200 |
+| Flutter analyze/tests/build/device | **Not run.** Neither Windows nor WSL resolves `flutter`/`dart`; `mobile/android` does not exist. Source changes are not marked verified. |
 
-The disposable database was explicitly confirmed as `testing` before `migrate:fresh`; the development database was not reset. See [Performance baseline](PERFORMANCE_BASELINE.md) for limited local observations. No enterprise load test or production-host test was performed.
+## Remaining gates
 
-## Security review summary
+| Issue | Severity | Category | Current status and required next action |
+| --- | --- | --- | --- |
+| Flutter/Dart SDK unavailable | HIGH | Environment | **Open technical gate.** Install a stable SDK on an owner-controlled development machine, then run format/analyze/tests. Do not treat absent tooling as a failing Flutter test. |
+| Android platform project/build absent | HIGH | Code | **Open technical gate dependent on SDK.** Generate/review `mobile/android`, resolve dependencies and produce a debug/test build. Do not claim the current Dart-only checkout is a buildable Android release. |
+| Mobile offline, account isolation, assignment revocation and conflict recovery on an actual device | HIGH | Manual Verification | **Not run.** Execute UAT M01–M05 on disposable accounts, including kill/restart, token expiry, media retry and shared-device switch. Required before field-mobile UAT sign-off/pilot, not a backend code failure. |
+| Android backup and local-data protection policy | HIGH | Code | **Open technical/security gate for real field data.** After platform generation, settings must exclude private SQLite/evidence/secure-storage data from backup, or an approved encrypted-backup policy must be demonstrated. SQLite itself is not encrypted; review the device threat model. |
+| Formal stakeholder UAT and sign-off | HIGH | Manual Verification | **Not run.** Complete [UAT cases](UAT.md), log defects and retest. This is the next acceptance activity, not by itself an implementation defect. |
+| Actual host HTTPS/configuration and backup restore | HIGH | Manual Verification | **Not run.** Validate the real host and perform a non-production restore rehearsal per [production checklist](PRODUCTION_CHECKLIST.md) before pilot. No hosting credentials or deployment were used. |
+| Representative staging performance | MEDIUM | Manual Verification | **Not measured.** Test authenticated pages, reports and complete assigned-task bootstrap with realistic volumes before pilot; see [baseline](PERFORMANCE_BASELINE.md). |
 
-Reviewed authentication/status gates, Sanctum token expiry/revocation, registration field allowlists, seeded and delegated RBAC, requester/assigned-only access, workflow transition rules, active-session locking/unique constraint, private evidence routes and filename handling, mobile idempotency, notification/report scope, CSRF, CORS, environment examples and logging patterns. Existing tests exercise registration injection, status suspension, unauthorized workflow actions, attachment privacy, sync retries and report scope. Phase 12 fixes include: safe download headers for hostile filenames; denial of assessment by inactive personnel; per-record mobile evidence cap and aggregate initial-attachment cap; paginated/eager-loaded general Work Order API lists; explicit CORS origin allowlist; locked last-administrator checks; and permission-cache refresh for fresh seeding.
+## Resolved during release hardening
 
-This is not a penetration test. No known critical backend privilege escalation was found in the reviewed paths, but real deployment configuration and device storage still need independent validation. Workflow and database integrity are protected by explicit state transitions, row locks, unique active-assignment/session keys, foreign keys and server-authored actor/status fields. Historical Work Order data is not duplicated into reporting tables.
+- Private upload paths are now tracked across nested database transactions and deleted if the transaction/outer idempotency-ledger write fails. Regression cases pass. This prevents the known orphan-file failure mode; it does not replace routine storage reconciliation/backup controls.
+- Deleting personnel with Work Order history now returns HTTP 409 with archive guidance instead of exposing a foreign-key error; historical records remain intact.
+- Inactive/archived personnel no longer retain assigned-task detail/list or report/print access merely because their assignment row is still active. The staff activity paths already rejected their assessment/execution writes; a new read-scope regression case covers the remaining gap.
+- The Flutter outbox now blocks later actions on the same Work Order behind **any** earlier unresolved action/media, not only a declared conflict. A regression test was added but cannot run until the Flutter SDK is available.
+- Mobile account ID and API token now share one secure-storage record, preventing an interrupted split-key write from pairing one account's local database with another account's token. Legacy split-key sessions are deliberately not resumed; local data remains for same-account reauthentication. Device verification is still required.
+- Flutter source now has a minimal API notification list/read screen and copyable local issue details. These are source changes only; widget/API/device behavior is unverified. Media bytes are not exported by the copy action.
+- The previous statement that formal UAT and production-host work made *development implementation* incomplete was overbroad. They are acceptance/deployment gates. Native exact-hourly background sync, push alerts, inventory, stock, assets/QR, preventive maintenance and AI are not Version 1 release gates.
 
-## UAT status
+## Known Version 1 boundaries, not current blockers by themselves
 
-[UAT.md](UAT.md) contains role-by-role cases and an offline restart/retry/account-switch scenario. **No formal human UAT was executed or signed off.** No Android emulator/physical-device test, responsive-browser visual review or accessibility audit was performed in this workspace. Automated HTTP tests are not a substitute for those checks.
-
-## Deployment and recovery requirements
-
-[Production checklist](PRODUCTION_CHECKLIST.md) covers supported PHP/MySQL hosting, HTTPS, secure cookies, private evidence storage, CORS, queue/scheduler choices, `APP_DEBUG=false`, backups and a restore rehearsal. Shared hosting was not accessed or configured. The owner must validate that the actual host supports the required PHP/extensions and private storage layout. The proposed backup set includes MySQL, private media, application code/version and protected `APP_KEY`/environment configuration; no restore rehearsal has yet occurred.
-
-## Known limitations and outstanding risks
-
-- **Release blocker — mobile:** Flutter SDK/platform project unavailable here; Flutter tests/analyze/build, app-kill/restart durability, account switching, assignment-revocation conflict and device security have not been verified. Native OS background scheduling, Flutter notification display and guided conflict recovery/export are incomplete. SQLite is sandboxed per account but not encrypted; generated Android backup exclusion still requires review.
-- **Release blocker — acceptance/deployment:** formal human UAT, representative staging performance, production-host configuration, HTTPS verification and backup restore rehearsal remain undone.
-- **Medium reliability:** filesystem writes made before a later database transaction failure may leave orphaned private files. No automatic orphan cleanup was added in this phase; monitor and reconcile safely, without deleting referenced evidence. Long-term storage/log capacity policy is also owner-dependent.
-- **Scale boundary:** mobile bootstrap uses a complete assigned-only snapshot, not incremental pagination. General Work Order API lists and web reports are paginated/streamed, but staging-size bootstrap measurements are still needed.
-- **Version boundary:** no inventory, stock deduction, asset/QR, preventive maintenance, push notifications, advanced BI or AI decisions. These are not hidden Version 1 features.
-
-## Recommendation
-
-**NOT READY — BLOCKERS REMAIN.** Continue with Flutter/device validation and formal UAT before considering a pilot. Do not interpret the passing Laravel suite as Version 1 release approval. Phases 10, 11 and 12 remain partially complete in [PHASES.md](PHASES.md).
+The mobile timer runs approximately hourly only while the app process is active, plus launch/resume/connectivity/manual triggers; mobile operating systems do not guarantee exact-hourly background execution. The bootstrap remains a complete assigned-only snapshot without an incremental cursor; staging-size measurement is required before pilot, but no current failure is demonstrated. Conflicted text remains in the per-account outbox and can be copied from the issues screen; a polished media export/recovery workflow is not present. No inventory, material stock deduction, asset/QR, preventive-maintenance, push-notification or AI module is included. Formal UAT fields remain blank until people actually test.

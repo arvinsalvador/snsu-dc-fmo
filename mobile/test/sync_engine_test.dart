@@ -85,4 +85,23 @@ void main() {
     expect(store.rows.last['payload'], contains('Preserve this note'));
     api.close();
   });
+
+  test('an unresolved dependency cannot be overtaken by a later action on the same order', () async {
+    final store = MemoryStore();
+    final api = RecordingApi();
+    store.rows.addAll([
+      {'id': 'op-update', 'order_id': 'order-1', 'type': 'ADD_WORK_UPDATE',
+        'payload': jsonEncode({'session_client_operation_id': 'missing-start', 'type': 'PROGRESS', 'description': 'Saved'}),
+        'state': 'PENDING', 'created_at': '2026-09-25T00:00:00Z'},
+      {'id': 'op-complete', 'order_id': 'order-1', 'type': 'SUBMIT_COMPLETION',
+        'payload': jsonEncode({'completion_summary': 'Done', 'work_performed_summary': 'Repaired'}),
+        'state': 'PENDING', 'created_at': '2026-09-25T00:01:00Z'},
+    ]);
+
+    final report = await SyncEngine(api, store, 'installation').run();
+    expect(api.sent, isEmpty);
+    expect(report.pending, 2);
+    expect(store.rows.last['state'], 'PENDING');
+    api.close();
+  });
 }

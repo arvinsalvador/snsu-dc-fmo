@@ -10,8 +10,12 @@
         <nav class="mt-6 flex-1 overflow-y-auto pb-6">
             <p class="nav-heading !mt-0">Overview</p><a class="nav-link {{ request()->routeIs('dashboard') ? 'nav-link-active' : '' }}" href="{{ route('dashboard') }}"><span class="sidebar-icon">⌂</span>Dashboard</a>
             <p class="nav-heading">Work Orders</p>
-            @can('work_orders.view_own')<a class="nav-link {{ request()->routeIs('work-orders.index') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.index') }}"><span class="sidebar-icon">▤</span>My Work Orders</a>@endcan
-            @can('work_orders.view_all')<a class="nav-link {{ request()->routeIs('work-orders.index') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.index') }}"><span class="sidebar-icon">▤</span>All Work Orders</a>@endcan
+            @if ($user->can('work_orders.view_own') || $user->can('work_orders.view_all'))
+                <a class="nav-link {{ request()->routeIs('work-orders.mine') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.mine') }}"><span class="sidebar-icon">▤</span>My Work Orders</a>
+            @endif
+            @can('work_orders.view_all')
+                <a class="nav-link {{ request()->routeIs('work-orders.index') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.index') }}"><span class="sidebar-icon">▤</span>All Work Orders</a>
+            @endcan
             @can('work_orders.screen')<a class="nav-link {{ request()->is('work-orders/queue/screening') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.queue', 'screening') }}"><span class="sidebar-icon">⌕</span>For Screening</a>@endcan
             @can('work_orders.approve')<a class="nav-link {{ request()->is('work-orders/queue/approval') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.queue', 'approval') }}"><span class="sidebar-icon">✓</span>For Approval</a>@endcan
             @if($user->can('work_orders.assign') || $user->can('work_orders.assign_direct'))<a class="nav-link {{ request()->routeIs('work-orders.assignment-queue') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.assignment-queue') }}"><span class="sidebar-icon">⇄</span>For Assignment</a>@endif

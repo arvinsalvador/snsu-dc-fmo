@@ -66,9 +66,9 @@ class WebPageSmokeTest extends TestCase
         $this->actingAs($requester);
 
         foreach ([
-            '/registration/status', '/dashboard', '/work-orders',
-            '/work-orders?search=Repair&status=SUBMITTED&page=1',
-            '/work-orders?search=missing', '/work-orders/create',
+            '/registration/status', '/dashboard', '/my-work-orders',
+            '/my-work-orders?search=Repair&status=SUBMITTED&page=1',
+            '/my-work-orders?search=missing', '/work-orders/create',
             '/work-orders/'.$order->id, '/work-orders/'.$order->id.'/edit',
             '/notifications', '/reports/work-orders',
             '/reports/work-orders?status=SUBMITTED&building_id='.$order->building_id,
@@ -77,13 +77,14 @@ class WebPageSmokeTest extends TestCase
             $this->assertSame(200, $this->get($path)->status(), $path);
         }
 
-        $this->get('/work-orders')->assertSee($order->work_order_number)->assertSee('New Work Order');
-        $this->get('/work-orders?search=missing')->assertDontSee($order->work_order_number);
+        $this->get('/my-work-orders')->assertSee($order->work_order_number)->assertSee('New Work Order');
+        $this->get('/my-work-orders?search=missing')->assertDontSee($order->work_order_number);
+        $this->get('/work-orders')->assertForbidden();
         $this->get('/skills')->assertForbidden();
         $this->get('/work-order-categories')->assertOk()->assertDontSee('Add category');
         $this->get('/admin/users')->assertForbidden();
         $this->actingAs($other)->get('/work-orders/'.$order->id)->assertForbidden();
-        $this->actingAs($other)->get('/work-orders')->assertDontSee($order->work_order_number);
+        $this->actingAs($other)->get('/my-work-orders')->assertDontSee($order->work_order_number);
     }
 
     public function test_staff_and_management_pages_render_with_real_records(): void
@@ -107,7 +108,8 @@ class WebPageSmokeTest extends TestCase
             $this->assertSame(200, $this->get($path)->status(), $path);
         }
         $this->get('/work-orders/'.$order->id)->assertForbidden();
-        $this->get('/work-orders')->assertOk()->assertDontSee($order->work_order_number);
+        $this->get('/my-work-orders')->assertOk()->assertDontSee($order->work_order_number);
+        $this->get('/work-orders')->assertForbidden();
         $this->get('/personnel')->assertForbidden();
 
         app(WorkOrderAssignmentService::class)->add($order, $head, [$personnel->id]);

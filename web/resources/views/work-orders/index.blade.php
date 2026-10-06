@@ -3,7 +3,7 @@
 @section('content')
     <x-page-header
         :title="$all ? 'All Work Orders' : 'My Work Orders'"
-        :description="$all ? 'Review authorized facilities requests across the campus.' : 'Track the current status of your submitted facilities requests.'"
+        :description="$all ? 'Review authorized facilities requests across the campus.' : 'View and track the facilities requests you have submitted.'"
     >
         @can('work_orders.create')
             <x-slot:action>
@@ -29,7 +29,7 @@
             </select>
         </label>
         <button class="btn btn-primary" type="submit">Apply filters</button>
-        <a class="btn btn-ghost" href="{{ route('work-orders.index') }}">Reset</a>
+        <a class="btn btn-ghost" href="{{ route($all ? 'work-orders.index' : 'work-orders.mine') }}">Reset</a>
     </form>
 
     <div class="table-wrap mt-6">

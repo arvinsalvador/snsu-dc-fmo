@@ -51,6 +51,14 @@ class MobileApi {
   Future<Map<String, dynamic>> bootstrap() async =>
       _decode(await _client.get(_uri('mobile/bootstrap'), headers: _headers).timeout(const Duration(seconds: 30)))['data'] as Map<String, dynamic>;
 
+  Future<Map<String, dynamic>> notifications() async =>
+      _decode(await _client.get(_uri('notifications'), headers: _headers).timeout(const Duration(seconds: 20)));
+
+  Future<void> markNotificationRead(String id) async {
+    _decode(await _client.post(_uri('notifications/${Uri.encodeComponent(id)}/read'), headers: _headers)
+      .timeout(const Duration(seconds: 20)));
+  }
+
   Future<Map<String, dynamic>> operation(Map<String, dynamic> body) async =>
       _decode(await _client.post(_uri('mobile/operations'), headers: _headers,
         body: jsonEncode(body)).timeout(const Duration(seconds: 30)))['data'] as Map<String, dynamic>;
