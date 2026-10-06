@@ -70,4 +70,21 @@ class LocationManagementTest extends TestCase
         $this->assertFalse($location->fresh()->isOperational());
         $this->withToken($token)->getJson('/api/v1/locations?active=1')->assertJsonMissing(['name' => 'Court']);
     }
+
+    public function test_building_detail_exposes_floors_and_building_level_areas(): void
+    {
+        $head = $this->user('FMO Head');
+        $campus = Campus::create(['code' => 'DC', 'name' => 'Del Carmen', 'is_active' => true]);
+        $building = Building::create(['campus_id' => $campus->id, 'name' => 'Academic', 'is_active' => true]);
+        $this->actingAs($head)->post('/locations/buildings/'.$building->id.'/floors', ['name' => 'Ground Floor', 'is_active' => true])->assertRedirect();
+        $ground = Floor::firstOrFail();
+        $this->actingAs($head)->post('/locations/buildings/'.$building->id.'/floors', ['name' => 'Second Floor', 'is_active' => true])->assertRedirect();
+        $this->actingAs($head)->post('/locations', ['building_id' => $building->id, 'floor_id' => $ground->id, 'type' => 'LABORATORY', 'name' => 'Computer Laboratory', 'is_active' => true])->assertRedirect();
+        $this->actingAs($head)->post('/locations', ['building_id' => $building->id, 'type' => 'OUTDOOR_AREA', 'name' => 'Perimeter Fence', 'is_active' => true])->assertRedirect();
+
+        $this->actingAs($head)->get('/locations')->assertOk()->assertSee('Location Management')->assertSee('Offices / Rooms / Areas');
+        $this->actingAs($head)->get('/locations/buildings/'.$building->id)->assertOk()->assertSee('Ground Floor')->assertSee('Computer Laboratory')->assertSee('Perimeter Fence')->assertSee('+ Add Floor')->assertSee('+ Add Location');
+        $this->actingAs($head)->put('/locations/floors/'.$ground->id, ['name' => 'Ground Floor', 'is_active' => false])->assertRedirect();
+        $this->assertFalse($ground->fresh()->is_active);
+    }
 }

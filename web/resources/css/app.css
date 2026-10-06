@@ -17,7 +17,7 @@
     h1 { @apply text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl; }
     h2 { @apply font-semibold text-slate-900; }
     label { @apply text-sm font-medium text-slate-700; }
-    input:not([type='hidden']):not([type='checkbox']):not([type='radio']), select, textarea { @apply mt-1 w-full rounded-lg border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-3 focus:ring-blue-100; }
+    input:not([type='hidden']):not([type='checkbox']):not([type='radio']), select, textarea { @apply mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-600 focus:ring-3 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500; }
     input[type='checkbox'], input[type='radio'] { @apply size-4 accent-blue-700; }
     textarea { @apply min-h-24; }
     button { @apply cursor-pointer; }
@@ -53,6 +53,8 @@
     .form-section { @apply rounded-xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6; }
     .form-section > h2 { @apply mb-1 text-lg; }
     .form-section > p { @apply mb-5 text-sm text-slate-500; }
+    .field-error { @apply mt-1 text-sm font-medium text-rose-700; }
+    .field-invalid { @apply border-rose-500 focus:border-rose-600 focus:ring-rose-100; }
     .timeline-item { @apply relative border-l border-slate-200 pb-6 pl-6 last:border-transparent last:pb-0; }
     .timeline-item::before { content: ''; @apply absolute -left-[5px] top-1 size-2.5 rounded-full bg-blue-600 ring-4 ring-blue-100; }
 }

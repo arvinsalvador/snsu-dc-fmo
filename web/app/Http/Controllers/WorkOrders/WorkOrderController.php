@@ -155,13 +155,22 @@ class WorkOrderController extends Controller
     {
         $data = $request->validate(['work_order_category_id' => ['required', Rule::exists('work_order_categories', 'id')->where('is_active', true)], 'campus_id' => ['required', Rule::exists('campuses', 'id')->where('is_active', true)], 'building_id' => ['required', Rule::exists('buildings', 'id')->where('is_active', true)], 'floor_id' => ['nullable', Rule::exists('floors', 'id')->where('is_active', true)], 'building_location_id' => ['nullable', Rule::exists('building_locations', 'id')->where('is_active', true)], 'subject' => ['required', 'string', 'max:255'], 'description' => ['required', 'string', 'max:5000'], 'urgency' => ['required', Rule::in(['NORMAL', 'URGENT'])], 'preferred_fmo_personnel_id' => ['nullable', Rule::exists('fmo_personnel', 'id')], 'attachments' => ['array', 'max:'.config('work_orders.attachments.max_count')], 'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,mp4', 'max:'.config('work_orders.attachments.max_size_kb')]]);
         $errors = [];
-        if (! Building::whereKey($data['building_id'])->where('campus_id', $data['campus_id'])->exists()) {
+        if (! Building::whereKey($data['building_id'])->where('campus_id', $data['campus_id'])->where('is_active', true)->whereHas('campus', fn ($query) => $query->where('is_active', true))->exists()) {
             $errors['building_id'] = 'The selected building does not belong to the selected campus.';
         }
-        if (($data['floor_id'] ?? null) && ! Floor::whereKey($data['floor_id'])->where('building_id', $data['building_id'])->exists()) {
+        if (($data['floor_id'] ?? null) && ! Floor::whereKey($data['floor_id'])->where('building_id', $data['building_id'])->where('is_active', true)->exists()) {
             $errors['floor_id'] = 'The selected floor does not belong to the selected building.';
         }
-        if (($data['building_location_id'] ?? null) && ! BuildingLocation::whereKey($data['building_location_id'])->where('building_id', $data['building_id'])->when($data['floor_id'] ?? null, fn ($query) => $query->where('floor_id', $data['floor_id']))->exists()) {
+        if (($data['building_location_id'] ?? null) && ! BuildingLocation::whereKey($data['building_location_id'])
+            ->where('building_id', $data['building_id'])
+            ->where('is_active', true)
+            ->where(function ($query) use ($data): void {
+                if ($data['floor_id'] ?? null) {
+                    $query->whereNull('floor_id')->orWhere('floor_id', $data['floor_id']);
+                } else {
+                    $query->whereNull('floor_id');
+                }
+            })->exists()) {
             $errors['building_location_id'] = 'The selected location does not belong to the selected building and floor.';
         }
         if (($data['preferred_fmo_personnel_id'] ?? null) && ! FmoPersonnel::with('user')->findOrFail($data['preferred_fmo_personnel_id'])->isAssignable()) {
@@ -199,6 +208,13 @@ class WorkOrderController extends Controller
 
     public function formData(): array
     {
-        return ['categories' => WorkOrderCategory::where('is_active', true)->orderBy('display_order')->get(), 'campuses' => Campus::where('is_active', true)->get(), 'buildings' => Building::where('is_active', true)->with('campus')->get(), 'floors' => Floor::where('is_active', true)->get(), 'locations' => BuildingLocation::where('is_active', true)->get(), 'personnel' => FmoPersonnel::with('user', 'skills')->where('personnel_status', 'ACTIVE')->get()->filter->isAssignable()];
+        return [
+            'categories' => WorkOrderCategory::where('is_active', true)->orderBy('display_order')->get(),
+            'campuses' => Campus::where('is_active', true)->orderBy('name')->get(),
+            'buildings' => Building::where('is_active', true)->whereHas('campus', fn ($query) => $query->where('is_active', true))->with('campus')->orderBy('name')->get(),
+            'floors' => Floor::where('is_active', true)->whereHas('building', fn ($query) => $query->where('is_active', true)->whereHas('campus', fn ($campus) => $campus->where('is_active', true)))->orderBy('display_order')->orderBy('name')->get(),
+            'locations' => BuildingLocation::where('is_active', true)->whereHas('building', fn ($query) => $query->where('is_active', true)->whereHas('campus', fn ($campus) => $campus->where('is_active', true)))->where(fn ($query) => $query->whereNull('floor_id')->orWhereHas('floor', fn ($floor) => $floor->where('is_active', true)))->orderBy('name')->get(),
+            'personnel' => FmoPersonnel::with('user', 'skills')->where('personnel_status', 'ACTIVE')->get()->filter->isAssignable(),
+        ];
     }
 }

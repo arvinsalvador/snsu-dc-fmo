@@ -84,10 +84,13 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/locations/buildings/{building}', [LocationManagementController::class, 'buildingUpdate'])->name('buildings.update');
         Route::delete('/locations/buildings/{building}', [LocationManagementController::class, 'buildingDelete'])->name('buildings.destroy');
         Route::post('/locations/buildings/{building}/floors', [LocationManagementController::class, 'floorStore'])->name('floors.store');
-        Route::get('/locations', [LocationManagementController::class, 'locations'])->name('locations.index');
-        Route::post('/locations', [LocationManagementController::class, 'locationStore'])->name('locations.store');
-        Route::put('/locations/{location}', [LocationManagementController::class, 'locationUpdate'])->name('locations.update');
-        Route::delete('/locations/{location}', [LocationManagementController::class, 'locationDelete'])->name('locations.destroy');
+        Route::put('/locations/floors/{floor}', [LocationManagementController::class, 'floorUpdate'])->name('floors.update');
+        Route::get('/locations', [LocationManagementController::class, 'index'])->name('locations.index');
+        Route::post('/locations', [LocationManagementController::class, 'locationStore']);
+        Route::get('/locations/areas', [LocationManagementController::class, 'locations'])->name('locations.areas');
+        Route::post('/locations/areas', [LocationManagementController::class, 'locationStore'])->name('locations.store');
+        Route::put('/locations/areas/{location}', [LocationManagementController::class, 'locationUpdate'])->name('locations.update');
+        Route::delete('/locations/areas/{location}', [LocationManagementController::class, 'locationDelete'])->name('locations.destroy');
         Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
         Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
