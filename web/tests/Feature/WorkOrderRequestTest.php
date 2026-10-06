@@ -116,4 +116,26 @@ class WorkOrderRequestTest extends TestCase
         $this->withToken($token)->postJson('/api/v1/work-orders', $this->payload($context))->assertCreated()->assertJsonPath('data.status', 'SUBMITTED');
         $this->withToken($token)->getJson('/api/v1/work-orders')->assertJsonCount(1, 'data');
     }
+
+    public function test_floor_and_area_are_optional_but_must_match_the_selected_building(): void
+    {
+        $requester = $this->user();
+        $context = $this->context();
+        $floor = \App\Models\Floor::create(['building_id' => $context['building']->id, 'name' => 'Ground Floor', 'is_active' => true]);
+        $area = \App\Models\BuildingLocation::create(['building_id' => $context['building']->id, 'floor_id' => $floor->id, 'type' => 'LABORATORY', 'name' => 'Computer Laboratory', 'is_active' => true]);
+        $buildingLevel = \App\Models\BuildingLocation::create(['building_id' => $context['building']->id, 'type' => 'HALLWAY', 'name' => 'Main Hallway', 'is_active' => true]);
+        $otherCampus = Campus::create(['code' => 'OT', 'name' => 'Other', 'is_active' => true]);
+        $otherBuilding = Building::create(['campus_id' => $otherCampus->id, 'name' => 'Other Building', 'is_active' => true]);
+        $otherFloor = \App\Models\Floor::create(['building_id' => $otherBuilding->id, 'name' => 'Other Floor', 'is_active' => true]);
+        $otherArea = \App\Models\BuildingLocation::create(['building_id' => $otherBuilding->id, 'floor_id' => $otherFloor->id, 'type' => 'ROOM', 'name' => 'Other Room', 'is_active' => true]);
+
+        $this->actingAs($requester)->post('/work-orders', $this->payload($context, ['subject' => 'Building wide']))->assertRedirect();
+        $this->actingAs($requester)->post('/work-orders', $this->payload($context, ['subject' => 'Floor wide', 'floor_id' => $floor->id]))->assertRedirect();
+        $this->actingAs($requester)->post('/work-orders', $this->payload($context, ['subject' => 'Specific room', 'floor_id' => $floor->id, 'building_location_id' => $area->id]))->assertRedirect();
+        $this->actingAs($requester)->post('/work-orders', $this->payload($context, ['subject' => 'Floor with hallway', 'floor_id' => $floor->id, 'building_location_id' => $buildingLevel->id]))->assertRedirect();
+        $this->actingAs($requester)->post('/work-orders', $this->payload($context, ['floor_id' => $otherFloor->id]))->assertSessionHasErrors('floor_id');
+        $this->actingAs($requester)->post('/work-orders', $this->payload($context, ['building_location_id' => $otherArea->id]))->assertSessionHasErrors('building_location_id');
+        $floor->update(['is_active' => false]);
+        $this->actingAs($requester)->post('/work-orders', $this->payload($context, ['floor_id' => $floor->id]))->assertSessionHasErrors('floor_id');
+    }
 }

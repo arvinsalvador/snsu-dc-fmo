@@ -1,4 +1,12 @@
+import { initializeLocationSelects } from './work-order-location.js';
+
 document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-work-order-location]').forEach(initializeLocationSelects);
+    document.querySelector('input[name="attachments[]"]')?.addEventListener('change', event => {
+        const files = [...event.target.files].map(file => file.name);
+        const summary = document.querySelector('#attachment-summary');
+        if (summary) summary.textContent = files.length ? files.join(', ') : 'No files selected';
+    });
     const drawer = document.querySelector('[data-sidebar]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');
     const close = () => { drawer?.classList.add('-translate-x-full'); backdrop?.classList.add('hidden'); };
