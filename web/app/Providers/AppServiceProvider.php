@@ -3,10 +3,12 @@
 namespace App\Providers;
 
 use App\Models\RegistrationReview;
+use App\Models\User;
 use App\Models\WorkOrderWorkflowEvent;
 use App\Observers\RegistrationReviewObserver;
 use App\Observers\WorkOrderWorkflowEventObserver;
 use App\Services\StoredFileTransaction;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -24,6 +26,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::define('work-orders.create-request', static fn (User $user): bool =>
+            $user->can('work_orders.create')
+            && ! $user->personnelProfile()->exists()
+            && ! $user->hasAnyRole(['FMO Head', 'FMO Dispatcher', 'FMO Staff'])
+        );
+
         WorkOrderWorkflowEvent::observe(WorkOrderWorkflowEventObserver::class);
         RegistrationReview::observe(RegistrationReviewObserver::class);
     }

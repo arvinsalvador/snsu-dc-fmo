@@ -1,10 +1,12 @@
 # Work Order Requests
 
-Phase 5 introduces the requester-facing Work Order Request portal. An approved user can submit a category, campus and building, optional floor and specific location, subject, detailed description, requester-indicated urgency, optional preferred FMO personnel, and optional initial evidence.
+Phase 5 introduces the requester-facing Work Order Request portal. An approved non-FMO user with `work_orders.create` can submit a category, campus and building, optional floor and specific location, subject, detailed description, requester-indicated urgency, optional preferred FMO personnel, and optional initial evidence. Eligible requesters include students, faculty, non-FMO university staff, Campus Director, Director for Instruction, and other authorized non-FMO accounts.
+
+Ordinary Work Order requests may only be created by non-FMO users. A retained FMO personnel profile blocks creation regardless of personnel status (including inactive, on leave, unavailable, or archived), role combinations, or a directly granted `work_orders.create` permission. FMO Head, Dispatcher, and Staff roles also block ordinary creation if a roster profile is missing. Institutional `staff` user type alone does not block a requester. The form, web submission, and API submission share this rule. Historical requests remain visible under the existing own-request permissions; assigned work remains under My Tasks. An archived roster record is retained membership for this rule; any different treatment of former personnel requires an explicit lifecycle decision.
 
 Each request has a server-generated ULID primary key and a separate human-readable `WO-YYYY-######` reference. A yearly database sequence row is locked during creation, so references are unique without relying on `MAX(id) + 1`.
 
-Normal requests start as `SUBMITTED`. Authorized Campus Director direct requests start as `APPROVED` with a distinct audit event. Requester identity and status are server controlled. A preferred FMO personnel member is only a preference: it is not an assignment, notification, access grant, or promise of assignment.
+Normal requests, including Campus Director and Director for Instruction ordinary requests, start as `SUBMITTED`. The Campus Director's separate, explicit `work_orders.create_direct` action starts a direct Work Order as `APPROVED` with a distinct audit event; the Director for Instruction does not receive that authority by default. Requester identity and status are server controlled. A preferred FMO personnel member is only a preference: it is not an assignment, notification, access grant, or promise of assignment.
 
 ## Location and categories
 

@@ -5,7 +5,7 @@
         :title="$all ? 'All Work Orders' : 'My Work Orders'"
         :description="$all ? 'Review authorized facilities requests across the campus.' : 'View and track the facilities requests you have submitted.'"
     >
-        @can('work_orders.create')
+        @can('work-orders.create-request')
             <x-slot:action>
                 <a class="btn btn-primary" href="{{ route('work-orders.create') }}">+ New Work Order</a>
             </x-slot:action>
