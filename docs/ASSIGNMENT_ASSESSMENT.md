@@ -8,6 +8,10 @@ FMO Head, Dispatcher, and System Administrator may assign/reassign. Campus Direc
 
 Web routes: assignment queue, My Tasks, assignment add/removal on order detail. API: `GET /api/v1/work-orders/assigned`, `POST /api/v1/work-orders/{id}/assignments`, `DELETE /api/v1/work-orders/{id}/assignments/{assignment}`. Assignment posts accept `personnel_ids[]` and an optional internal `note`; removals require a `reason`.
 
+Assigned access requires the action's permission plus an active assignment. `WorkOrderAssignment::activeForUser` is the authoritative identity scope: `personnel.user_id` matches the authenticated user, `unassigned_at` is null, the personnel profile is active and unarchived, and the linked account is approved. `WorkOrder::activelyAssignedTo` applies it to My Tasks, the API assigned list, and mobile bootstrap; assignment, assessment, and execution services reuse the same definition. There is no preferred-personnel or notification-based authorization. Operational status alone neither grants nor removes visibility; established completed-work/history behavior is unchanged.
+
+Eligible personnel onboarding provisions the assigned-only `FMO Staff` role additively. Existing accounts can be repaired with `personnel:sync-staff-access` (preview with `--dry-run`) without removing/readding assignments. The role must not grant `work_orders.view_all`. Assignment notices target the selected personnel's linked user and retain the normal guarded Work Order detail URL; reading or deleting a notice does not affect authorization.
+
 ## Pre-work assessment
 
 Active assigned FMO personnel acknowledge `ASSIGNED` to move the order to `FOR_ASSESSMENT`. Each assignee may independently submit immutable assessment records with required findings, one outcome, optional resource notes, and optional private photos. Outcomes are `READY_FOR_WORK`, `NEEDS_INFORMATION`, `NEEDS_FURTHER_INVESTIGATION`, `NEEDS_MATERIALS`, `MATERIALS_UNAVAILABLE`, `BEYOND_FMO_SCOPE`, `EXTERNAL_ASSISTANCE_REQUIRED`, and `RECOMMEND_CANCELLATION`. A ready assessment leads to `READY_FOR_WORK`; an exception leads to `ASSESSMENT_REVIEW`. Neither status starts actual work.

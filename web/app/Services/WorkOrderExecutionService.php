@@ -22,8 +22,8 @@ class WorkOrderExecutionService
     private function assignment(WorkOrder $order, User $actor, string $permission)
     {
         abort_unless($actor->can($permission) && $actor->isApproved(), 403);
-        $assignment = $order->activeAssignments()->whereHas('personnel', fn ($query) => $query->where('user_id', $actor->id))->with('personnel.user')->first();
-        abort_unless($assignment && $assignment->personnel->isAssignable(), 403);
+        $assignment = app(WorkOrderAssignmentService::class)->activeAssignment($order, $actor);
+        abort_unless($assignment, 403);
 
         return $assignment;
     }

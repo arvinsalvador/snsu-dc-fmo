@@ -35,8 +35,7 @@ class WorkOrderController extends Controller
     {
         abort_unless($request->user()->can('work_orders.view_assigned'), 403);
         $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
-            ->whereHas('activeAssignments.personnel', fn ($query) => $query->where('user_id', $request->user()->id)
-                ->where('personnel_status', 'ACTIVE')->whereNull('archived_at'))
+            ->activelyAssignedTo($request->user())
             ->latest('submitted_at')->paginate(50);
 
         return response()->json(['data' => $orders->getCollection()->map(fn ($order) => $this->data($order)), 'current_page' => $orders->currentPage(), 'last_page' => $orders->lastPage()]);

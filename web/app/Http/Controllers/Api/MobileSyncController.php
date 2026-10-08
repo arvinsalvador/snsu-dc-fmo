@@ -27,7 +27,7 @@ class MobileSyncController extends Controller
         $person = FmoPersonnel::with('user')->where('user_id', $request->user()->id)->first();
         abort_unless($person && $person->isAssignable(), 403);
         $orders = WorkOrder::with('requester', 'category', 'campus', 'building', 'floor', 'location', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user')
-            ->whereHas('activeAssignments', fn ($query) => $query->where('fmo_personnel_id', $person->id))
+            ->activelyAssignedTo($request->user())
             ->orderBy('id')->get();
 
         return response()->json(['data' => ['personnel' => ['id' => $person->id, 'user_id' => $request->user()->id, 'name' => $request->user()->name], 'orders' => $orders->map(fn ($order) => [
