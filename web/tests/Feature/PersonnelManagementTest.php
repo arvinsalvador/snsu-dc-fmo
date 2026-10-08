@@ -62,7 +62,7 @@ class PersonnelManagementTest extends TestCase
         $this->actingAs($user)->put('/profile', ['institutional_id' => 'S-100'])->assertSessionHasErrors('program');
     }
 
-    public function test_authorized_manager_can_create_update_and_filter_personnel_without_changing_roles(): void
+    public function test_authorized_manager_can_manage_personnel_and_provision_only_staff_role(): void
     {
         $head = $this->user('FMO Head');
         $candidate = $this->user('Requester');
@@ -82,6 +82,7 @@ class PersonnelManagementTest extends TestCase
         $this->assertCount(2, $personnel->skills);
         $this->assertSame($electrical->id, $personnel->skills->firstWhere('pivot.is_primary', true)->id);
         $this->assertFalse($candidate->hasRole('System Administrator'));
+        $this->assertTrue($candidate->fresh()->hasAllRoles(['Requester', 'FMO Staff']));
         $this->actingAs($head)->get('/personnel?search='.$candidate->name.'&skill='.$electrical->id.'&designation=Electrician&employment_type=REGULAR')->assertOk()->assertSee($candidate->name);
         $this->actingAs($head)->put('/personnel/'.$personnel->id, [
             ...$payload, 'designation' => 'Senior Electrician', 'personnel_status' => 'UNAVAILABLE',
@@ -118,6 +119,7 @@ class PersonnelManagementTest extends TestCase
         $this->assertFalse($personnel->isAssignable());
         $this->actingAs($head)->put('/personnel/'.$personnel->id.'/status', ['personnel_status' => 'ACTIVE'])->assertRedirect();
         $this->assertTrue($personnel->fresh()->isAssignable());
+        $this->assertTrue($staffUser->fresh()->hasRole('FMO Staff'));
         $staffUser->forceFill(['status' => AccountStatus::Suspended])->save();
         $this->assertFalse($personnel->fresh()->isAssignable());
         $this->actingAs($head)->delete('/personnel/'.$personnel->id)->assertRedirect();

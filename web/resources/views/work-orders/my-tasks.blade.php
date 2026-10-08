@@ -9,7 +9,7 @@
                 <tr>
                     <th>Work Order</th>
                     <th>Category</th>
-                    <th>Building</th>
+                    <th>Location</th>
                     <th>Status</th>
                     <th>Assigned team</th>
                 </tr>
@@ -22,7 +22,12 @@
                             <p class="mt-1 text-sm text-slate-600">{{ $order->subject }}</p>
                         </td>
                         <td>{{ $order->category->name }}</td>
-                        <td>{{ $order->building->name }}</td>
+                        <td>
+                            {{ $order->building->name }}
+                            @if ($order->location)
+                                <p class="mt-1 text-sm text-slate-600">{{ $order->location->name }}</p>
+                            @endif
+                        </td>
                         <td><x-status-badge :status="$order->status" /></td>
                         <td>{{ $order->activeAssignments->map(fn ($assignment) => $assignment->personnel->user->name)->join(', ') }}</td>
                     </tr>

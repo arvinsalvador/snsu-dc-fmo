@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\FmoPersonnel;
 use App\Models\Skill;
 use App\Models\User;
+use App\Services\PersonnelAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +54,7 @@ class PersonnelController extends Controller
         $personnel = DB::transaction(function () use ($data): FmoPersonnel {
             $personnel = FmoPersonnel::create($this->personnelFields($data));
             $this->syncSkills($personnel, $data);
+            app(PersonnelAccessService::class)->provision($personnel->load('user'));
 
             return $personnel;
         });
@@ -81,6 +83,7 @@ class PersonnelController extends Controller
         DB::transaction(function () use ($personnel, $data): void {
             $personnel->update($this->personnelFields($data, false));
             $this->syncSkills($personnel, $data);
+            app(PersonnelAccessService::class)->provision($personnel->load('user'));
         });
 
         return redirect()->route('personnel.show', $personnel)->with('success', 'FMO personnel profile updated.');
@@ -90,10 +93,13 @@ class PersonnelController extends Controller
     {
         abort_unless($request->user()->can('personnel.manage_status'), 403);
         $data = $request->validate(['personnel_status' => ['required', Rule::enum(PersonnelStatus::class)]]);
-        $personnel->update([
-            'personnel_status' => $data['personnel_status'],
-            'archived_at' => $data['personnel_status'] === PersonnelStatus::Inactive->value ? now() : null,
-        ]);
+        DB::transaction(function () use ($personnel, $data): void {
+            $personnel->update([
+                'personnel_status' => $data['personnel_status'],
+                'archived_at' => $data['personnel_status'] === PersonnelStatus::Inactive->value ? now() : null,
+            ]);
+            app(PersonnelAccessService::class)->provision($personnel->load('user'));
+        });
 
         return back()->with('success', 'Personnel status updated.');
     }

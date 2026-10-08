@@ -17,12 +17,12 @@ class WorkOrderAssignmentService
 
     public function assignedTo(WorkOrder $order, User $user): bool
     {
-        $personnel = FmoPersonnel::with('user')->where('user_id', $user->id)->first();
-        if (! $personnel?->isAssignable()) {
-            return false;
-        }
+        return $order->activeAssignments()->activeForUser($user)->exists();
+    }
 
-        return $order->activeAssignments()->whereHas('personnel', fn ($query) => $query->where('user_id', $user->id))->exists();
+    public function activeAssignment(WorkOrder $order, User $user): ?WorkOrderAssignment
+    {
+        return $order->activeAssignments()->activeForUser($user)->with('personnel.user')->first();
     }
 
     public function mayManage(WorkOrder $order, User $actor, bool $reassign = false): bool

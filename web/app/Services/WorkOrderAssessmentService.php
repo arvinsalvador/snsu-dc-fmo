@@ -19,9 +19,8 @@ class WorkOrderAssessmentService
     private function assignment(WorkOrder $order, User $actor)
     {
         abort_unless($actor->can('work_orders.assess_assigned'), 403);
-        $assignment = $order->activeAssignments()->with('personnel.user')
-            ->whereHas('personnel', fn ($query) => $query->where('user_id', $actor->id))->first();
-        abort_unless($assignment && $assignment->personnel->isAssignable(), 403);
+        $assignment = app(WorkOrderAssignmentService::class)->activeAssignment($order, $actor);
+        abort_unless($assignment, 403);
 
         return $assignment;
     }

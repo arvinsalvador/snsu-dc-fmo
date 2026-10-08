@@ -27,7 +27,7 @@ class WorkOrderAssignmentController extends Controller
     {
         abort_unless($request->user()->can('work_orders.view_assigned'), 403);
         $orders = WorkOrder::with('category', 'building', 'location', 'activeAssignments.personnel.user')
-            ->whereHas('activeAssignments.personnel', fn ($query) => $query->where('user_id', $request->user()->id))
+            ->activelyAssignedTo($request->user())
             ->latest('submitted_at')->paginate(20);
 
         return view('work-orders.my-tasks', compact('orders'));

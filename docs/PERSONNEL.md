@@ -4,13 +4,15 @@
 
 `users` holds authentication, account status, roles, and permissions. Institutional user type (`student`, `faculty`, or `staff`) describes an affiliation and never grants authority. Each approved user may maintain one requester profile for institutional ID, organizational affiliation, program, year level, and contact details. Organizational office is an affiliation only; Phase 3 does not model physical locations.
 
-An FMO personnel profile is separate and optional. It links one approved user to FMO operational information: personnel identifier, designation, employment type, start date, contact number, personnel status, and internal notes. Creating a personnel profile does not change any role. An authorized administrator must assign the `FMO Staff` role separately when appropriate.
+An FMO personnel profile is separate and optional. It links one approved user to FMO operational information: personnel identifier, designation, employment type, start date, contact number, personnel status, and internal notes. Creating, updating, or activating an eligible active profile adds the `FMO Staff` role to its approved linked account. Existing roles and direct permissions are preserved. Designation never grants authority, and assigned-only access still requires an active assignment to the specific Work Order.
 
 ## FMO Staff workflow
 
 Open **FMO Staff** and use **Add FMO Staff** to select an existing approved user who has no personnel profile. Add descriptive personnel data and skills. Designation is descriptive only; it has no authorization effect. Employment types are Job Order, Regular, Contractual, Casual, and Other.
 
-Personnel status is independent from account status. Active personnel with an approved account are assignable. Inactive, On Leave, and Unavailable personnel are not assignable. Deactivation sets personnel status to Inactive and preserves the record. Reactivation changes only personnel status and cannot reactivate a suspended or deactivated account.
+Personnel status is independent from account status. Active, unarchived personnel with an approved account are assignable. Inactive, On Leave, and Unavailable personnel are not assignable and cannot use assigned-only access. Deactivation sets personnel status to Inactive and preserves the record and roles. Reactivation cannot reactivate a suspended or deactivated account; an eligible reactivated profile also provisions missing staff access.
+
+For existing profiles, run `./vendor/bin/sail artisan personnel:sync-staff-access --dry-run`, then `./vendor/bin/sail artisan personnel:sync-staff-access`. This repeatable repair adds only the missing `FMO Staff` role to approved, active, unarchived personnel. It does not replace roles, wipe direct permissions, or change assignments. Provisioning refuses to add a staff role that grants `work_orders.view_all`; review such a custom mapping separately. No full authorization reseed is required.
 
 Hard deletion removes only an unused FMO personnel profile; it never deletes the linked user. It is available only to users with `personnel.delete`. The deletion guard is deliberately isolated so later work-order references can block deletion before any historical data is removed.
 
