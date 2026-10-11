@@ -50,8 +50,8 @@ class WorkOrderAssessmentService
             }
             $assessment = $locked->assessments()->create(['work_order_assignment_id' => $assignment->id, 'fmo_personnel_id' => $assignment->fmo_personnel_id, 'outcome' => $data['outcome'], 'findings' => $data['findings'], 'resource_notes' => $data['resource_notes'] ?? null, 'assessed_at' => now()]);
             foreach ($files as $file) {
-                $path = app(StoredFileTransaction::class)->store($file, 'work-orders/'.$locked->id.'/assessments/'.$assessment->id);
-                $assessment->attachments()->create(['work_order_id' => $locked->id, 'uploaded_by' => $actor->id, 'purpose' => 'ASSESSMENT', 'original_filename' => $file->getClientOriginalName(), 'stored_path' => $path, 'mime_type' => $file->getMimeType(), 'file_size' => $file->getSize()]);
+                $media = app(EvidenceMediaService::class)->store($file, 'work-orders/'.$locked->id.'/assessments/'.$assessment->id);
+                $assessment->attachments()->create(['work_order_id' => $locked->id, 'uploaded_by' => $actor->id, 'purpose' => 'ASSESSMENT', 'evidence_type' => 'ASSESSMENT', ...$media]);
             }
             $this->workflow->recordOperational($locked, $actor, $data['outcome'] === AssessmentOutcome::ReadyForWork->value ? 'ASSESSMENT_READY' : 'ASSESSMENT_EXCEPTION', 'Assessment '.$data['outcome'].': '.$data['findings'], $data['outcome'] === AssessmentOutcome::ReadyForWork->value ? 'Staff assessment completed. Awaiting authorization to begin work.' : 'Staff assessment requires FMO review.');
 

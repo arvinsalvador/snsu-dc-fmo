@@ -1,86 +1,88 @@
 @php($executionViewer = auth()->user()->can('work_orders.view_execution') || $assigned)
 @php($mySession = $assigned ? $order->sessions->first(fn ($session) => $session->ended_at === null && $session->personnel?->user_id === auth()->id()) : null)
+@php($visibleUpdates = $executionViewer ? $order->updates->sortByDesc('recorded_at') : $order->updates->whereNotNull('requester_summary')->sortByDesc('recorded_at'))
 
-@if ($executionViewer)
-<section class="mt-6 rounded border bg-white p-5">
-    <h2 class="text-lg font-semibold">Work execution</h2>
-    <p class="text-sm text-slate-600">A work session begins only after Start Work. Each team member records their own activity.</p>
-    @if (auth()->user()->can('work_orders.view_execution'))
-        @php($timeline = $order->workflowEvents->map(fn ($event) => ['at' => $event->created_at, 'label' => str_replace('_', ' ', $event->action), 'actor' => $event->actor?->name, 'detail' => $event->internal_note ?? $event->requester_message])->concat($order->updates->map(fn ($update) => ['at' => $update->recorded_at, 'label' => $update->type->value, 'actor' => $update->personnel->user->name, 'detail' => $update->description]))->sortBy('at'))
-        <h3 class="mt-5 font-semibold">Execution timeline</h3>
-        <ol class="mt-2 space-y-2">@foreach ($timeline as $item)<li class="border-l-2 pl-3"><small>{{ $item['at']->timezone('Asia/Manila')->format('M j, Y g:i A') }} · {{ $item['actor'] }} · {{ $item['label'] }}</small>@if ($item['detail'])<p>{{ $item['detail'] }}</p>@endif</li>@endforeach</ol>
+<section id="current-work" class="section-card scroll-mt-24">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div><p class="detail-kicker">Operational status</p><h2 class="mt-1 text-xl">Current Work</h2></div>
+        @if ($order->activeSessions->isNotEmpty())<span class="status-badge status-active">{{ $order->activeSessions->count() }} active {{ \Illuminate\Support\Str::plural('session', $order->activeSessions->count()) }}</span>@endif
+    </div>
+
+    @if ($order->activeSessions->isNotEmpty())
+        <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            @foreach ($order->activeSessions as $session)
+                <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-4"><p class="text-xs font-semibold uppercase tracking-wider text-indigo-700">Active session</p><p class="mt-2 font-semibold text-slate-900">{{ $session->personnel->user->name }}</p><p class="mt-1 text-sm text-slate-600">Started {{ $session->started_at->timezone('Asia/Manila')->format('M j, Y · g:i A') }}</p></div>
+            @endforeach
+        </div>
+    @elseif ($order->status === \App\Enums\WorkOrderStatus::ForContinuation)
+        <p class="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Work is ready to continue in a new session.</p>
+    @elseif ($order->status === \App\Enums\WorkOrderStatus::WaitingForMaterials)
+        <p class="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Work is waiting for required materials or resources.</p>
+    @elseif ($order->status === \App\Enums\WorkOrderStatus::NeedsInvestigation)
+        <p class="mt-4 rounded-xl bg-rose-50 p-4 text-sm text-rose-900">Further investigation is required before work can resume.</p>
+    @elseif ($order->sessions->isEmpty())
+        <p class="mt-4 text-sm text-slate-500">No work session has started yet.</p>
     @endif
+
     @if ($assigned && ! $mySession && in_array($order->status, [\App\Enums\WorkOrderStatus::ReadyForWork, \App\Enums\WorkOrderStatus::InProgress, \App\Enums\WorkOrderStatus::ForContinuation, \App\Enums\WorkOrderStatus::Paused, \App\Enums\WorkOrderStatus::WaitingForMaterials]))
-        @can('work_orders.start_assigned')<form method="POST" action="{{ route('work-orders.start-work', $order) }}" class="mt-4">@csrf<button class="rounded bg-green-700 px-5 py-3 font-semibold text-white">Start Work</button></form>@endcan
+        @can('work_orders.start_assigned')<form method="POST" action="{{ route('work-orders.start-work', $order) }}" class="mt-5">@csrf<button class="btn btn-success min-h-12 w-full sm:w-auto" type="submit">Start Work</button></form>@endcan
     @endif
 
-    @if ($mySession)
-        <p class="mt-4 rounded bg-green-50 p-3">Your active session began {{ $mySession->started_at->timezone('Asia/Manila')->format('M j, Y g:i A') }}.</p>
-        @if ($order->status === \App\Enums\WorkOrderStatus::InProgress)
-        <form method="POST" enctype="multipart/form-data" action="{{ route('work-orders.execution.update', [$order, $mySession]) }}" class="mt-4 space-y-2 border-t pt-4">@csrf
-            <h3 class="font-semibold">Add individual update and evidence</h3>
-            <select name="type" class="w-full rounded border p-2">@foreach (['BEFORE' => 'Before / Initial Evidence', 'PROGRESS' => 'Progress', 'ISSUE' => 'Issue', 'COMPLETION' => 'Completion / Outcome Evidence', 'OTHER' => 'Other'] as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>
-            <textarea name="description" required placeholder="What did you do or find? (internal detail)" class="w-full rounded border p-2"></textarea>
-            <textarea name="requester_summary" placeholder="Optional requester-visible progress summary" class="w-full rounded border p-2"></textarea>
-            <input type="file" name="evidence[]" multiple accept="image/jpeg,image/png,image/webp,video/mp4">
-            <button class="rounded bg-blue-700 px-4 py-2 text-white">Save Update</button>
-        </form>
-        <form method="POST" enctype="multipart/form-data" action="{{ route('work-orders.execution.end', [$order, $mySession]) }}" class="mt-6 space-y-2 border-t pt-4">@csrf
-            <h3 class="font-semibold">End your work session</h3>
-            <select name="outcome" required class="w-full rounded border p-2">@foreach (\App\Enums\WorkSessionOutcome::cases() as $outcome)<option value="{{ $outcome->value }}">{{ str_replace('_', ' ', $outcome->value) }}</option>@endforeach</select>
-            <textarea name="summary" required placeholder="Explain the state of the work" class="w-full rounded border p-2"></textarea>
-            <textarea name="requester_summary" placeholder="Optional requester-visible update" class="w-full rounded border p-2"></textarea>
-            <textarea name="remaining_work" placeholder="What remains? Required for continuation" class="w-full rounded border p-2"></textarea>
-            <input name="material_description" placeholder="Materials/resources required when waiting" class="w-full rounded border p-2">
-            <input type="file" name="evidence[]" multiple accept="image/jpeg,image/png,image/webp,video/mp4">
-            <h4 class="font-medium">If submitting completion with this end action</h4>
-            <textarea name="completion_summary" placeholder="Completion summary" class="w-full rounded border p-2"></textarea>
-            <textarea name="work_performed_summary" placeholder="Work performed" class="w-full rounded border p-2"></textarea>
-            <textarea name="non_photo_reason" placeholder="If no completion photo is possible, provide a specific justification" class="w-full rounded border p-2"></textarea>
-            <button class="rounded bg-slate-700 px-4 py-2 text-white">End Session with Outcome</button>
-        </form>
-        @endif
+    @if ($mySession && $order->status === \App\Enums\WorkOrderStatus::InProgress)
+        <div id="field-actions" class="mt-6 grid scroll-mt-24 gap-4 xl:grid-cols-2">
+            <details class="rounded-xl border border-blue-200 bg-blue-50/50 p-4" open>
+                <summary class="cursor-pointer font-semibold text-slate-900">Add work update</summary>
+                <form method="POST" enctype="multipart/form-data" action="{{ route('work-orders.execution.update', [$order, $mySession]) }}" class="mt-4 space-y-4">@csrf
+                    <label>Update type<select name="type">@foreach (['BEFORE' => 'Before / Initial Evidence', 'PROGRESS' => 'Progress', 'ISSUE' => 'Issue', 'COMPLETION' => 'Completion / Outcome Evidence', 'OTHER' => 'Other'] as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></label>
+                    <label>Work performed or finding<textarea name="description" required placeholder="Describe what you did or found."></textarea></label>
+                    <label>Requester-visible summary <span class="font-normal text-slate-400">(optional)</span><textarea name="requester_summary" placeholder="A plain-language update the requester may see."></textarea></label>
+                    <x-photo-picker id="work-update-{{ $mySession->id }}" title="Add Progress Evidence" help="These files will be attached to this work update." :allow-video="true" />
+                    <button class="btn btn-primary w-full sm:w-auto" type="submit">Save Update</button>
+                </form>
+            </details>
+            <details class="rounded-xl border border-slate-200 p-4">
+                <summary class="cursor-pointer font-semibold text-slate-900">End current session</summary>
+                <form method="POST" enctype="multipart/form-data" action="{{ route('work-orders.execution.end', [$order, $mySession]) }}" class="mt-4 space-y-4">@csrf
+                    <label>Session outcome<select name="outcome" required>@foreach (\App\Enums\WorkSessionOutcome::cases() as $outcome)<option value="{{ $outcome->value }}">{{ \Illuminate\Support\Str::of($outcome->value)->replace('_', ' ')->title() }}</option>@endforeach</select></label>
+                    <label>Session summary<textarea name="summary" required placeholder="Explain the current state of the work."></textarea></label>
+                    <label>Requester-visible update <span class="font-normal text-slate-400">(optional)</span><textarea name="requester_summary"></textarea></label>
+                    <label>Remaining work <span class="font-normal text-slate-400">(for continuation)</span><textarea name="remaining_work"></textarea></label>
+                    <label>Materials or resources required<input name="material_description"></label>
+                    <x-photo-picker id="session-end-{{ $mySession->id }}" title="Session Evidence" help="Add photos showing the current state, issue, continuation point, or completed work." :allow-video="true" />
+                    <div class="rounded-lg border border-slate-200 bg-white p-3"><p class="text-sm font-semibold">If submitting completion</p><label class="mt-3 block">Completion summary<textarea name="completion_summary"></textarea></label><label class="mt-3 block">Work performed<textarea name="work_performed_summary"></textarea></label><label class="mt-3 block">Reason no completion photo is available<textarea name="non_photo_reason"></textarea></label></div>
+                    <button class="btn btn-secondary w-full sm:w-auto" type="submit">End Session</button>
+                </form>
+            </details>
+        </div>
     @endif
 
     @if ($assigned && ! $mySession && in_array($order->status, [\App\Enums\WorkOrderStatus::InProgress, \App\Enums\WorkOrderStatus::ForContinuation]) && ! $order->sessions->contains(fn ($session) => $session->ended_at === null))
-        @can('work_orders.submit_completion')<form method="POST" action="{{ route('work-orders.submit-verification', $order) }}" class="mt-6 space-y-2 border-t pt-4">@csrf
-            <h3 class="font-semibold">Submit for verification</h3><p class="text-sm">Record a completion update and photo during a session first, or explain why a photo is not meaningful.</p>
-            <textarea name="completion_summary" required placeholder="Completion summary" class="w-full rounded border p-2"></textarea>
-            <textarea name="work_performed_summary" required placeholder="Work performed" class="w-full rounded border p-2"></textarea>
-            <textarea name="requester_summary" placeholder="Requester-visible completion summary" class="w-full rounded border p-2"></textarea>
-            <textarea name="non_photo_reason" placeholder="Specific non-photographic justification, if needed" class="w-full rounded border p-2"></textarea>
-            <button class="rounded bg-blue-700 px-4 py-2 text-white">Submit for Verification</button>
-        </form>@endcan
+        @can('work_orders.submit_completion')
+            <details id="submit-completion" class="mt-6 scroll-mt-24 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4" open><summary class="cursor-pointer font-semibold text-emerald-950">Submit completed work for verification</summary>
+                <form method="POST" action="{{ route('work-orders.submit-verification', $order) }}" class="mt-4 space-y-4">@csrf<p class="text-sm text-emerald-900">Record completion evidence during a work session first, or explain why photographic evidence is not meaningful.</p><label>Completion summary<textarea name="completion_summary" required></textarea></label><label>Work performed<textarea name="work_performed_summary" required></textarea></label><label>Requester-visible summary <span class="font-normal text-slate-400">(optional)</span><textarea name="requester_summary"></textarea></label><label>Non-photographic justification <span class="font-normal text-slate-400">(if needed)</span><textarea name="non_photo_reason"></textarea></label><button class="btn btn-success w-full sm:w-auto" type="submit">Submit for Verification</button></form>
+            </details>
+        @endcan
     @endif
 
-    @if ($order->status === \App\Enums\WorkOrderStatus::ForVerification)
-        @can('work_orders.verify_completion')<form method="POST" action="{{ route('work-orders.verify', $order) }}" class="mt-5 border-t pt-4">@csrf<label>Verification note<textarea name="verification_note" class="mt-1 w-full rounded border p-2"></textarea></label><button class="mt-2 rounded bg-green-700 px-4 py-2 text-white">Verify Completion</button></form>@endcan
-        @can('work_orders.return_for_work')<form method="POST" action="{{ route('work-orders.return-for-work', $order) }}" class="mt-5 border-t pt-4">@csrf<label>Reason for additional work<textarea name="reason" required class="mt-1 w-full rounded border p-2"></textarea></label><button class="mt-2 rounded bg-amber-700 px-4 py-2 text-white">Return for Additional Work</button></form>@endcan
-    @endif
-    @if ($order->status === \App\Enums\WorkOrderStatus::NeedsInvestigation)
-        @can('work_orders.resolve_assessment')<form method="POST" action="{{ route('work-orders.release-investigation', $order) }}" class="mt-5 border-t pt-4">@csrf<label>Investigation resolution<textarea name="note" required class="mt-1 w-full rounded border p-2"></textarea></label><button class="mt-2 rounded bg-blue-700 px-4 py-2 text-white">Release for Work</button></form>@endcan
-    @endif
-
-    <h3 class="mt-6 font-semibold">Individual sessions and updates</h3>
-    @forelse ($order->sessions as $session)
-        <article class="mt-3 rounded border p-3"><b>{{ $session->personnel->user->name }}</b> · {{ $session->started_at->timezone('Asia/Manila')->format('M j, Y g:i A') }} → {{ $session->ended_at?->timezone('Asia/Manila')->format('M j, Y g:i A') ?? 'ACTIVE' }} @if ($session->end_outcome) · {{ str_replace('_', ' ', $session->end_outcome->value) }} @endif
-            @if ($session->session_summary)<p>{{ $session->session_summary }}</p>@endif
-            @foreach ($session->updates as $update)
-                <div class="mt-2 border-l-2 pl-3"><small>{{ $update->recorded_at->timezone('Asia/Manila')->format('M j, Y g:i A') }} · {{ $update->type->value }}</small><p>{{ $update->description }}</p>
-                    @foreach ($update->attachments as $file)<a class="mr-2 text-blue-700 underline" href="{{ route('work-orders.attachments.show', [$order, $file]) }}">{{ $file->evidence_type }}: {{ $file->original_filename }}</a>@endforeach
-                </div>
+    @if ($visibleUpdates->isNotEmpty())
+        <div class="mt-7 border-t border-slate-100 pt-6"><h3 class="font-semibold text-slate-900">Work Progress</h3><ol class="mt-4">
+            @foreach ($visibleUpdates as $update)
+                <li class="progress-entry"><div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500"><span>{{ $update->recorded_at->timezone('Asia/Manila')->format('M j · g:i A') }}</span>@if ($executionViewer)<span>• {{ $update->personnel->user->name }}</span><span class="status-badge status-neutral">{{ \Illuminate\Support\Str::of($update->type->value)->replace('_', ' ')->title() }}</span>@endif</div><p class="mt-2 leading-6 text-slate-700">{{ $executionViewer ? $update->description : $update->requester_summary }}</p>@if ($executionViewer && $update->requester_summary)<p class="mt-2 text-sm text-slate-500">Requester update: {{ $update->requester_summary }}</p>@endif @if ($update->attachments->isNotEmpty())<p class="mt-2 text-xs font-medium text-blue-700">{{ $update->attachments->count() }} evidence {{ \Illuminate\Support\Str::plural('file', $update->attachments->count()) }}</p>@endif</li>
             @endforeach
-            @if ($session->ended_at === null && auth()->user()->can('work_orders.manage_sessions'))
-                <form method="POST" action="{{ route('work-orders.execution.force-end', [$order, $session]) }}" class="mt-3">@csrf<input name="reason" required placeholder="Administrative reason" class="rounded border p-2"><button class="ml-2 text-red-700">Resolve Stuck Session</button></form>
-            @endif
-        </article>
-    @empty<p class="mt-2">No work sessions yet.</p>@endforelse
+        </ol></div>
+    @else
+        <p class="mt-6 border-t border-slate-100 pt-5 text-sm text-slate-500">No progress updates are available yet.</p>
+    @endif
 
-    @if ($order->completion_summary)<p class="mt-5"><b>Submitted completion:</b> {{ $order->completion_summary }}</p>@endif
+    @if ($executionViewer && $order->sessions->isNotEmpty())
+        <details class="mt-6 border-t border-slate-100 pt-5"><summary class="cursor-pointer text-sm font-semibold text-blue-800">View session history ({{ $order->sessions->count() }})</summary><div class="mt-3 space-y-3">
+            @foreach ($order->sessions->sortByDesc('started_at') as $session)
+                <article class="rounded-xl border border-slate-200 p-4"><p class="font-semibold">{{ $session->personnel->user->name }}</p><p class="mt-1 text-xs text-slate-500">{{ $session->started_at->timezone('Asia/Manila')->format('M j, Y · g:i A') }} → {{ $session->ended_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Active' }}</p>@if ($session->session_summary)<p class="mt-2 text-sm text-slate-700">{{ $session->session_summary }}</p>@endif @if ($session->ended_at === null && auth()->user()->can('work_orders.manage_sessions'))<form method="POST" action="{{ route('work-orders.execution.force-end', [$order, $session]) }}" class="mt-3 flex flex-col gap-2 sm:flex-row">@csrf<input name="reason" required placeholder="Administrative reason"><button class="btn btn-danger shrink-0" type="submit">Resolve Stuck Session</button></form>@endif</article>
+            @endforeach
+        </div></details>
+    @endif
+
+    @if ($order->status === \App\Enums\WorkOrderStatus::NeedsInvestigation)
+        @can('work_orders.resolve_assessment')<form method="POST" action="{{ route('work-orders.release-investigation', $order) }}" class="mt-6 border-t border-slate-100 pt-5">@csrf<label>Investigation resolution<textarea name="note" required></textarea></label><button class="btn btn-primary mt-3" type="submit">Release for Work</button></form>@endcan
+    @endif
 </section>
-@else
-<section class="mt-6 rounded border bg-white p-5"><h2 class="text-lg font-semibold">Work progress</h2>
-    @foreach ($order->updates->whereNotNull('requester_summary')->sortBy('recorded_at') as $update)<p class="mt-2">{{ $update->recorded_at->timezone('Asia/Manila')->format('M j, Y g:i A') }} — {{ $update->requester_summary }}</p>@endforeach
-    @if ($order->status === \App\Enums\WorkOrderStatus::Completed)<p class="mt-4"><b>Completed:</b> {{ $order->verified_at?->timezone('Asia/Manila')->format('M j, Y g:i A') }}</p><p>{{ $order->work_performed_summary }}</p>@endif
-</section>
-@endif

@@ -98,9 +98,11 @@ class WorkOrderExecutionTest extends TestCase
         $this->actingAs($staff)->post("/work-orders/{$order->id}/sessions/{$session->id}/updates", ['type' => 'COMPLETION', 'description' => 'Fixture restored', 'evidence' => [UploadedFile::fake()->image('done.jpg')]])->assertRedirect();
         $evidence = $order->attachments()->where('purpose', 'EXECUTION')->firstOrFail();
         Storage::disk('local')->assertExists($evidence->stored_path);
+        Storage::disk('local')->assertExists($evidence->thumbnail_path);
         $this->actingAs($requester)->get("/work-orders/{$order->id}")->assertOk()->assertSee('Repair is underway')->assertDontSee('Wiring repaired')->assertDontSee('before.jpg');
         $this->actingAs($requester)->get("/work-orders/{$order->id}/attachments/{$evidence->id}")->assertForbidden();
         $this->actingAs($head)->get("/work-orders/{$order->id}/attachments/{$evidence->id}")->assertOk();
+        $this->actingAs($head)->get("/work-orders/{$order->id}/attachments/{$evidence->id}/thumbnail")->assertOk();
         $this->actingAs($staff)->post("/work-orders/{$order->id}/sessions/{$session->id}/end", ['outcome' => 'CONTRIBUTION_COMPLETE', 'summary' => 'Work finished'])->assertRedirect();
         $this->actingAs($staff)->post("/work-orders/{$order->id}/submit-for-verification", ['completion_summary' => 'Fixture operational', 'work_performed_summary' => 'Wiring and fixture replaced', 'requester_summary' => 'Repair completed; awaiting FMO verification'])->assertRedirect();
         $this->assertSame(WorkOrderStatus::ForVerification, $order->fresh()->status);

@@ -73,6 +73,8 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/work-orders/{workOrder}', [WorkOrderController::class, 'show'])->name('work-orders.show');
         Route::put('/work-orders/{workOrder}', [WorkOrderController::class, 'update'])->name('work-orders.update');
         Route::get('/work-orders/{workOrder}/attachments/{attachment}', [WorkOrderController::class, 'attachment'])->name('work-orders.attachments.show');
+        Route::get('/work-orders/{workOrder}/attachments/{attachment}/thumbnail', [WorkOrderController::class, 'attachmentThumbnail'])->name('work-orders.attachments.thumbnail');
+        Route::get('/work-orders/{workOrder}/attachments/{attachment}/download', [WorkOrderController::class, 'attachmentDownload'])->name('work-orders.attachments.download');
         Route::get('/work-order-categories', [WorkOrderCategoryController::class, 'index'])->name('work-order-categories.index');
         Route::post('/work-order-categories', [WorkOrderCategoryController::class, 'store'])->name('work-order-categories.store');
         Route::put('/work-order-categories/{workOrderCategory}', [WorkOrderCategoryController::class, 'update'])->name('work-order-categories.update');

@@ -78,8 +78,8 @@
         </section>
 
         <section class="form-section">
-            <h2>5. Photos / Attachments</h2><p>Add photos or files that may help FMO understand the concern. JPEG, PNG, WebP, or MP4; up to {{ config('work_orders.attachments.max_count') }} files and {{ config('work_orders.attachments.max_size_kb') / 1024 }} MB each.</p>
-            <label class="block rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center hover:border-blue-400 hover:bg-blue-50"><span class="font-semibold text-slate-800">Choose photos or video</span><input class="mt-3" type="file" name="attachments[]" multiple accept="image/jpeg,image/png,image/webp,video/mp4"><span id="attachment-summary" class="mt-2 block text-xs font-normal text-slate-500">No files selected</span></label>
+            <h2>5. Photos / Attachments</h2><p>Add photos or video that may help FMO understand the concern. Up to {{ config('work_orders.attachments.max_count') }} files and {{ config('work_orders.attachments.max_size_kb') / 1024 }} MB each.</p>
+            <x-photo-picker name="attachments" id="request-attachments" title="Request Photos" help="Take a photo on a supported phone, or choose JPEG, PNG, WebP, or MP4 files from your device." :allow-video="true" />
             @error('attachments')<p class="field-error">{{ $message }}</p>@enderror
         </section>
 

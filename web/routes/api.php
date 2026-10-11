@@ -59,5 +59,6 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/work-orders/{workOrder}', [WorkOrderController::class, 'show']);
         Route::patch('/work-orders/{workOrder}', [WorkOrderController::class, 'update']);
         Route::get('/work-orders/{workOrder}/attachments/{attachment}', [WorkOrderController::class, 'attachment']);
+        Route::get('/work-orders/{workOrder}/attachments/{attachment}/thumbnail', [WorkOrderController::class, 'attachmentThumbnail']);
     });
 });

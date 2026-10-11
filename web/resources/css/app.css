@@ -57,4 +57,12 @@
     .field-invalid { @apply border-rose-500 focus:border-rose-600 focus:ring-rose-100; }
     .timeline-item { @apply relative border-l border-slate-200 pb-6 pl-6 last:border-transparent last:pb-0; }
     .timeline-item::before { content: ''; @apply absolute -left-[5px] top-1 size-2.5 rounded-full bg-blue-600 ring-4 ring-blue-100; }
+    .detail-kicker { @apply text-xs font-semibold uppercase tracking-[0.14em] text-blue-700; }
+    .detail-label { @apply text-xs font-semibold uppercase tracking-wider text-slate-500; }
+    .detail-value { @apply mt-1 text-sm font-medium text-slate-900; }
+    .status-panel { @apply rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 shadow-xs sm:p-6; }
+    .person-row { @apply flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3; }
+    .person-avatar { @apply grid size-9 shrink-0 place-items-center rounded-full bg-blue-100 text-sm font-bold text-blue-800; }
+    .progress-entry { @apply relative border-l-2 border-slate-200 pb-6 pl-5 last:border-transparent last:pb-0; }
+    .progress-entry::before { content: ''; @apply absolute -left-[7px] top-1 size-3 rounded-full border-2 border-white bg-indigo-600 ring-2 ring-indigo-100; }
 }

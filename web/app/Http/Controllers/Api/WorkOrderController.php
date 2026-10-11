@@ -7,10 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Services\StoredFileTransaction;
-use App\Services\WorkOrderAssignmentService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class WorkOrderController extends Controller
 {
@@ -83,12 +81,12 @@ class WorkOrderController extends Controller
 
     public function attachment(Request $request, WorkOrder $workOrder, WorkOrderAttachment $attachment, \App\Http\Controllers\WorkOrders\WorkOrderController $requests)
     {
-        $requests->authorizeWorkOrder($request, $workOrder);
-        abort_unless($attachment->work_order_id === $workOrder->id, 404);
-        abort_if($attachment->purpose === 'ASSESSMENT' && ! ($request->user()->can('work_orders.view_assessments') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user())), 403);
-        abort_if($attachment->purpose === 'EXECUTION' && ! ($request->user()->can('work_orders.view_execution') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user()) || ($workOrder->requester_id === $request->user()->id && $attachment->requester_visible)), 403);
+        return $requests->attachment($request, $workOrder, $attachment);
+    }
 
-        return Storage::disk('local')->download($attachment->stored_path, $attachment->safeDownloadName());
+    public function attachmentThumbnail(Request $request, WorkOrder $workOrder, WorkOrderAttachment $attachment, \App\Http\Controllers\WorkOrders\WorkOrderController $requests)
+    {
+        return $requests->attachmentThumbnail($request, $workOrder, $attachment);
     }
 
     private function data(WorkOrder $order): array

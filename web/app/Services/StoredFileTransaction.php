@@ -52,4 +52,19 @@ class StoredFileTransaction
 
         return $path;
     }
+
+    public function put(string $path, string $contents): string
+    {
+        if ($this->paths === []) {
+            throw new LogicException('A private file must be stored inside a tracked transaction.');
+        }
+
+        if (! Storage::disk('local')->put($path, $contents)) {
+            throw new RuntimeException('Could not store the private file.');
+        }
+
+        $this->paths[array_key_last($this->paths)][] = $path;
+
+        return $path;
+    }
 }

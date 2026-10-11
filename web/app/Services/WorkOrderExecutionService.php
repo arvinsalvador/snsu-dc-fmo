@@ -86,8 +86,8 @@ class WorkOrderExecutionService
     private function evidence(WorkOrder $order, WorkSession $session, WorkUpdate $update, User $actor, array $files, string $type): void
     {
         foreach ($files as $file) {
-            $path = app(StoredFileTransaction::class)->store($file, 'work-orders/'.$order->id.'/execution/'.$update->id);
-            $update->attachments()->create(['work_order_id' => $order->id, 'work_session_id' => $session->id, 'uploaded_by' => $actor->id, 'purpose' => 'EXECUTION', 'evidence_type' => $type, 'requester_visible' => false, 'original_filename' => $file->getClientOriginalName(), 'stored_path' => $path, 'mime_type' => $file->getMimeType(), 'file_size' => $file->getSize()]);
+            $media = app(EvidenceMediaService::class)->store($file, 'work-orders/'.$order->id.'/execution/'.$update->id);
+            $update->attachments()->create(['work_order_id' => $order->id, 'work_session_id' => $session->id, 'uploaded_by' => $actor->id, 'purpose' => 'EXECUTION', 'evidence_type' => $type, 'requester_visible' => false, ...$media]);
         }
     }
 

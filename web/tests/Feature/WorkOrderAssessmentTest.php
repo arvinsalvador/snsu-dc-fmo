@@ -130,8 +130,10 @@ class WorkOrderAssessmentTest extends TestCase
         $this->actingAs($staff)->post("/work-orders/{$order->id}/assessments", ['outcome' => 'READY_FOR_WORK', 'findings' => 'Safe to repair', 'evidence' => [UploadedFile::fake()->image('photo.jpg')]])->assertRedirect();
         $attachment = $order->attachments()->where('purpose', 'ASSESSMENT')->firstOrFail();
         Storage::disk('local')->assertExists($attachment->stored_path);
+        Storage::disk('local')->assertExists($attachment->thumbnail_path);
         $this->actingAs($requester)->get("/work-orders/{$order->id}")->assertOk()->assertDontSee('photo.jpg');
         $this->actingAs($requester)->get("/work-orders/{$order->id}/attachments/{$attachment->id}")->assertForbidden();
         $this->actingAs($staff)->get("/work-orders/{$order->id}/attachments/{$attachment->id}")->assertOk();
+        $this->actingAs($staff)->get("/work-orders/{$order->id}/attachments/{$attachment->id}/thumbnail")->assertOk();
     }
 }

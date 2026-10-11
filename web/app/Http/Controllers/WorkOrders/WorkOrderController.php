@@ -13,6 +13,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Models\WorkOrderCategory;
 use App\Services\StoredFileTransaction;
+use App\Services\EvidenceMediaService;
 use App\Services\WorkOrderAssignmentService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
@@ -100,7 +101,7 @@ class WorkOrderController extends Controller
                 ->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->filter->isAssignable();
         }
 
-        return view('work-orders.show', ['order' => $workOrder->load('requester', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'assessments.attachments', 'sessions.personnel.user', 'sessions.updates.attachments', 'updates.personnel.user'), 'assignablePersonnel' => $assignablePersonnel]);
+        return view('work-orders.show', ['order' => $workOrder->load('requester.requesterProfile', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier'), 'assignablePersonnel' => $assignablePersonnel]);
     }
 
     public function edit(Request $request, WorkOrder $workOrder)
@@ -127,12 +128,51 @@ class WorkOrderController extends Controller
 
     public function attachment(Request $request, WorkOrder $workOrder, WorkOrderAttachment $attachment)
     {
+        $this->authorizeAttachment($request, $workOrder, $attachment);
+
+        return $this->privateFileResponse($attachment->stored_path, $attachment, true);
+    }
+
+    public function attachmentThumbnail(Request $request, WorkOrder $workOrder, WorkOrderAttachment $attachment)
+    {
+        $this->authorizeAttachment($request, $workOrder, $attachment);
+        abort_unless($attachment->isImage(), 404);
+
+        return $this->privateFileResponse($attachment->thumbnail_path ?: $attachment->stored_path, $attachment, true);
+    }
+
+    public function attachmentDownload(Request $request, WorkOrder $workOrder, WorkOrderAttachment $attachment)
+    {
+        $this->authorizeAttachment($request, $workOrder, $attachment);
+
+        return Storage::disk('local')->download($attachment->stored_path, $attachment->safeDownloadName());
+    }
+
+    public function authorizeAttachment(Request $request, WorkOrder $workOrder, WorkOrderAttachment $attachment): void
+    {
         $this->authorizeWorkOrder($request, $workOrder);
         abort_unless($attachment->work_order_id === $workOrder->id, 404);
         abort_if($attachment->purpose === 'ASSESSMENT' && ! ($request->user()->can('work_orders.view_assessments') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user())), 403);
         abort_if($attachment->purpose === 'EXECUTION' && ! ($request->user()->can('work_orders.view_execution') || app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user()) || ($workOrder->requester_id === $request->user()->id && $attachment->requester_visible)), 403);
+    }
 
-        return Storage::disk('local')->download($attachment->stored_path, $attachment->safeDownloadName());
+    private function privateFileResponse(string $path, WorkOrderAttachment $attachment, bool $inline)
+    {
+        abort_unless(Storage::disk('local')->exists($path), 404);
+        $disposition = $inline ? 'inline' : 'attachment';
+        $filename = str_replace(['"', "\r", "\n"], '_', $attachment->safeDownloadName());
+
+        $response = response()->file(Storage::disk('local')->path($path), [
+            'Content-Type' => $attachment->mime_type,
+            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
+            'Pragma' => 'no-cache',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+        $response->setPrivate();
+        $response->setMaxAge(0);
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
     }
 
     public function authorizeWorkOrder(Request $request, WorkOrder $workOrder): void
@@ -201,8 +241,8 @@ class WorkOrderController extends Controller
     public function uploads(Request $request, WorkOrder $workOrder): void
     {
         foreach ($request->file('attachments', []) as $file) {
-            $path = app(StoredFileTransaction::class)->store($file, 'work-orders/'.$workOrder->id);
-            $workOrder->attachments()->create(['uploaded_by' => $request->user()->id, 'purpose' => 'REQUEST_INITIAL', 'original_filename' => $file->getClientOriginalName(), 'stored_path' => $path, 'mime_type' => $file->getMimeType(), 'file_size' => $file->getSize()]);
+            $media = app(EvidenceMediaService::class)->store($file, 'work-orders/'.$workOrder->id, 'attachments');
+            $workOrder->attachments()->create(['uploaded_by' => $request->user()->id, 'purpose' => 'REQUEST_INITIAL', ...$media]);
         }
     }
 
