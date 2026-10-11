@@ -74,7 +74,7 @@ class WorkOrderNavigationTest extends TestCase
         $this->order($requesterB, 'WO-2026-000003');
 
         $mine = $this->actingAs($admin)->get('/my-work-orders')->assertOk()
-            ->assertSee('My Work Orders')
+            ->assertSee('My Requests')
             ->assertSee('View and track the facilities requests you have submitted.')
             ->assertSee('WO-2026-000001')
             ->assertDontSee('WO-2026-000002')

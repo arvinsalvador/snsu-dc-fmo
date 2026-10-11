@@ -6,16 +6,16 @@
                 <p id="image-lightbox-title" data-lightbox-label class="truncate font-semibold">Evidence photo</p>
                 <p data-lightbox-meta class="truncate text-xs text-slate-300"></p>
             </div>
-            <button data-lightbox-close type="button" class="grid size-11 shrink-0 place-items-center rounded-full bg-white/10 text-2xl hover:bg-white/20" aria-label="Close image viewer">×</button>
+            <button data-lightbox-close type="button" class="grid size-11 shrink-0 place-items-center rounded-full bg-white/10 hover:bg-white/20" aria-label="Close image viewer"><x-icon name="close" /></button>
         </div>
         <div data-lightbox-swipe class="relative mx-auto mt-3 flex min-h-0 w-full max-w-6xl flex-1 items-center justify-center overflow-hidden rounded-xl bg-black/30">
-            <button data-lightbox-previous type="button" class="absolute left-2 z-10 grid size-12 place-items-center rounded-full bg-black/55 text-2xl text-white hover:bg-black/75 sm:left-4" aria-label="Previous photo">‹</button>
+            <button data-lightbox-previous type="button" class="absolute left-2 z-10 grid size-12 place-items-center rounded-full bg-black/55 text-white hover:bg-black/75 sm:left-4" aria-label="Previous photo"><x-icon name="chevron-left" /></button>
             <img data-lightbox-image class="max-h-full max-w-full object-contain" alt="">
-            <button data-lightbox-next type="button" class="absolute right-2 z-10 grid size-12 place-items-center rounded-full bg-black/55 text-2xl text-white hover:bg-black/75 sm:right-4" aria-label="Next photo">›</button>
+            <button data-lightbox-next type="button" class="absolute right-2 z-10 grid size-12 place-items-center rounded-full bg-black/55 text-white hover:bg-black/75 sm:right-4" aria-label="Next photo"><x-icon name="chevron-right" /></button>
         </div>
         <div class="mx-auto mt-3 flex w-full max-w-6xl items-center justify-between text-sm text-white">
             <span data-lightbox-counter>1 of 1</span>
-            <a data-lightbox-open class="font-semibold text-blue-200 hover:text-white" href="#" target="_blank" rel="noopener">Open full image</a>
+            <a data-lightbox-open class="inline-flex items-center gap-2 font-semibold text-blue-200 hover:text-white" href="#" target="_blank" rel="noopener"><x-icon name="eye" size="size-4" />Open full image</a>
         </div>
     </div>
 </div>

@@ -8,7 +8,7 @@
             Search categories
             <input name="search" value="{{ $search }}" placeholder="Category name">
         </label>
-        <button class="btn btn-primary" type="submit">Search</button>
+        <button class="btn btn-primary" type="submit"><x-icon name="search" />Search</button>
         <a class="btn btn-ghost" href="{{ route('work-order-categories.index') }}">Reset</a>
     </form>
 
@@ -47,10 +47,10 @@
                                     @endif
                                     @can('work_order_categories.delete')
                                         @if (! $category->work_orders_count)
-                                            <form method="POST" action="{{ route('work-order-categories.destroy', $category) }}">
+                                            <form method="POST" action="{{ route('work-order-categories.destroy', $category) }}" data-confirm="Delete this unused Work Order category? This action cannot be undone.">
                                                 @csrf
                                                 @method('DELETE')
-                                                <button class="btn btn-ghost !px-2 !text-rose-700" type="submit">Delete</button>
+                                                <button class="btn btn-ghost !px-2 !text-rose-700" type="submit"><x-icon name="trash" size="size-4" />Delete</button>
                                             </form>
                                         @endif
                                     @endcan
@@ -72,7 +72,7 @@
                 <label class="mt-4 block">Description<textarea name="description">{{ old('description') }}</textarea></label>
                 <label class="mt-4 block">Display order<input name="display_order" type="number" min="0" value="{{ old('display_order', 0) }}"></label>
                 <input type="hidden" name="is_active" value="1">
-                <button class="btn btn-primary mt-5" type="submit">Create category</button>
+                <button class="btn btn-primary mt-5" type="submit"><x-icon name="plus" />Create category</button>
             </form>
         @endcan
     </div>

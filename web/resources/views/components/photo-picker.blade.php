@@ -12,9 +12,9 @@
         <p class="mt-1 text-xs leading-5 text-slate-500">{{ $help }}</p>
     </div>
     <div class="mt-4 flex flex-wrap gap-2">
-        <label for="{{ $id }}-camera" class="btn btn-primary min-h-11 cursor-pointer">📷 Take Photo</label>
+        <label for="{{ $id }}-camera" class="btn btn-primary min-h-11 cursor-pointer"><x-icon name="camera" />Take Photo</label>
         <input id="{{ $id }}-camera" data-photo-input data-photo-camera class="sr-only" type="file" name="{{ $name }}[]" accept="image/*" capture="environment">
-        <label for="{{ $id }}-choose" class="btn btn-secondary min-h-11 cursor-pointer">▣ Choose {{ $allowVideo ? 'Files' : 'Photos' }}</label>
+        <label for="{{ $id }}-choose" class="btn btn-secondary min-h-11 cursor-pointer"><x-icon name="upload" />Choose {{ $allowVideo ? 'Files' : 'Photos' }}</label>
         <input id="{{ $id }}-choose" data-photo-input class="sr-only" type="file" name="{{ $name }}[]" multiple accept="{{ $allowVideo ? 'image/jpeg,image/png,image/webp,video/mp4' : 'image/jpeg,image/png,image/webp' }}">
     </div>
     <p data-photo-error class="mt-3 hidden text-sm font-medium text-rose-700" role="alert"></p>

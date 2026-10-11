@@ -1,9 +1,19 @@
 @extends('layouts.app')
-@section('title', 'Registrations')
+@section('title', 'Registration Approvals')
 @section('content')
-<h1 class="mb-5 text-2xl font-semibold">Registrations awaiting review</h1>
-<div class="overflow-x-auto rounded-lg border bg-white"><table class="w-full text-left text-sm"><thead class="bg-slate-100"><tr><th class="p-3">Name</th><th class="p-3">Category</th><th class="p-3">Email</th><th class="p-3">Registered</th><th class="p-3">Status</th><th class="p-3">Action</th></tr></thead><tbody>
-@forelse ($users as $user)<tr class="border-t"><td class="p-3">{{ $user->name }}</td><td class="p-3">{{ ucfirst($user->user_type) }}</td><td class="p-3">{{ $user->email }}</td><td class="p-3">{{ $user->created_at->format('M j, Y') }}</td><td class="p-3">{{ str_replace('_', ' ', $user->status->value) }}</td><td class="p-3"><a class="text-blue-700 underline" href="{{ route('registrations.show', $user) }}">Review</a></td></tr>
-@empty <tr><td class="p-4" colspan="6">No registrations awaiting review.</td></tr> @endforelse
-</tbody></table></div><div class="mt-4">{{ $users->links() }}</div>
+    <x-page-header title="Registration Approvals" description="Review pending account requests and confirm institutional access." />
+    <div class="table-wrap mobile-card-table mt-6"><table><thead><tr><th>Applicant</th><th>Institutional type</th><th>Registered</th><th>Status</th><th class="text-right">Action</th></tr></thead><tbody>
+        @forelse ($users as $user)
+            <tr>
+                <td><div class="flex items-center gap-3"><x-avatar :name="$user->name" /><div><p class="font-semibold text-slate-900">{{ $user->name }}</p><p class="text-xs text-slate-500">{{ $user->email }}</p></div></div></td>
+                <td data-label="Institutional type">{{ ucfirst($user->user_type) }}</td>
+                <td data-label="Registered">{{ $user->created_at->timezone('Asia/Manila')->format('F j, Y') }}</td>
+                <td data-label="Status"><x-status-badge :status="$user->status" /></td>
+                <td data-label="Action" class="text-right"><a class="btn btn-primary !min-h-9 !px-3" href="{{ route('registrations.show', $user) }}"><x-icon name="eye" size="size-4" />Review</a></td>
+            </tr>
+        @empty
+            <tr><td colspan="5"><x-empty-state title="No registrations await review" description="New account requests will appear here." icon="clock" /></td></tr>
+        @endforelse
+    </tbody></table></div>
+    <div class="mt-5">{{ $users->links() }}</div>
 @endsection

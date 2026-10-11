@@ -8,7 +8,7 @@
             Search skills
             <input name="search" value="{{ $search }}" placeholder="Skill name">
         </label>
-        <button class="btn btn-primary" type="submit">Search</button>
+        <button class="btn btn-primary" type="submit"><x-icon name="search" />Search</button>
         <a class="btn btn-ghost" href="{{ route('skills.index') }}">Reset</a>
     </form>
 
@@ -46,10 +46,10 @@
                                     @endcan
                                     @can('skills.delete')
                                         @if (! $skill->personnel_count)
-                                            <form method="POST" action="{{ route('skills.destroy', $skill) }}">
+                                            <form method="POST" action="{{ route('skills.destroy', $skill) }}" data-confirm="Delete this unused skill? This action cannot be undone.">
                                                 @csrf
                                                 @method('DELETE')
-                                                <button class="btn btn-ghost !px-2 !text-rose-700" type="submit">Delete</button>
+                                                <button class="btn btn-ghost !px-2 !text-rose-700" type="submit"><x-icon name="trash" size="size-4" />Delete</button>
                                             </form>
                                         @endif
                                     @endcan
@@ -70,7 +70,7 @@
                 <label class="mt-4 block">Name <span class="text-rose-600">*</span><input name="name" value="{{ old('name') }}" required></label>
                 <label class="mt-4 block">Description<textarea name="description">{{ old('description') }}</textarea></label>
                 <input type="hidden" name="is_active" value="1">
-                <button class="btn btn-primary mt-5" type="submit">Create skill</button>
+                <button class="btn btn-primary mt-5" type="submit"><x-icon name="plus" />Create skill</button>
             </form>
         @endcan
     </div>

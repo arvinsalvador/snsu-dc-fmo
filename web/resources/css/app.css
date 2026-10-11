@@ -13,32 +13,41 @@
 }
 
 @layer base {
+    html { @apply scroll-smooth; }
     body { @apply antialiased; }
     h1 { @apply text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl; }
     h2 { @apply font-semibold text-slate-900; }
     label { @apply text-sm font-medium text-slate-700; }
     input:not([type='hidden']):not([type='checkbox']):not([type='radio']), select, textarea { @apply mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-600 focus:ring-3 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500; }
+    input[aria-invalid='true'], select[aria-invalid='true'], textarea[aria-invalid='true'] { @apply border-rose-500 focus:border-rose-600 focus:ring-rose-100; }
     input[type='checkbox'], input[type='radio'] { @apply size-4 accent-blue-700; }
     textarea { @apply min-h-24; }
     button { @apply cursor-pointer; }
-    button:focus-visible, a:focus-visible { @apply outline-2 outline-offset-2 outline-blue-600; }
+    button:focus-visible, a:focus-visible, summary:focus-visible { @apply outline-2 outline-offset-2 outline-blue-600; }
+    summary { @apply cursor-pointer list-none; }
+    summary::-webkit-details-marker { display: none; }
     table { @apply w-full border-collapse text-left text-sm; }
     th { @apply whitespace-nowrap bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500; }
-    td { @apply border-t border-slate-100 px-4 py-3.5 align-middle text-slate-700; }
+    td { @apply border-t border-slate-200 px-4 py-3.5 align-middle text-slate-700; }
     tbody tr { @apply transition-colors hover:bg-slate-50/80; }
 }
 
 @layer components {
     .app-card { @apply rounded-xl border border-slate-200 bg-white shadow-xs; }
-    .table-wrap { @apply overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs; }
+    .table-wrap { @apply max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs; }
+    .table-wrap table { @apply min-w-[720px]; }
     .btn { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-3 disabled:cursor-not-allowed disabled:opacity-60; }
     .btn-primary { @apply bg-blue-700 text-white hover:bg-blue-800 focus:ring-blue-200; }
     .btn-secondary { @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200; }
     .btn-success { @apply bg-emerald-700 text-white hover:bg-emerald-800 focus:ring-emerald-200; }
+    .btn-warning { @apply bg-amber-600 text-white hover:bg-amber-700 focus:ring-amber-200; }
     .btn-danger { @apply bg-rose-700 text-white hover:bg-rose-800 focus:ring-rose-200; }
     .btn-ghost { @apply text-blue-800 hover:bg-blue-50 focus:ring-blue-100; }
+    .icon-btn { @apply inline-grid size-10 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-3 focus:ring-blue-100; }
+    .text-link { @apply inline-flex items-center gap-1.5 font-semibold text-blue-800 hover:text-blue-950 hover:underline; }
     .section-card { @apply rounded-xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6; }
     .filter-bar { @apply flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs; }
+    .filter-bar > label { @apply min-w-40; }
     .status-badge { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset; }
     .status-open { @apply bg-blue-50 text-blue-800 ring-blue-200; }
     .status-pending { @apply bg-amber-50 text-amber-800 ring-amber-200; }
@@ -55,6 +64,13 @@
     .form-section > p { @apply mb-5 text-sm text-slate-500; }
     .field-error { @apply mt-1 text-sm font-medium text-rose-700; }
     .field-invalid { @apply border-rose-500 focus:border-rose-600 focus:ring-rose-100; }
+    .help-text { @apply mt-1.5 text-xs leading-5 text-slate-500; }
+    .definition-grid { @apply grid gap-x-6 gap-y-5 sm:grid-cols-2; }
+    .definition-grid dt { @apply text-xs font-semibold uppercase tracking-wider text-slate-500; }
+    .definition-grid dd { @apply mt-1 text-sm font-medium text-slate-900; }
+    .permission-group { @apply rounded-xl border border-slate-200 bg-slate-50 p-4; }
+    .permission-option { @apply flex items-start gap-3 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-white; }
+    .queue-card { @apply block rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition hover:border-blue-300 hover:shadow-sm focus:outline-none focus:ring-3 focus:ring-blue-100; }
     .timeline-item { @apply relative border-l border-slate-200 pb-6 pl-6 last:border-transparent last:pb-0; }
     .timeline-item::before { content: ''; @apply absolute -left-[5px] top-1 size-2.5 rounded-full bg-blue-600 ring-4 ring-blue-100; }
     .detail-kicker { @apply text-xs font-semibold uppercase tracking-[0.14em] text-blue-700; }
@@ -65,4 +81,23 @@
     .person-avatar { @apply grid size-9 shrink-0 place-items-center rounded-full bg-blue-100 text-sm font-bold text-blue-800; }
     .progress-entry { @apply relative border-l-2 border-slate-200 pb-6 pl-5 last:border-transparent last:pb-0; }
     .progress-entry::before { content: ''; @apply absolute -left-[7px] top-1 size-3 rounded-full border-2 border-white bg-indigo-600 ring-2 ring-indigo-100; }
+}
+
+@media (max-width: 639px) {
+    .mobile-card-table table,
+    .mobile-card-table thead,
+    .mobile-card-table tbody,
+    .mobile-card-table tr,
+    .mobile-card-table th,
+    .mobile-card-table td { display: block; min-width: 0; width: 100%; }
+    .mobile-card-table thead { @apply sr-only; }
+    .mobile-card-table { @apply overflow-visible border-0 bg-transparent shadow-none; }
+    .mobile-card-table tbody { @apply space-y-3; }
+    .mobile-card-table tr { @apply rounded-xl border border-slate-200 bg-white p-4 shadow-xs; }
+    .mobile-card-table td { @apply flex items-start justify-between gap-4 border-0 px-0 py-2 text-right; }
+    .mobile-card-table td::before { content: attr(data-label); @apply shrink-0 text-left text-xs font-semibold uppercase tracking-wider text-slate-500; }
+    .mobile-card-table td:first-child { @apply block border-b border-slate-100 pb-3 text-left; }
+    .mobile-card-table td:first-child::before { display: none; }
+    .mobile-card-table td[colspan] { @apply block text-left; }
+    .mobile-card-table td[colspan]::before { display: none; }
 }

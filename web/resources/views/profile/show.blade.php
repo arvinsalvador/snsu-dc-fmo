@@ -1,16 +1,12 @@
 @extends('layouts.app')
 @section('title', 'My Profile')
 @section('content')
-<div class="max-w-2xl rounded-lg border bg-white p-6"><h1 class="text-2xl font-semibold">My Profile</h1><p class="mt-2 text-sm text-slate-600">{{ ucfirst($user->user_type) }} · {{ $user->email }}</p>
-<form class="mt-5 grid gap-4 sm:grid-cols-2" method="POST" action="{{ route('profile.update') }}">@csrf @method('PUT')
-<label>Institutional ID<input class="mt-1 w-full rounded border p-2" name="institutional_id" value="{{ old('institutional_id', $user->requesterProfile?->institutional_id) }}"></label>
-<label>Contact number<input class="mt-1 w-full rounded border p-2" name="contact_number" value="{{ old('contact_number', $user->requesterProfile?->contact_number) }}"></label>
-<label>Department<input class="mt-1 w-full rounded border p-2" name="department" value="{{ old('department', $user->requesterProfile?->department) }}"></label>
-<label>College<input class="mt-1 w-full rounded border p-2" name="college" value="{{ old('college', $user->requesterProfile?->college) }}"></label>
-<label>Program<input class="mt-1 w-full rounded border p-2" name="program" value="{{ old('program', $user->requesterProfile?->program) }}"></label>
-<label>Year level<input class="mt-1 w-full rounded border p-2" name="year_level" value="{{ old('year_level', $user->requesterProfile?->year_level) }}"></label>
-<label class="sm:col-span-2">Organizational office<input class="mt-1 w-full rounded border p-2" name="organizational_office" value="{{ old('organizational_office', $user->requesterProfile?->organizational_office) }}"></label>
-<div class="sm:col-span-2"><button class="rounded bg-blue-700 px-4 py-2 text-white">Save profile</button></div></form>
-@if($user->personnelProfile)<div class="mt-6 border-t pt-4"><h2 class="font-semibold">FMO personnel profile</h2><p>{{ $user->personnelProfile->designation ?? 'No designation' }} · {{ str_replace('_', ' ', $user->personnelProfile->personnel_status->value) }}</p><p class="text-sm">Skills: {{ $user->personnelProfile->skills->pluck('name')->join(', ') ?: 'None' }}</p></div>@endif
-</div>
+    <x-page-header title="My Profile" description="Keep your institutional and contact information current." />
+    <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <form class="form-section" method="POST" action="{{ route('profile.update') }}">@csrf @method('PUT')<h2>Institutional Information</h2><p>These details help FMO staff understand the context of submitted requests.</p><div class="grid gap-5 sm:grid-cols-2"><label>Institutional ID <span class="text-slate-500">(optional)</span><input name="institutional_id" value="{{ old('institutional_id', $user->requesterProfile?->institutional_id) }}"></label><label>Contact number <span class="text-slate-500">(optional)</span><input name="contact_number" value="{{ old('contact_number', $user->requesterProfile?->contact_number) }}"></label><label>Department <span class="text-slate-500">(optional)</span><input name="department" value="{{ old('department', $user->requesterProfile?->department) }}"></label><label>College <span class="text-slate-500">(optional)</span><input name="college" value="{{ old('college', $user->requesterProfile?->college) }}"></label><label>Program <span class="text-slate-500">(optional)</span><input name="program" value="{{ old('program', $user->requesterProfile?->program) }}"></label><label>Year level <span class="text-slate-500">(optional)</span><input name="year_level" value="{{ old('year_level', $user->requesterProfile?->year_level) }}"></label><label class="sm:col-span-2">Organizational office <span class="text-slate-500">(optional)</span><input name="organizational_office" value="{{ old('organizational_office', $user->requesterProfile?->organizational_office) }}"></label></div><button class="btn btn-primary mt-6" type="submit"><x-icon name="check-circle" />Save profile</button></form>
+        <aside class="space-y-6">
+            <section class="section-card text-center"><x-avatar :name="$user->name" size="lg" class="mx-auto" /><h2 class="mt-3 text-lg">{{ $user->name }}</h2><p class="mt-1 text-sm text-slate-500">{{ $user->email }}</p><div class="mt-3 flex justify-center"><x-status-badge :status="$user->status" /></div><p class="mt-3 text-sm text-slate-600">{{ ucfirst($user->user_type) }} · {{ $user->getRoleNames()->join(', ') ?: 'No role' }}</p></section>
+            @if ($user->personnelProfile)<section class="section-card"><h2 class="text-lg">FMO Personnel Profile</h2><dl class="definition-grid mt-4 !grid-cols-1"><div><dt>Designation</dt><dd>{{ $user->personnelProfile->designation ?? 'Not specified' }}</dd></div><div><dt>Status</dt><dd><x-status-badge :status="$user->personnelProfile->personnel_status" /></dd></div><div><dt>Skills</dt><dd>{{ $user->personnelProfile->skills->pluck('name')->join(', ') ?: 'None recorded' }}</dd></div></dl></section>@endif
+        </aside>
+    </div>
 @endsection

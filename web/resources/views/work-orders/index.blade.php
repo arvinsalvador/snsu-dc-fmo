@@ -1,13 +1,13 @@
 @extends('layouts.app')
-@section('title', $all ? 'All Work Orders' : 'My Work Orders')
+@section('title', $all ? 'All Work Orders' : 'My Requests')
 @section('content')
     <x-page-header
-        :title="$all ? 'All Work Orders' : 'My Work Orders'"
+        :title="$all ? 'All Work Orders' : 'My Requests'"
         :description="$all ? 'Review authorized facilities requests across the campus.' : 'View and track the facilities requests you have submitted.'"
     >
         @can('work-orders.create-request')
             <x-slot:action>
-                <a class="btn btn-primary" href="{{ route('work-orders.create') }}">+ New Work Order</a>
+                <a class="btn btn-primary" href="{{ route('work-orders.create') }}"><x-icon name="plus" />New Request</a>
             </x-slot:action>
         @endcan
     </x-page-header>
@@ -28,11 +28,11 @@
                 @endforeach
             </select>
         </label>
-        <button class="btn btn-primary" type="submit">Apply filters</button>
+        <button class="btn btn-primary" type="submit"><x-icon name="filter" />Apply filters</button>
         <a class="btn btn-ghost" href="{{ route($all ? 'work-orders.index' : 'work-orders.mine') }}">Reset</a>
     </form>
 
-    <div class="table-wrap mt-6">
+    <div class="table-wrap mobile-card-table mt-6">
         <table>
             <thead>
                 <tr>
@@ -53,17 +53,17 @@
                             <a class="font-semibold text-blue-800 hover:underline" href="{{ route('work-orders.show', $order) }}">{{ $order->work_order_number }}</a>
                             <p class="mt-0.5 text-sm text-slate-600">{{ $order->subject }}</p>
                         </td>
-                        <td>{{ $order->submitted_at?->timezone('Asia/Manila')->format('M j, Y') }}</td>
+                        <td data-label="Submitted">{{ $order->submitted_at?->timezone('Asia/Manila')->format('F j, Y') }}</td>
                         @if ($all)
-                            <td>{{ $order->requester?->name }}</td>
+                            <td data-label="Requester">{{ $order->requester?->name }}</td>
                         @endif
-                        <td>
+                        <td data-label="Category & Location">
                             <p>{{ $order->category->name }}</p>
                             <p class="mt-0.5 text-xs text-slate-500">{{ $order->building->name }}</p>
                         </td>
-                        <td><x-status-badge :status="$order->status" /></td>
-                        <td class="text-right">
-                            <a class="btn btn-secondary !min-h-9 !px-3" href="{{ route('work-orders.show', $order) }}">View</a>
+                        <td data-label="Status"><x-status-badge :status="$order->status" /></td>
+                        <td data-label="Action" class="text-right">
+                            <a class="btn btn-secondary !min-h-9 !px-3" href="{{ route('work-orders.show', $order) }}"><x-icon name="eye" size="size-4" />View</a>
                         </td>
                     </tr>
                 @empty

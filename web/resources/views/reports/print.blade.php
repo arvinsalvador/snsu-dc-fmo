@@ -4,17 +4,17 @@
 body{font-family:Arial,sans-serif;color:#17212b;max-width:850px;margin:2rem auto;line-height:1.45}
 h1{font-size:1.5rem;margin-bottom:.2rem}h2{font-size:1.05rem;border-bottom:1px solid #cbd5e1;padding-bottom:.3rem;margin-top:1.6rem}
 .meta{color:#475569}.grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem 1.5rem}
-.entry{border-bottom:1px solid #e2e8f0;padding:.5rem 0}.actions{margin-bottom:1rem}
+.entry{border-bottom:1px solid #e2e8f0;padding:.5rem 0}.actions{display:flex;gap:.5rem;margin-bottom:1rem}.actions button,.actions a{border:1px solid #cbd5e1;border-radius:.5rem;background:#fff;color:#1e3a8a;padding:.55rem .85rem;font-weight:600;text-decoration:none}.actions button{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
 @media print{body{margin:0;max-width:none}.actions{display:none}a{color:inherit;text-decoration:none}}
 </style></head><body>
 <div class="actions"><button onclick="window.print()">Print</button> <a href="{{ route('reports.history') }}">Back to history</a></div>
 <p class="meta">Surigao del Norte State University · Del Carmen Campus · Facilities Management Office</p>
 <h1>Work Order {{ $order->work_order_number }}</h1>
-<p class="meta">System-generated record · {{ str_replace('_', ' ', $order->status->value) }}</p>
+<p class="meta">System-generated record · {{ str($order->status->value)->replace('_', ' ')->title() }}</p>
 <h2>Request</h2>
 <div class="grid">
 <div><b>Requester:</b> {{ $order->requester->name }}</div>
-<div><b>Submitted:</b> {{ $order->submitted_at?->timezone('Asia/Manila')->format('Y-m-d H:i') }}</div>
+<div><b>Submitted:</b> {{ $order->submitted_at?->timezone('Asia/Manila')->format('F j, Y · g:i A') }}</div>
 <div><b>Category:</b> {{ $order->category->name }}</div>
 <div><b>Campus:</b> {{ $order->campus->name }}</div>
 <div><b>Building:</b> {{ $order->building->name }}</div>

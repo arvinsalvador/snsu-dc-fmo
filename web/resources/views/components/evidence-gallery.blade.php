@@ -36,15 +36,15 @@
             @endforeach
         </div>
         @if ($images->count() > 8)
-            <button type="button" class="btn btn-secondary mt-3" data-gallery-expand="{{ $group }}">View all {{ $images->count() }} photos</button>
+            <button type="button" class="btn btn-secondary mt-3" data-gallery-expand="{{ $group }}"><x-icon name="eye" />View all {{ $images->count() }} photos</button>
         @endif
     @endif
 
     @if ($otherFiles->isNotEmpty())
         <div class="mt-3 flex flex-wrap gap-2">
             @foreach ($otherFiles as $attachment)
-                <a class="btn btn-secondary" href="{{ route('work-orders.attachments.show', [$attachment->work_order_id, $attachment]) }}" target="_blank" rel="noopener">View {{ $attachment->original_filename }}</a>
-                <a class="btn btn-ghost" href="{{ route('work-orders.attachments.download', [$attachment->work_order_id, $attachment]) }}">Download</a>
+                <a class="btn btn-secondary" href="{{ route('work-orders.attachments.show', [$attachment->work_order_id, $attachment]) }}" target="_blank" rel="noopener"><x-icon name="eye" />View {{ $attachment->original_filename }}</a>
+                <a class="btn btn-ghost" href="{{ route('work-orders.attachments.download', [$attachment->work_order_id, $attachment]) }}"><x-icon name="download" />Download</a>
             @endforeach
         </div>
     @endif

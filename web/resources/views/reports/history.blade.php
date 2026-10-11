@@ -1,46 +1,26 @@
 @extends('layouts.app')
 @section('title', 'Work Order History')
 @section('content')
-<div class="flex flex-wrap items-center justify-between gap-3">
-    <div><h1 class="text-2xl font-semibold">Work Order History</h1>
-        <p class="mt-1 text-sm text-slate-600">{{ $management ? 'Authorized management history' : 'Only your own requests and assigned work' }}</p></div>
-    <a class="rounded bg-slate-700 px-4 py-2 text-white" href="{{ route('reports.export', request()->query()) }}">Export filtered CSV</a>
-</div>
-<form method="GET" action="{{ route('reports.history') }}" class="mt-5 grid gap-3 rounded border bg-white p-4 md:grid-cols-3">
-    <label>Work Order number<input class="mt-1 block w-full rounded border p-2" name="number" value="{{ $filters['number'] ?? '' }}"></label>
-    <label>Status<select class="mt-1 block w-full rounded border p-2" name="status"><option value="">All statuses</option>@foreach ($statuses as $status)<option value="{{ $status->value }}" @selected(($filters['status'] ?? '') === $status->value)>{{ str_replace('_', ' ', $status->value) }}</option>@endforeach</select></label>
-    <label>Category<select class="mt-1 block w-full rounded border p-2" name="category_id"><option value="">All categories</option>@foreach ($categories as $category)<option value="{{ $category->id }}" @selected(($filters['category_id'] ?? '') == $category->id)>{{ $category->name }}</option>@endforeach</select></label>
-    <label>Campus<select class="mt-1 block w-full rounded border p-2" name="campus_id"><option value="">All campuses</option>@foreach ($campuses as $campus)<option value="{{ $campus->id }}" @selected(($filters['campus_id'] ?? '') == $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
-    <label>Building<select class="mt-1 block w-full rounded border p-2" name="building_id"><option value="">All buildings</option>@foreach ($buildings as $building)<option value="{{ $building->id }}" @selected(($filters['building_id'] ?? '') == $building->id)>{{ $building->name }}</option>@endforeach</select></label>
-    <label>Office / room / area<select class="mt-1 block w-full rounded border p-2" name="location_id"><option value="">All locations</option>@foreach ($locations as $location)<option value="{{ $location->id }}" @selected(($filters['location_id'] ?? '') == $location->id)>{{ $location->name }}</option>@endforeach</select></label>
-    @if ($management)
-        <label>Requester name<input class="mt-1 block w-full rounded border p-2" name="requester" value="{{ $filters['requester'] ?? '' }}"></label>
-        <label>FMO personnel<select class="mt-1 block w-full rounded border p-2" name="personnel_id"><option value="">All personnel</option>@foreach ($personnel as $person)<option value="{{ $person->id }}" @selected(($filters['personnel_id'] ?? '') === $person->id)>{{ $person->user->name }}</option>@endforeach</select></label>
-    @endif
-    <label>Submitted from<input class="mt-1 block w-full rounded border p-2" type="date" name="from" value="{{ $filters['from'] ?? '' }}"></label>
-    <label>Submitted through<input class="mt-1 block w-full rounded border p-2" type="date" name="to" value="{{ $filters['to'] ?? '' }}"></label>
-    <label>Completed from<input class="mt-1 block w-full rounded border p-2" type="date" name="completed_from" value="{{ $filters['completed_from'] ?? '' }}"></label>
-    <label>Completed through<input class="mt-1 block w-full rounded border p-2" type="date" name="completed_to" value="{{ $filters['completed_to'] ?? '' }}"></label>
-    <div class="flex items-end gap-3"><button class="rounded bg-blue-700 px-4 py-2 text-white">Apply filters</button><a class="text-blue-700 underline" href="{{ route('reports.history') }}">Reset filters</a></div>
-</form>
-<p class="mt-5 rounded border bg-white p-3"><b>{{ $total }}</b> Work Orders · <b>{{ $completed }}</b> completed · <b>{{ $total - $completed }}</b> other states</p>
-<div class="mt-4 overflow-x-auto rounded border bg-white">
-    <table class="min-w-full text-left text-sm"><thead class="border-b bg-slate-100"><tr>
-        <th class="p-3">Work Order</th><th class="p-3">Requester</th><th class="p-3">Category / Location</th>
-        <th class="p-3">Status</th><th class="p-3">Assigned personnel</th><th class="p-3">Submitted</th><th class="p-3">Completed</th><th class="p-3">Actions</th>
-    </tr></thead><tbody>
-    @forelse ($orders as $order)<tr class="border-b align-top">
-        @php($fullDetail = $management || $order->requester_id === auth()->id() || $order->activeAssignments->contains('fmo_personnel_id', auth()->user()->personnelProfile?->id))
-        <td class="p-3"><a class="text-blue-700 underline" href="{{ $fullDetail ? route('work-orders.show', $order) : route('reports.print', $order) }}">{{ $order->work_order_number }}</a><br>{{ $order->subject }}</td>
-        <td class="p-3">{{ $order->requester->name }}</td>
-        <td class="p-3">{{ $order->category->name }}<br>{{ $order->building->name }} @if ($order->location) / {{ $order->location->name }} @endif</td>
-        <td class="p-3">{{ str_replace('_', ' ', $order->status->value) }}</td>
-        <td class="p-3">{{ ($management ? $order->assignments : $order->activeAssignments)->pluck('personnel.user.name')->filter()->unique()->join(', ') ?: '—' }}</td>
-        <td class="p-3">{{ $order->submitted_at?->timezone('Asia/Manila')->format('Y-m-d') }}</td>
-        <td class="p-3">{{ $order->verified_at?->timezone('Asia/Manila')->format('Y-m-d') ?? '—' }}</td>
-        <td class="p-3"><a class="text-blue-700 underline" href="{{ route('reports.print', $order) }}">Print</a></td>
-    </tr>@empty<tr><td colspan="8" class="p-5">No Work Orders match these filters.</td></tr>@endforelse
-    </tbody></table>
-</div>
-<div class="mt-5">{{ $orders->links() }}</div>
+    <x-page-header title="Work Order History" :description="$management ? 'Review authorized operational history and export the current result set.' : 'Review your own requests and assigned Work Orders.'">
+        <x-slot:action><a class="btn btn-secondary" href="{{ route('reports.export', request()->query()) }}"><x-icon name="download" />Export CSV</a></x-slot:action>
+    </x-page-header>
+    <form method="GET" action="{{ route('reports.history') }}" class="section-card mt-6"><div class="flex items-center gap-2"><x-icon name="filter" class="text-blue-700" /><h2 class="text-lg">Report Filters</h2></div><div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <label>Work Order number<input name="number" value="{{ $filters['number'] ?? '' }}" placeholder="WO-2026-..."></label>
+        <label>Status<select name="status"><option value="">All statuses</option>@foreach ($statuses as $status)<option value="{{ $status->value }}" @selected(($filters['status'] ?? '') === $status->value)>{{ str($status->value)->replace('_', ' ')->title() }}</option>@endforeach</select></label>
+        <label>Category<select name="category_id"><option value="">All categories</option>@foreach ($categories as $category)<option value="{{ $category->id }}" @selected(($filters['category_id'] ?? '') == $category->id)>{{ $category->name }}</option>@endforeach</select></label>
+        <label>Campus<select name="campus_id"><option value="">All campuses</option>@foreach ($campuses as $campus)<option value="{{ $campus->id }}" @selected(($filters['campus_id'] ?? '') == $campus->id)>{{ $campus->name }}</option>@endforeach</select></label>
+        <label>Building<select name="building_id"><option value="">All buildings</option>@foreach ($buildings as $building)<option value="{{ $building->id }}" @selected(($filters['building_id'] ?? '') == $building->id)>{{ $building->name }}</option>@endforeach</select></label>
+        <label>Office / Room / Area<select name="location_id"><option value="">All locations</option>@foreach ($locations as $location)<option value="{{ $location->id }}" @selected(($filters['location_id'] ?? '') == $location->id)>{{ $location->name }}</option>@endforeach</select></label>
+        @if ($management)<label>Requester name<input name="requester" value="{{ $filters['requester'] ?? '' }}"></label><label>FMO personnel<select name="personnel_id"><option value="">All personnel</option>@foreach ($personnel as $person)<option value="{{ $person->id }}" @selected(($filters['personnel_id'] ?? '') === $person->id)>{{ $person->user->name }}</option>@endforeach</select></label>@endif
+        <label>Submitted from<input type="date" name="from" value="{{ $filters['from'] ?? '' }}"></label><label>Submitted through<input type="date" name="to" value="{{ $filters['to'] ?? '' }}"></label><label>Completed from<input type="date" name="completed_from" value="{{ $filters['completed_from'] ?? '' }}"></label><label>Completed through<input type="date" name="completed_to" value="{{ $filters['completed_to'] ?? '' }}"></label>
+    </div><div class="mt-5 flex flex-wrap gap-3"><button class="btn btn-primary" type="submit"><x-icon name="filter" />Apply filters</button><a class="btn btn-ghost" href="{{ route('reports.history') }}">Reset filters</a></div></form>
+    <div class="mt-6 grid gap-4 sm:grid-cols-3"><x-stat-card label="Matching Work Orders" :value="$total" icon="clipboard" /><x-stat-card label="Completed" :value="$completed" icon="check-circle" /><x-stat-card label="Other states" :value="$total - $completed" icon="clock" /></div>
+    <div class="table-wrap mt-6"><table><thead><tr><th>Work Order</th><th>Requester</th><th>Category &amp; Location</th><th>Status</th><th>Assigned personnel</th><th>Submitted</th><th>Completed</th><th class="text-right">Actions</th></tr></thead><tbody>
+        @forelse ($orders as $order)
+            @php($fullDetail = $management || $order->requester_id === auth()->id() || $order->activeAssignments->contains('fmo_personnel_id', auth()->user()->personnelProfile?->id))
+            <tr><td><a class="font-semibold text-blue-800 hover:underline" href="{{ $fullDetail ? route('work-orders.show', $order) : route('reports.print', $order) }}">{{ $order->work_order_number }}</a><p class="mt-1 text-xs text-slate-500">{{ $order->subject }}</p></td><td>{{ $order->requester->name }}</td><td>{{ $order->category->name }}<p class="mt-1 text-xs text-slate-500">{{ $order->building->name }}@if ($order->location) · {{ $order->location->name }}@endif</p></td><td><x-status-badge :status="$order->status" /></td><td>{{ ($management ? $order->assignments : $order->activeAssignments)->pluck('personnel.user.name')->filter()->unique()->join(', ') ?: '—' }}</td><td>{{ $order->submitted_at?->timezone('Asia/Manila')->format('M j, Y') }}</td><td>{{ $order->verified_at?->timezone('Asia/Manila')->format('M j, Y') ?? '—' }}</td><td class="text-right"><a class="btn btn-secondary !min-h-9 !px-3" href="{{ route('reports.print', $order) }}" target="_blank"><x-icon name="eye" size="size-4" />Print view</a></td></tr>
+        @empty
+            <tr><td colspan="8"><x-empty-state title="No Work Orders match these filters" description="Adjust or reset the report filters to broaden the result set." icon="chart" /></td></tr>
+        @endforelse
+    </tbody></table></div><div class="mt-5">{{ $orders->links() }}</div>
 @endsection

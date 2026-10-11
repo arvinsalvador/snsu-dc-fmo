@@ -39,8 +39,8 @@ export function initializePhotoPicker(container) {
                 item.append(image);
             } else {
                 const placeholder = document.createElement('div');
-                placeholder.className = 'grid aspect-[4/3] place-items-center bg-slate-100 text-3xl';
-                placeholder.textContent = '▶';
+                placeholder.className = 'grid aspect-[4/3] place-items-center bg-slate-100 text-sm font-semibold text-slate-600';
+                placeholder.textContent = 'Video file';
                 item.append(placeholder);
             }
             const name = document.createElement('p');
@@ -151,12 +151,61 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeEvidenceViewer();
     const drawer = document.querySelector('[data-sidebar]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');
-    const close = () => { drawer?.classList.add('-translate-x-full'); backdrop?.classList.add('hidden'); };
-    const open = () => { drawer?.classList.remove('-translate-x-full'); backdrop?.classList.remove('hidden'); };
-    document.querySelectorAll('[data-sidebar-toggle]').forEach(toggle => toggle.addEventListener('click', () => drawer?.classList.contains('-translate-x-full') ? open() : close()));
+    const toggles = [...document.querySelectorAll('[data-sidebar-toggle]')];
+    const setExpanded = expanded => toggles.forEach(toggle => toggle.setAttribute('aria-expanded', String(expanded)));
+    const close = () => { drawer?.classList.add('-translate-x-full'); backdrop?.classList.add('hidden'); setExpanded(false); };
+    const open = () => { drawer?.classList.remove('-translate-x-full'); backdrop?.classList.remove('hidden'); setExpanded(true); };
+    toggles.forEach(toggle => toggle.addEventListener('click', () => drawer?.classList.contains('-translate-x-full') ? open() : close()));
     backdrop?.addEventListener('click', close);
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && drawer && !drawer.classList.contains('-translate-x-full') && window.innerWidth < 1024) close();
+    });
+
+    document.querySelectorAll('[data-password-toggle]').forEach(button => button.addEventListener('click', () => {
+        const input = document.getElementById(button.dataset.passwordToggle);
+        if (!input) return;
+        const visible = input.type === 'text';
+        input.type = visible ? 'password' : 'text';
+        button.textContent = visible ? 'Show' : 'Hide';
+        button.setAttribute('aria-pressed', String(!visible));
+    }));
+
+    const confirmDialog = document.querySelector('[data-confirm-dialog]');
+    const confirmMessage = confirmDialog?.querySelector('[data-confirm-message]');
+    const confirmSubmit = confirmDialog?.querySelector('[data-confirm-submit]');
+    let pendingForm = null;
+    let previousFocus = null;
+    const closeConfirm = () => {
+        confirmDialog?.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+        previousFocus?.focus();
+        pendingForm = null;
+    };
+    document.querySelectorAll('form[data-confirm]').forEach(form => form.addEventListener('submit', event => {
+        if (form.dataset.confirmed === 'true') return;
+        event.preventDefault();
+        pendingForm = form;
+        previousFocus = document.activeElement;
+        if (confirmMessage) confirmMessage.textContent = form.dataset.confirm;
+        confirmDialog?.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+        confirmSubmit?.focus();
+    }));
+    confirmDialog?.querySelectorAll('[data-confirm-cancel]').forEach(button => button.addEventListener('click', closeConfirm));
+    confirmSubmit?.addEventListener('click', () => {
+        if (!pendingForm) return;
+        pendingForm.dataset.confirmed = 'true';
+        pendingForm.requestSubmit();
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && confirmDialog && !confirmDialog.classList.contains('hidden')) closeConfirm();
+    });
+
     document.querySelectorAll('form').forEach(form => form.addEventListener('submit', () => {
         const submit = form.querySelector('button[type="submit"], button:not([type])');
-        if (submit && !submit.dataset.noLoading) { submit.disabled = true; submit.textContent = 'Please wait…'; }
+        if (submit && !submit.dataset.noLoading && (!form.hasAttribute('data-confirm') || form.dataset.confirmed === 'true')) {
+            submit.disabled = true;
+            submit.replaceChildren(document.createTextNode('Please wait…'));
+        }
     }));
 });

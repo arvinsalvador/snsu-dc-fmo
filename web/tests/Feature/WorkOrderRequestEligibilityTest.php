@@ -63,7 +63,7 @@ class WorkOrderRequestEligibilityTest extends TestCase
             ['System Administrator', 'staff']] as [$role, $type]) {
             $user = $this->user($role, $type);
             $listing = $role === 'Requester' ? '/my-work-orders' : '/work-orders';
-            $this->actingAs($user)->get($listing)->assertOk()->assertSee('+ New Work Order');
+            $this->actingAs($user)->get($listing)->assertOk()->assertSee('New Request');
             $this->actingAs($user)->get('/work-orders/create')->assertOk();
             $this->actingAs($user)->post('/work-orders', $this->payload())->assertRedirect();
             $order = WorkOrder::where('requester_id', $user->id)->firstOrFail();
@@ -78,7 +78,7 @@ class WorkOrderRequestEligibilityTest extends TestCase
             $user->givePermissionTo('work_orders.create');
             $this->personnel($user);
             $listing = $role === 'FMO Staff' ? '/my-work-orders' : '/work-orders';
-            $this->actingAs($user)->get($listing)->assertOk()->assertDontSee('+ New Work Order');
+            $this->actingAs($user)->get($listing)->assertOk()->assertDontSee('New Request');
             $this->actingAs($user)->get('/work-orders/create')->assertForbidden();
             $this->actingAs($user)->post('/work-orders', $this->payload())->assertForbidden();
             $this->withToken($user->createToken('eligibility')->plainTextToken)

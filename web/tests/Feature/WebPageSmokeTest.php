@@ -77,7 +77,7 @@ class WebPageSmokeTest extends TestCase
             $this->assertSame(200, $this->get($path)->status(), $path);
         }
 
-        $this->get('/my-work-orders')->assertSee($order->work_order_number)->assertSee('New Work Order');
+        $this->get('/my-work-orders')->assertSee($order->work_order_number)->assertSee('New Request');
         $this->get('/my-work-orders?search=missing')->assertDontSee($order->work_order_number);
         $this->get('/work-orders')->assertForbidden();
         $this->get('/skills')->assertForbidden();

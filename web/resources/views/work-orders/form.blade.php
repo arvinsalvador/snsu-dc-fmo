@@ -3,11 +3,11 @@
 @section('title', isset($order) ? 'Update Work Order' : 'New Work Order Request')
 
 @section('content')
-    <div class="mb-4 text-sm text-slate-500"><a class="text-blue-800 hover:underline" href="{{ route('work-orders.mine') }}">My Work Orders</a> <span class="px-1">/</span> {{ isset($order) ? 'Update request' : 'New request' }}</div>
+    <x-breadcrumbs :items="['My Requests' => route('work-orders.mine'), isset($order) ? 'Update request' : 'New request']" />
     <x-page-header :title="isset($order) ? 'Update '.$order->work_order_number : 'New Work Order Request'" description="Report a facilities repair, maintenance or service concern." />
 
     @if (isset($order) && $order->status === \App\Enums\WorkOrderStatus::NeedsInformation)
-        <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p class="font-semibold">FMO requested additional information</p><p class="mt-1">Update the request and include your response before resubmitting.</p></div>
+        <x-alert type="warning" title="FMO requested additional information" class="mt-6">Update the request and include your response before resubmitting.</x-alert>
     @endif
 
     <div class="mt-6 max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-xs sm:p-4">
@@ -87,7 +87,7 @@
             <section class="form-section"><h2>6. Response to FMO</h2><p>Provide the requested clarification before resubmitting.</p><label>Additional information <span class="text-rose-600">*</span><textarea name="requester_message" required>{{ old('requester_message') }}</textarea></label></section>
         @endif
 
-        <div class="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur"><a class="btn btn-secondary" href="{{ route('work-orders.mine') }}">Cancel</a><div class="flex flex-wrap gap-3"><button class="btn btn-primary" type="submit">{{ isset($order) ? 'Save and resubmit' : 'Submit Work Order' }}</button>@if (! isset($order)) @can('work_orders.create_direct')<button class="btn btn-success" type="submit" formaction="{{ route('work-orders.direct') }}">Create direct authorized Work Order</button>@endcan @endif</div></div>
+        <div class="z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur sm:sticky sm:bottom-3"><a class="btn btn-secondary" href="{{ route('work-orders.mine') }}">Cancel</a><div class="flex flex-wrap gap-3"><button class="btn btn-primary" type="submit"><x-icon name="check-circle" />{{ isset($order) ? 'Save and resubmit' : 'Submit Work Order' }}</button>@if (! isset($order)) @can('work_orders.create_direct')<button class="btn btn-secondary" type="submit" formaction="{{ route('work-orders.direct') }}"><x-icon name="shield-check" />Create direct authorized Work Order</button>@endcan @endif</div></div>
     </form>
 
 @endsection

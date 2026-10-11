@@ -1,7 +1,37 @@
 @extends('layouts.app')
 @section('title', $queue === 'screening' ? 'For Screening' : 'For Approval')
 @section('content')
-<h1 class="text-2xl font-semibold">{{ $queue === 'screening' ? 'For Screening' : 'For Approval' }}</h1>
-<form class="mt-4 flex gap-2" method="GET"><input class="rounded border p-2" name="search" value="{{ request('search') }}" placeholder="Work Order number"><button class="rounded bg-slate-700 px-4 py-2 text-white">Filter</button></form>
-<div class="mt-5 overflow-x-auto rounded border bg-white"><table class="w-full text-left text-sm"><thead class="bg-slate-100"><tr><th class="p-3">Number</th><th class="p-3">Submitted</th><th class="p-3">Requester</th><th class="p-3">Category</th><th class="p-3">Building</th><th class="p-3">Subject</th><th class="p-3">Status</th><th class="p-3">Recommendation</th></tr></thead><tbody>@forelse($orders as $order)<tr class="border-t"><td class="p-3"><a class="text-blue-700 underline" href="{{ route('work-orders.show', $order) }}">{{ $order->work_order_number }}</a></td><td class="p-3">{{ $order->submitted_at?->timezone('Asia/Manila')->format('M j, Y') }}</td><td class="p-3">{{ $order->requester->name }}</td><td class="p-3">{{ $order->category->name }}</td><td class="p-3">{{ $order->building->name }}</td><td class="p-3">{{ $order->subject }}</td><td class="p-3">{{ str_replace('_', ' ', $order->status->value) }}</td><td class="p-3">{{ $order->recommendation ?? '—' }}</td></tr>@empty<tr><td class="p-4" colspan="8">No Work Orders in this queue.</td></tr>@endforelse</tbody></table></div><div class="mt-4">{{ $orders->links() }}</div>
+    @php($isScreening = $queue === 'screening')
+    <x-page-header
+        :title="$isScreening ? 'For Screening' : 'For Approval'"
+        :description="$isScreening ? 'Review newly submitted requests and identify the correct next step.' : 'Review screening recommendations and make an authorized decision.'"
+    />
+
+    <form class="filter-bar mt-6" method="GET">
+        <label class="min-w-64 flex-1">Search Work Orders<input name="search" value="{{ request('search') }}" placeholder="Work Order number or subject"></label>
+        <button class="btn btn-primary" type="submit"><x-icon name="filter" />Filter</button>
+        <a class="btn btn-ghost" href="{{ route('work-orders.queue', $queue) }}">Reset</a>
+    </form>
+
+    <div class="table-wrap mt-6">
+        <table>
+            <thead><tr><th>Work Order</th><th>Age / Submitted</th><th>Requester</th><th>Category &amp; Location</th><th>Status</th><th>{{ $isScreening ? 'Subject' : 'Recommendation' }}</th><th class="text-right">Action</th></tr></thead>
+            <tbody>
+                @forelse ($orders as $order)
+                    <tr>
+                        <td><a class="font-semibold text-blue-800 hover:underline" href="{{ route('work-orders.show', $order) }}">{{ $order->work_order_number }}</a></td>
+                        <td><span class="font-medium text-slate-900">{{ $order->submitted_at?->diffForHumans() }}</span><p class="mt-1 text-xs text-slate-500">{{ $order->submitted_at?->timezone('Asia/Manila')->format('F j, Y') }}</p></td>
+                        <td>{{ $order->requester->name }}</td>
+                        <td>{{ $order->category->name }}<p class="mt-1 text-xs text-slate-500">{{ $order->building->name }}</p></td>
+                        <td><x-status-badge :status="$order->status" /></td>
+                        <td>{{ $isScreening ? $order->subject : ($order->recommendation ?? 'Not recorded') }}</td>
+                        <td class="text-right"><a class="btn btn-primary !min-h-9 !px-3" href="{{ route('work-orders.show', $order) }}"><x-icon name="eye" size="size-4" />Review</a></td>
+                    </tr>
+                @empty
+                    <tr><td colspan="7"><x-empty-state :title="$isScreening ? 'No requests need screening' : 'No requests need approval'" description="This queue is currently clear." /></td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+    <div class="mt-5">{{ $orders->links() }}</div>
 @endsection

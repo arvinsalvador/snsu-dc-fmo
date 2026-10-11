@@ -34,6 +34,13 @@ class PersonnelController extends Controller
         return view('personnel.index', compact('personnel', 'filters') + [
             'skills' => Skill::orderBy('name')->get(),
             'designations' => FmoPersonnel::whereNotNull('designation')->distinct()->orderBy('designation')->pluck('designation'),
+            'summary' => [
+                'active' => FmoPersonnel::where('personnel_status', PersonnelStatus::Active->value)->count(),
+                'available' => FmoPersonnel::where('personnel_status', PersonnelStatus::Active->value)
+                    ->whereNull('archived_at')->whereHas('user', fn ($query) => $query->where('status', AccountStatus::Approved->value))->count(),
+                'on_leave' => FmoPersonnel::where('personnel_status', PersonnelStatus::OnLeave->value)->count(),
+                'unavailable' => FmoPersonnel::where('personnel_status', PersonnelStatus::Unavailable->value)->count(),
+            ],
         ]);
     }
 

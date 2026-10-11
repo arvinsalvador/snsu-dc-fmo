@@ -1,10 +1,14 @@
 @extends('layouts.app')
 @section('title', 'Users')
 @section('content')
-<h1 class="mb-5 text-2xl font-semibold">Users</h1>
-<form method="GET" class="mb-4 flex gap-2"><input class="w-full max-w-sm rounded border p-2" name="search" value="{{ $search }}" placeholder="Search name or email"><button class="rounded bg-blue-700 px-4 py-2 text-white">Search</button></form>
-<div class="overflow-x-auto rounded-lg border bg-white"><table class="w-full text-left text-sm"><thead class="bg-slate-100"><tr><th class="p-3">Name</th><th class="p-3">Email</th><th class="p-3">Category</th><th class="p-3">Status</th><th class="p-3">Action</th></tr></thead><tbody>
-@forelse ($users as $user)<tr class="border-t"><td class="p-3">{{ $user->name }}</td><td class="p-3">{{ $user->email }}</td><td class="p-3">{{ ucfirst($user->user_type ?? '—') }}</td><td class="p-3">{{ $user->status->value }}</td><td class="p-3"><a class="text-blue-700 underline" href="{{ route('users.show', $user) }}">Details</a></td></tr>
-@empty <tr><td class="p-4" colspan="5">No users found.</td></tr> @endforelse
-</tbody></table></div><div class="mt-4">{{ $users->links() }}</div>
+    <x-page-header title="Users" description="Review application accounts, institutional types, statuses and assigned roles." />
+    <form method="GET" class="filter-bar mt-6"><label class="min-w-64 flex-1">Search users<input name="search" value="{{ $search }}" placeholder="Name or email"></label><button class="btn btn-primary" type="submit"><x-icon name="search" />Search</button><a class="btn btn-ghost" href="{{ route('users.index') }}">Reset</a></form>
+    <div class="table-wrap mobile-card-table mt-6"><table><thead><tr><th>User</th><th>Institutional type</th><th>Status</th><th>Roles</th><th class="text-right">Action</th></tr></thead><tbody>
+        @forelse ($users as $user)
+            <tr><td><div class="flex items-center gap-3"><x-avatar :name="$user->name" /><div><p class="font-semibold text-slate-900">{{ $user->name }}</p><p class="text-xs text-slate-500">{{ $user->email }}</p></div></div></td><td data-label="Institutional type">{{ ucfirst($user->user_type ?? 'Unknown') }}</td><td data-label="Status"><x-status-badge :status="$user->status" /></td><td data-label="Roles"><div class="flex flex-wrap gap-1">@forelse ($user->getRoleNames() as $role)<span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{{ $role }}</span>@empty<span class="text-slate-500">No role</span>@endforelse</div></td><td data-label="Action" class="text-right"><a class="btn btn-secondary !min-h-9 !px-3" href="{{ route('users.show', $user) }}"><x-icon name="eye" size="size-4" />Details</a></td></tr>
+        @empty
+            <tr><td colspan="5"><x-empty-state title="No users found" description="Try a different name or email." icon="users" /></td></tr>
+        @endforelse
+    </tbody></table></div>
+    <div class="mt-5">{{ $users->links() }}</div>
 @endsection
