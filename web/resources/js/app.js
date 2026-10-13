@@ -1,4 +1,5 @@
 import { initializeLocationSelects } from './work-order-location.js';
+import { initializeCollapsibles } from './collapsible.js';
 
 export function initializePhotoPicker(container) {
     const preview = container.querySelector('[data-photo-preview]');
@@ -146,6 +147,7 @@ export function initializeEvidenceViewer() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    initializeCollapsibles();
     document.querySelectorAll('[data-work-order-location]').forEach(initializeLocationSelects);
     document.querySelectorAll('[data-photo-picker]').forEach(initializePhotoPicker);
     initializeEvidenceViewer();

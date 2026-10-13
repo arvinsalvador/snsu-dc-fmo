@@ -69,7 +69,12 @@ class WorkOrderEvidenceExperienceTest extends TestCase
             ->assertSee('Awaiting FMO personnel assignment')
             ->assertSee('No evidence added yet.');
         $this->actingAs($outsider)->get("/work-orders/{$order->id}")->assertForbidden();
-        $this->actingAs($head)->get("/work-orders/{$order->id}")->assertOk()->assertSee('Assign FMO Personnel');
+        $this->actingAs($head)->get("/work-orders/{$order->id}")->assertOk()
+            ->assertSee('Assign FMO Personnel')
+            ->assertSee('data-collapsible', escape: false)
+            ->assertSee('data-collapsible-summary', escape: false)
+            ->assertSee('data-collapsible-chevron', escape: false)
+            ->assertSee('aria-expanded="false"', escape: false);
         $this->actingAs($oversight)->get("/work-orders/{$order->id}")->assertOk()->assertDontSee('Assign FMO Personnel');
 
         app(WorkOrderAssignmentService::class)->add($order, $head, [$person->id]);

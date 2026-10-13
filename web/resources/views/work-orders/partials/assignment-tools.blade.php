@@ -1,6 +1,6 @@
 @if ($canAssign && in_array($order->status, [\App\Enums\WorkOrderStatus::Approved, \App\Enums\WorkOrderStatus::Assigned, \App\Enums\WorkOrderStatus::ForAssessment, \App\Enums\WorkOrderStatus::AssessmentReview, \App\Enums\WorkOrderStatus::ReadyForWork, \App\Enums\WorkOrderStatus::InProgress, \App\Enums\WorkOrderStatus::ForContinuation, \App\Enums\WorkOrderStatus::Paused, \App\Enums\WorkOrderStatus::WaitingForMaterials, \App\Enums\WorkOrderStatus::NeedsInvestigation]))
-    <details id="assignment-tools" class="section-card scroll-mt-24">
-        <summary class="flex items-center justify-between gap-3 text-lg font-semibold text-slate-900"><span class="flex items-center gap-2"><x-icon name="assignment" class="text-blue-700" />Manage Assignment</span><x-icon name="chevron-right" class="text-slate-400" /></summary>
+    <details id="assignment-tools" data-collapsible class="section-card scroll-mt-24">
+        <x-collapsible-summary icon="assignment" class="-mx-2 text-lg text-slate-900">Manage Assignment</x-collapsible-summary>
         <p class="mt-3 text-sm text-slate-600">Requester preference is advisory. Select active personnel based on skills, availability and current workload.</p>
         <form method="POST" action="{{ route('work-orders.assignments.store', $order) }}" class="mt-5 space-y-4">
             @csrf

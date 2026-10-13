@@ -30,8 +30,8 @@
 
     @if ($mySession && $order->status === \App\Enums\WorkOrderStatus::InProgress)
         <div id="field-actions" class="mt-6 grid scroll-mt-24 gap-4 xl:grid-cols-2">
-            <details class="rounded-xl border border-blue-200 bg-blue-50/50 p-4" open>
-                <summary class="cursor-pointer font-semibold text-slate-900">Add work update</summary>
+            <details data-collapsible class="rounded-xl border border-blue-200 bg-blue-50/50 p-4" open>
+                <x-collapsible-summary :expanded="true" class="-mx-2 text-slate-900">Add work update</x-collapsible-summary>
                 <form method="POST" enctype="multipart/form-data" action="{{ route('work-orders.execution.update', [$order, $mySession]) }}" class="mt-4 space-y-4">@csrf
                     <label>Update type<select name="type">@foreach (['BEFORE' => 'Before / Initial Evidence', 'PROGRESS' => 'Progress', 'ISSUE' => 'Issue', 'COMPLETION' => 'Completion / Outcome Evidence', 'OTHER' => 'Other'] as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></label>
                     <label>Work performed or finding<textarea name="description" required placeholder="Describe what you did or found."></textarea></label>
@@ -40,8 +40,8 @@
                     <button class="btn btn-primary w-full sm:w-auto" type="submit"><x-icon name="check-circle" />Save Update</button>
                 </form>
             </details>
-            <details class="rounded-xl border border-slate-200 p-4">
-                <summary class="cursor-pointer font-semibold text-slate-900">End current session</summary>
+            <details data-collapsible class="rounded-xl border border-slate-200 p-4">
+                <x-collapsible-summary class="-mx-2 text-slate-900">End current session</x-collapsible-summary>
                 <form method="POST" enctype="multipart/form-data" action="{{ route('work-orders.execution.end', [$order, $mySession]) }}" class="mt-4 space-y-4">@csrf
                     @php($outcomeDescriptions = ['CONTINUATION' => 'More work is required in another session.', 'PAUSED' => 'Work is temporarily paused.', 'WAITING_FOR_MATERIALS' => 'Required materials or resources are not yet available.', 'NEEDS_FURTHER_INVESTIGATION' => 'The issue requires additional diagnosis.', 'CONTRIBUTION_COMPLETE' => 'Your assigned contribution is finished.', 'WORK_ORDER_COMPLETION_SUBMITTED' => 'All work is complete and ready for verification.'])
                     <fieldset><legend class="text-sm font-semibold text-slate-800">Session outcome <span class="text-rose-600">*</span></legend><div class="mt-3 grid gap-2">@foreach (\App\Enums\WorkSessionOutcome::cases() as $outcome)<label class="flex cursor-pointer gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-blue-300 has-checked:border-blue-600 has-checked:bg-blue-50"><input class="mt-1" type="radio" name="outcome" value="{{ $outcome->value }}" required @checked(old('outcome') === $outcome->value)><span><span class="block font-semibold text-slate-900">{{ \Illuminate\Support\Str::of($outcome->value)->replace('_', ' ')->title() }}</span><span class="mt-1 block text-xs leading-5 text-slate-500">{{ $outcomeDescriptions[$outcome->value] }}</span></span></label>@endforeach</div></fieldset>
@@ -59,7 +59,7 @@
 
     @if ($assigned && ! $mySession && in_array($order->status, [\App\Enums\WorkOrderStatus::InProgress, \App\Enums\WorkOrderStatus::ForContinuation]) && ! $order->sessions->contains(fn ($session) => $session->ended_at === null))
         @can('work_orders.submit_completion')
-            <details id="submit-completion" class="mt-6 scroll-mt-24 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4" open><summary class="cursor-pointer font-semibold text-emerald-950">Submit completed work for verification</summary>
+            <details id="submit-completion" data-collapsible class="mt-6 scroll-mt-24 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4" open><x-collapsible-summary :expanded="true" class="-mx-2 text-emerald-950 hover:bg-emerald-100/60">Submit completed work for verification</x-collapsible-summary>
                 <form method="POST" action="{{ route('work-orders.submit-verification', $order) }}" class="mt-4 space-y-4" data-confirm="Submit this completed work for management verification? Field work will be treated as complete unless it is returned for additional work.">@csrf<p class="text-sm text-emerald-900">Record completion evidence during a work session first, or explain why photographic evidence is not meaningful.</p><label>Completion summary<textarea name="completion_summary" required></textarea></label><label>Work performed<textarea name="work_performed_summary" required></textarea></label><label>Requester-visible summary <span class="font-normal text-slate-400">(optional)</span><textarea name="requester_summary"></textarea></label><label>Non-photographic justification <span class="font-normal text-slate-400">(if needed)</span><textarea name="non_photo_reason"></textarea></label><button class="btn btn-success w-full sm:w-auto" type="submit"><x-icon name="shield-check" />Submit for Verification</button></form>
             </details>
         @endcan
@@ -76,7 +76,7 @@
     @endif
 
     @if ($executionViewer && $order->sessions->isNotEmpty())
-        <details class="mt-6 border-t border-slate-100 pt-5"><summary class="cursor-pointer text-sm font-semibold text-blue-800">View session history ({{ $order->sessions->count() }})</summary><div class="mt-3 space-y-3">
+        <details data-collapsible class="mt-6 border-t border-slate-100 pt-5"><x-collapsible-summary class="-mx-2 text-sm text-blue-800">View session history ({{ $order->sessions->count() }})</x-collapsible-summary><div class="mt-3 space-y-3">
             @foreach ($order->sessions->sortByDesc('started_at') as $session)
                 <article class="rounded-xl border border-slate-200 p-4"><p class="font-semibold">{{ $session->personnel->user->name }}</p><p class="mt-1 text-xs text-slate-500">{{ $session->started_at->timezone('Asia/Manila')->format('M j, Y · g:i A') }} → {{ $session->ended_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Active' }}</p>@if ($session->session_summary)<p class="mt-2 text-sm text-slate-700">{{ $session->session_summary }}</p>@endif @if ($session->ended_at === null && auth()->user()->can('work_orders.manage_sessions'))<form method="POST" action="{{ route('work-orders.execution.force-end', [$order, $session]) }}" class="mt-3 flex flex-col gap-2 sm:flex-row" data-confirm="Administratively end this active session? The provided reason will be recorded.">@csrf<input name="reason" required placeholder="Administrative reason"><button class="btn btn-danger shrink-0" type="submit">Resolve Stuck Session</button></form>@endif</article>
             @endforeach

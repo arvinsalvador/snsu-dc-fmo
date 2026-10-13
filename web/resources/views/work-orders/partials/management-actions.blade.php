@@ -1,6 +1,6 @@
 @if ($management)
-    <details id="management-actions" class="section-card scroll-mt-24">
-        <summary class="flex items-center justify-between gap-3 text-lg font-semibold text-slate-900"><span class="flex items-center gap-2"><x-icon name="shield-check" class="text-blue-700" />Management Actions</span><x-icon name="chevron-right" class="text-slate-400" /></summary>
+    <details id="management-actions" data-collapsible class="section-card scroll-mt-24">
+        <x-collapsible-summary icon="shield-check" class="-mx-2 text-lg text-slate-900">Management Actions</x-collapsible-summary>
         <div class="mt-5 grid gap-4 lg:grid-cols-2">
             @if ($order->status === \App\Enums\WorkOrderStatus::Submitted)
                 @can('work_orders.screen')
