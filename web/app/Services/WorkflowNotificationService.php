@@ -124,7 +124,20 @@ class WorkflowNotificationService
             if ($recipient->status !== AccountStatus::Approved) {
                 continue;
             }
-            $this->deliver($recipient, new WorkflowNotice($event->action, $title, $message, $order->id, $event->id));
+            $this->deliver($recipient, new WorkflowNotice(
+                $event->action,
+                $title,
+                $message,
+                $order->id,
+                $event->id,
+                $number,
+                [
+                    'subject' => $order->subject,
+                    'requester_id' => $requester?->id,
+                    'requester_name' => $requester?->name,
+                    'requester_type' => $requester?->user_type,
+                ],
+            ));
         }
     }
 

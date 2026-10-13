@@ -93,7 +93,12 @@
             </nav>
 
             <div class="border-t border-white/10 pt-3">
-                <a class="nav-link {{ request()->routeIs('notifications.*') ? 'nav-link-active' : '' }}" href="{{ route('notifications.index') }}"><x-icon name="bell" /><span>Notifications</span></a>
+                <a class="nav-link {{ request()->routeIs('notifications.*') ? 'nav-link-active' : '' }}" href="{{ route('notifications.index') }}">
+                    <x-icon name="bell" /><span>Notifications</span>
+                    @if ($headerUnreadNotificationCount > 0)
+                        <span class="ml-auto rounded-full bg-blue-500 px-2 py-0.5 text-[11px] font-bold text-white">{{ $headerUnreadNotificationCount > 99 ? '99+' : $headerUnreadNotificationCount }}</span>
+                    @endif
+                </a>
                 @can('profiles.view_own')
                     <a class="nav-link {{ request()->routeIs('profile.*') ? 'nav-link-active' : '' }}" href="{{ route('profile.show') }}"><x-icon name="user" /><span>My Profile</span></a>
                 @endcan
@@ -108,12 +113,39 @@
                         <div class="min-w-0"><p class="truncate text-sm font-semibold text-slate-800">@yield('title', 'SNSU FMO')</p><p class="hidden text-xs text-slate-500 sm:block">Facilities Management Office</p></div>
                     </div>
                     <div class="ml-auto flex items-center gap-2 sm:gap-3">
-                        <a class="icon-btn relative" href="{{ route('notifications.index') }}" aria-label="Notifications">
-                            <x-icon name="bell" />
-                            @if (($unreadCount = $user->unreadNotifications()->count()) > 0)
-                                <span class="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">{{ $unreadCount }}</span>
-                            @endif
-                        </a>
+                        <details class="group relative">
+                            <summary class="icon-btn relative" aria-label="Notifications{{ $headerUnreadNotificationCount > 0 ? ', '.$headerUnreadNotificationCount.' unread' : '' }}">
+                                <x-icon name="bell" />
+                                @if ($headerUnreadNotificationCount > 0)
+                                    <span class="absolute -right-1.5 -top-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">{{ $headerUnreadNotificationCount > 99 ? '99+' : $headerUnreadNotificationCount }}</span>
+                                @endif
+                            </summary>
+                            <div class="absolute right-0 z-30 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                                <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                                    <div><p class="text-sm font-semibold text-slate-900">Notifications</p><p class="text-xs text-slate-500">{{ $headerUnreadNotificationCount > 0 ? $headerUnreadNotificationCount.' unread' : 'You are all caught up' }}</p></div>
+                                    <a class="text-link text-xs" href="{{ route('notifications.index') }}">View all</a>
+                                </div>
+                                <div class="max-h-[28rem] overflow-y-auto">
+                                    @forelse ($headerNotifications as $item)
+                                        @php($headerNotice = $item['presentation'])
+                                        <a class="flex gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50 {{ $headerNotice['is_unread'] ? 'bg-blue-50/50' : '' }}" href="{{ $headerNotice['action_url'] ?: route('notifications.index') }}">
+                                            <span class="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full {{ $headerNotice['icon_classes'] }}"><x-icon :name="$headerNotice['icon']" size="size-4" /></span>
+                                            <span class="min-w-0 flex-1">
+                                                <span class="flex items-start gap-2"><span class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{{ $headerNotice['title'] }}</span>@if ($headerNotice['is_unread'])<span class="mt-1.5 size-2 shrink-0 rounded-full bg-blue-600" aria-label="Unread"></span>@endif</span>
+                                                <span class="mt-0.5 block text-xs text-slate-600">{{ $headerNotice['event_label'] }}</span>
+                                                @if ($headerNotice['requester_name'])<span class="mt-1 block truncate text-xs font-medium text-slate-700">Requester: {{ $headerNotice['requester_name'] }}</span>@endif
+                                                <span class="mt-1 block text-[11px] text-slate-500">{{ $headerNotice['relative_time'] }}</span>
+                                            </span>
+                                        </a>
+                                    @empty
+                                        <div class="px-5 py-8 text-center"><span class="mx-auto grid size-10 place-items-center rounded-full bg-slate-100 text-slate-500"><x-icon name="bell" /></span><p class="mt-3 text-sm font-semibold text-slate-800">No notifications yet</p><p class="mt-1 text-xs text-slate-500">Updates will appear here.</p></div>
+                                    @endforelse
+                                </div>
+                                @if ($headerNotifications->isNotEmpty())
+                                    <a class="flex items-center justify-center gap-1.5 border-t border-slate-200 px-4 py-3 text-sm font-semibold text-blue-800 hover:bg-blue-50" href="{{ route('notifications.index') }}">View all notifications<x-icon name="chevron-right" size="size-4" /></a>
+                                @endif
+                            </div>
+                        </details>
                         @can('profiles.view_own')
                             <a href="{{ route('profile.show') }}" class="hidden items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50 sm:flex">
                                 <x-avatar :name="$user->name" size="sm" />

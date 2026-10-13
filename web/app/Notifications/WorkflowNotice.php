@@ -15,6 +15,8 @@ class WorkflowNotice extends Notification
         public readonly string $message,
         public readonly ?string $workOrderId = null,
         public readonly ?int $workflowEventId = null,
+        public readonly ?string $workOrderNumber = null,
+        public readonly array $workOrderSnapshot = [],
     ) {}
 
     public function via(object $notifiable): array
@@ -29,6 +31,11 @@ class WorkflowNotice extends Notification
             'title' => $this->title,
             'message' => $this->message,
             'work_order_id' => $this->workOrderId,
+            'work_order_number' => $this->workOrderNumber,
+            'work_order_subject' => $this->workOrderSnapshot['subject'] ?? null,
+            'requester_id' => $this->workOrderSnapshot['requester_id'] ?? null,
+            'requester_name' => $this->workOrderSnapshot['requester_name'] ?? null,
+            'requester_type' => $this->workOrderSnapshot['requester_type'] ?? null,
             'workflow_event_id' => $this->workflowEventId,
             'action_url' => $this->workOrderId ? route($this->eventKey === 'ASSIGNEE_REMOVED' ? 'reports.print' : 'work-orders.show', $this->workOrderId) : null,
         ];
