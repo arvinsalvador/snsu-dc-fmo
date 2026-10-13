@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const submit = form.querySelector('button[type="submit"], button:not([type])');
         if (submit && !submit.dataset.noLoading && (!form.hasAttribute('data-confirm') || form.dataset.confirmed === 'true')) {
             submit.disabled = true;
-            submit.replaceChildren(document.createTextNode('Please wait…'));
+            submit.replaceChildren(document.createTextNode(submit.dataset.loadingText || 'Please wait…'));
         }
     }));
 });

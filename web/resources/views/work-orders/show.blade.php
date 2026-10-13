@@ -18,7 +18,7 @@
     $statusCopy = match ($order->status) {
         \App\Enums\WorkOrderStatus::Submitted => ['Submitted', 'Your request is recorded and waiting for the Facilities Management Office to begin screening.'],
         \App\Enums\WorkOrderStatus::ForScreening => ['For Screening', 'FMO is reviewing the request details and deciding whether more information is needed.'],
-        \App\Enums\WorkOrderStatus::NeedsInformation => ['Additional Information Required', 'The requester must update the Work Order before review can continue.'],
+        \App\Enums\WorkOrderStatus::NeedsInformation => ['Additional Information Required', 'FMO needs additional information before review can continue.'],
         \App\Enums\WorkOrderStatus::ForApproval => ['For Approval', 'Screening is complete. An authorized approver must make the final decision.'],
         \App\Enums\WorkOrderStatus::Approved => ['Approved', 'The Work Order is approved and awaiting FMO personnel assignment.'],
         \App\Enums\WorkOrderStatus::Disapproved => ['Disapproved', 'This request was reviewed and not approved for FMO work.'],
@@ -82,6 +82,17 @@
             @endif
         </div>
     </div>
+    @if ($order->status === \App\Enums\WorkOrderStatus::NeedsInformation && $clarification)
+        <div class="mt-6 rounded-xl border border-amber-200 bg-white p-4 sm:p-5">
+            <p class="detail-kicker !text-amber-800">Requested information</p>
+            <p class="mt-3 whitespace-pre-line text-base leading-7 text-slate-800">{{ $clarification->requester_message }}</p>
+            <div class="mt-4 flex flex-wrap gap-x-2 gap-y-1 border-t border-amber-100 pt-3 text-xs text-slate-600">
+                <span>Requested by {{ $clarification->actor?->name ?? 'FMO' }}</span>
+                <span aria-hidden="true">•</span>
+                <time datetime="{{ $clarification->created_at?->toIso8601String() }}">{{ $clarification->created_at?->timezone('Asia/Manila')->format('F j, Y · g:i A') }}</time>
+            </div>
+        </div>
+    @endif
 </section>
 
 <div class="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
@@ -148,7 +159,12 @@
         <section class="section-card"><p class="detail-kicker">Lifecycle</p><h2 class="mt-1 text-xl">Activity Timeline</h2><ol class="mt-6">
             @forelse ($order->workflowEvents as $event)
                 @if ($management || ! in_array($event->action, $privateEvents, true))
-                    <li class="timeline-item"><div class="flex flex-wrap items-baseline justify-between gap-2"><p class="font-semibold">{{ \Illuminate\Support\Str::of($event->action)->replace('_', ' ')->title() }}</p><p class="text-xs text-slate-500">{{ $event->created_at->timezone('Asia/Manila')->format('M j, Y · g:i A') }}</p></div>@if($event->actor)<p class="mt-1 text-sm text-slate-500">by {{ $event->actor->name }}</p>@endif @if ($event->requester_message)<p class="mt-2 text-sm leading-6 text-slate-700">{{ $event->requester_message }}</p>@endif @if ($management && $event->internal_note)<p class="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600"><strong>Internal:</strong> {{ $event->internal_note }}</p>@endif</li>
+                    @php($eventLabel = match ($event->action) {
+                        'REQUEST_INFORMATION', 'ASSESSMENT_REQUEST_INFORMATION' => 'Additional Information Requested',
+                        'RESUBMIT' => 'Requester Resubmitted',
+                        default => \Illuminate\Support\Str::of($event->action)->replace('_', ' ')->title(),
+                    })
+                    <li class="timeline-item"><div class="flex flex-wrap items-baseline justify-between gap-2"><p class="font-semibold">{{ $eventLabel }}</p><p class="text-xs text-slate-500">{{ $event->created_at->timezone('Asia/Manila')->format('M j, Y · g:i A') }}</p></div>@if($event->actor)<p class="mt-1 text-sm text-slate-500">by {{ $event->actor->name }}</p>@endif @if ($event->requester_message)<p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">{{ $event->requester_message }}</p>@endif @if ($management && $event->internal_note)<p class="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600"><strong>Internal:</strong> {{ $event->internal_note }}</p>@endif</li>
                 @endif
             @empty
                 <li class="text-sm text-slate-500">No activity has been recorded yet.</li>

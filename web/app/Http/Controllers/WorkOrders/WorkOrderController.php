@@ -12,8 +12,8 @@ use App\Models\FmoPersonnel;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Models\WorkOrderCategory;
-use App\Services\StoredFileTransaction;
 use App\Services\EvidenceMediaService;
+use App\Services\StoredFileTransaction;
 use App\Services\WorkOrderAssignmentService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
@@ -101,7 +101,13 @@ class WorkOrderController extends Controller
                 ->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->filter->isAssignable();
         }
 
-        return view('work-orders.show', ['order' => $workOrder->load('requester.requesterProfile', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier'), 'assignablePersonnel' => $assignablePersonnel]);
+        $workOrder->load('requester.requesterProfile', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier');
+
+        return view('work-orders.show', [
+            'order' => $workOrder,
+            'assignablePersonnel' => $assignablePersonnel,
+            'clarification' => $workOrder->status === WorkOrderStatus::NeedsInformation ? $workOrder->latestClarificationRequest() : null,
+        ]);
     }
 
     public function edit(Request $request, WorkOrder $workOrder)
@@ -111,7 +117,13 @@ class WorkOrderController extends Controller
             || ($workOrder->status === WorkOrderStatus::NeedsInformation && $request->user()->can('work_orders.resubmit_own'))
         ), 403);
 
-        return view('work-orders.form', [...$this->formData(), 'order' => $workOrder]);
+        $workOrder->load('attachments.uploader');
+
+        return view('work-orders.form', [
+            ...$this->formData(),
+            'order' => $workOrder,
+            'clarification' => $workOrder->status === WorkOrderStatus::NeedsInformation ? $workOrder->latestClarificationRequest() : null,
+        ]);
     }
 
     public function update(Request $request, WorkOrder $workOrder)

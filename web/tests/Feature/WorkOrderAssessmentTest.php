@@ -76,7 +76,7 @@ class WorkOrderAssessmentTest extends TestCase
         $this->actingAs($requester)->get("/work-orders/{$order->id}")->assertDontSee('Room number missing');
         $this->actingAs($head)->post("/work-orders/{$order->id}/assessment/resolve/request-information", ['requester_message' => 'Which room?', 'internal_note' => 'Internal review'])->assertRedirect();
         $this->assertSame(WorkOrderStatus::NeedsInformation, $order->fresh()->status);
-        $this->actingAs($requester)->post("/work-orders/{$order->id}/workflow/resubmit", ['campus_id' => $order->campus_id, 'building_id' => $order->building_id, 'work_order_category_id' => $order->work_order_category_id, 'subject' => 'Room 12 light', 'description' => 'Room 12 light broken', 'urgency' => 'NORMAL'])->assertRedirect();
+        $this->actingAs($requester)->post("/work-orders/{$order->id}/workflow/resubmit", ['campus_id' => $order->campus_id, 'building_id' => $order->building_id, 'work_order_category_id' => $order->work_order_category_id, 'subject' => 'Room 12 light', 'description' => 'Room 12 light broken', 'urgency' => 'NORMAL', 'requester_message' => 'The affected location is Room 12.'])->assertRedirect();
         $this->assertSame(WorkOrderStatus::ForAssessment, $order->fresh()->status);
     }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\WorkOrders;
 
 use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
+use App\Services\StoredFileTransaction;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,11 @@ class WorkOrderWorkflowController extends Controller
     {
         $this->perform($request, $workOrder, $action, $workflow, $requests);
 
-        return redirect()->route('work-orders.show', $workOrder)->with('success', 'Work Order workflow updated.');
+        $message = $action === 'resubmit'
+            ? 'Your Work Order has been updated and resubmitted to FMO for review.'
+            : 'Work Order workflow updated.';
+
+        return redirect()->route('work-orders.show', $workOrder)->with('success', $message);
     }
 
     public function perform(Request $request, WorkOrder $workOrder, string $action, WorkOrderWorkflowService $workflow, WorkOrderController $requests): WorkOrder
@@ -37,7 +42,7 @@ class WorkOrderWorkflowController extends Controller
         abort_unless(in_array($action, ['begin-screening', 'request-information', 'recommend-approval', 'recommend-disapproval', 'approve', 'disapprove', 'return-to-screening', 'resubmit'], true), 404);
         $workflow->authorize($workOrder, $request->user(), $action);
         $rules = ['internal_note' => ['nullable', 'string', 'max:5000'], 'requester_message' => ['nullable', 'string', 'max:5000']];
-        if (in_array($action, ['request-information', 'disapprove'], true)) {
+        if (in_array($action, ['request-information', 'disapprove', 'resubmit'], true)) {
             $rules['requester_message'][0] = 'required';
         }
         if ($action === 'return-to-screening') {
@@ -51,7 +56,7 @@ class WorkOrderWorkflowController extends Controller
             $notes['internal_note'] = null;
         }
 
-        return DB::transaction(function () use ($request, $workOrder, $action, $workflow, $requests, $notes): WorkOrder {
+        $mutation = function () use ($request, $workOrder, $action, $workflow, $requests, $notes): WorkOrder {
             if ($action === 'resubmit') {
                 abort_unless($workOrder->requester_id === $request->user()->id && $request->user()->can('work_orders.resubmit_own'), 403);
                 $data = $requests->validated($request);
@@ -63,6 +68,10 @@ class WorkOrderWorkflowController extends Controller
             }
 
             return $updated;
-        });
+        };
+
+        return $action === 'resubmit'
+            ? app(StoredFileTransaction::class)->run($mutation)
+            : DB::transaction($mutation);
     }
 }

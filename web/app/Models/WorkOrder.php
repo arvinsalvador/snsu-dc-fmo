@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use App\Enums\WorkOrderStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -63,6 +63,18 @@ class WorkOrder extends Model
     public function workflowEvents(): HasMany
     {
         return $this->hasMany(WorkOrderWorkflowEvent::class)->orderBy('created_at')->orderBy('id');
+    }
+
+    public function latestClarificationRequest(): ?WorkOrderWorkflowEvent
+    {
+        return $this->workflowEvents()
+            ->reorder()
+            ->with('actor')
+            ->whereIn('action', ['REQUEST_INFORMATION', 'ASSESSMENT_REQUEST_INFORMATION'])
+            ->whereNotNull('requester_message')
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
     }
 
     public function decisionMaker(): BelongsTo

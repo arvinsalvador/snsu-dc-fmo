@@ -7,7 +7,21 @@
     <x-page-header :title="isset($order) ? 'Update '.$order->work_order_number : 'New Work Order Request'" description="Report a facilities repair, maintenance or service concern." />
 
     @if (isset($order) && $order->status === \App\Enums\WorkOrderStatus::NeedsInformation)
-        <x-alert type="warning" title="FMO requested additional information" class="mt-6">Update the request and include your response before resubmitting.</x-alert>
+        <section class="mt-6 max-w-5xl rounded-xl border border-amber-200 bg-amber-50/50 p-5" aria-labelledby="clarification-title">
+            <div class="flex gap-3">
+                <span class="mt-0.5 text-amber-800"><x-icon name="mail" /></span>
+                <div class="min-w-0">
+                    <h2 id="clarification-title" class="text-lg">Additional Information Requested</h2>
+                    <p class="mt-1 text-sm text-slate-600">FMO requested additional information. Please review the request before resubmitting.</p>
+                    @if ($clarification)
+                        <div class="mt-4 rounded-xl border border-amber-200 bg-white p-4">
+                            <p class="whitespace-pre-line text-base leading-7 text-slate-800">{{ $clarification->requester_message }}</p>
+                            <p class="mt-4 border-t border-amber-100 pt-3 text-xs text-slate-600">Requested by {{ $clarification->actor?->name ?? 'FMO' }} · <time datetime="{{ $clarification->created_at?->toIso8601String() }}">{{ $clarification->created_at?->timezone('Asia/Manila')->format('F j, Y · g:i A') }}</time></p>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </section>
     @endif
 
     <div class="mt-6 max-w-5xl rounded-xl border border-slate-200 bg-white p-3 shadow-xs sm:p-4">
@@ -79,15 +93,24 @@
 
         <section class="form-section">
             <h2>5. Photos / Attachments</h2><p>Add photos or video that may help FMO understand the concern. Up to {{ config('work_orders.attachments.max_count') }} files and {{ config('work_orders.attachments.max_size_kb') / 1024 }} MB each.</p>
+            @if (isset($order) && $order->attachments->where('purpose', 'REQUEST_INITIAL')->isNotEmpty())
+                <div class="mb-5 rounded-xl border border-slate-200 bg-white p-4">
+                    <x-evidence-gallery title="Existing Request Attachments" :attachments="$order->attachments->where('purpose', 'REQUEST_INITIAL')" group="existing-request-evidence" description="These files remain attached. Any new files you choose will be added to them." />
+                </div>
+            @endif
             <x-photo-picker name="attachments" id="request-attachments" title="Request Photos" help="Take a photo on a supported phone, or choose JPEG, PNG, WebP, or MP4 files from your device." :allow-video="true" />
             @error('attachments')<p class="field-error">{{ $message }}</p>@enderror
         </section>
 
         @if (isset($order) && $order->status === \App\Enums\WorkOrderStatus::NeedsInformation)
-            <section class="form-section"><h2>6. Response to FMO</h2><p>Provide the requested clarification before resubmitting.</p><label>Additional information <span class="text-rose-600">*</span><textarea name="requester_message" required>{{ old('requester_message') }}</textarea></label></section>
+            <section class="form-section"><h2>6. Response to FMO</h2><p>Explain what you updated or provide the information requested by FMO.</p><label>Response to FMO <span class="text-rose-600">*</span><textarea class="@error('requester_message') field-invalid @enderror" name="requester_message" required aria-describedby="requester-message-help requester-message-error">{{ old('requester_message') }}</textarea><span id="requester-message-help" class="help-text">Summarize the corrected details and any new photos or attachments.</span>@error('requester_message')<p id="requester-message-error" class="field-error">{{ $message }}</p>@enderror</label></section>
         @endif
 
-        <div class="z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur sm:sticky sm:bottom-3"><a class="btn btn-secondary" href="{{ route('work-orders.mine') }}">Cancel</a><div class="flex flex-wrap gap-3"><button class="btn btn-primary" type="submit"><x-icon name="check-circle" />{{ isset($order) ? 'Save and resubmit' : 'Submit Work Order' }}</button>@if (! isset($order)) @can('work_orders.create_direct')<button class="btn btn-secondary" type="submit" formaction="{{ route('work-orders.direct') }}"><x-icon name="shield-check" />Create direct authorized Work Order</button>@endcan @endif</div></div>
+        <div class="z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur sm:sticky sm:bottom-3"><a class="btn btn-secondary" href="{{ route('work-orders.mine') }}">Cancel</a><div class="flex flex-wrap gap-3"><button class="btn btn-primary" type="submit" @if(isset($order) && $order->status === \App\Enums\WorkOrderStatus::NeedsInformation) data-loading-text="Resubmitting…" @endif><x-icon name="check-circle" />{{ isset($order) ? 'Save and resubmit' : 'Submit Work Order' }}</button>@if (! isset($order)) @can('work_orders.create_direct')<button class="btn btn-secondary" type="submit" formaction="{{ route('work-orders.direct') }}"><x-icon name="shield-check" />Create direct authorized Work Order</button>@endcan @endif</div></div>
     </form>
+
+    @if (isset($order))
+        <x-image-lightbox />
+    @endif
 
 @endsection
