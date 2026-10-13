@@ -89,6 +89,9 @@
         @case('download')
             <path d="M12 3v12m-4-4 4 4 4-4M4 20h16" />
             @break
+        @case('printer')
+            <path d="M7 8V3h10v5M7 17H4V9h16v8h-3M7 14h10v7H7Z" /><path d="M17 11h.01" />
+            @break
         @case('camera')
             <path d="M4 7h3l1.5-2h7L17 7h3v12H4Z" /><circle cx="12" cy="13" r="3.5" />
             @break

@@ -172,6 +172,38 @@ class ReportingNotificationsTest extends TestCase
         $this->actingAs($staff)->get('/dashboard')->assertOk()->assertViewHas('counts', fn ($counts) => ! isset($counts['COMPLETED']));
     }
 
+    public function test_work_history_renders_compact_desktop_and_mobile_presentations(): void
+    {
+        $head = $this->user('FMO Head');
+        $requester = $this->user('Requester');
+        $requester->forceFill(['name' => 'Alexandria Marie Villanueva-Salvador', 'user_type' => 'faculty'])->save();
+        $first = $this->user('FMO Staff');
+        $second = $this->user('FMO Staff');
+        $campus = Campus::firstOrCreate(['code' => 'DC'], ['name' => 'Del Carmen', 'is_active' => true]);
+        $building = Building::create(['campus_id' => $campus->id, 'name' => 'Learning Resource Center and Administration Building', 'is_active' => true]);
+        $category = WorkOrderCategory::create(['name' => 'General Repair / Maintenance and Facilities Improvement', 'is_active' => true]);
+        $completed = $this->order($requester, WorkOrderStatus::Approved, $building, $category);
+        $completed->update(['subject' => 'Repair a long section of damaged ceiling panels in the main reading area']);
+        app(WorkOrderAssignmentService::class)->add($completed, $head, [$this->person($first)->id, $this->person($second)->id]);
+        $completed->forceFill(['status' => WorkOrderStatus::Completed, 'verified_at' => now()->subDay()])->save();
+        $unassigned = $this->order($this->user('Requester'), WorkOrderStatus::Approved);
+
+        $this->actingAs($head)->get('/reports/work-orders')->assertOk()
+            ->assertSee($completed->work_order_number)
+            ->assertSee($unassigned->work_order_number)
+            ->assertSee('Alexandria Marie Villanueva-Salvador')
+            ->assertSee('General Repair / Maintenance and Facilities Improvement')
+            ->assertSee('Learning Resource Center and Administration Building')
+            ->assertSee('+1 other')
+            ->assertSee('Not Completed')
+            ->assertSee('hidden md:block', escape: false)
+            ->assertSee('md:hidden', escape: false)
+            ->assertSee('View')
+            ->assertSee('Print')
+            ->assertDontSee('Print view')
+            ->assertSee('Showing 1–2 of 2 Work Orders');
+    }
+
     public function test_mobile_retry_does_not_duplicate_workflow_notification(): void
     {
         $head = $this->user('FMO Head');

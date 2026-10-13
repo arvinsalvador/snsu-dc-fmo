@@ -11,4 +11,4 @@
         default => 'status-neutral',
     };
 @endphp
-<span {{ $attributes->merge(['class' => 'status-badge '.$class]) }}><span aria-hidden="true">●</span>{{ $label }}</span>
+<span {{ $attributes->merge(['class' => 'status-badge whitespace-nowrap '.$class]) }}><span aria-hidden="true">●</span>{{ $label }}</span>
