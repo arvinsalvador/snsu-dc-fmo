@@ -57,6 +57,14 @@
                     <a class="nav-link {{ request()->routeIs('work-orders.execution-queue') && request()->route('queue') === 'verification' ? 'nav-link-active' : '' }}" href="{{ route('work-orders.execution-queue', 'verification') }}"><x-icon name="shield-check" /><span>For Verification</span></a>
                 @endcan
 
+                @if ($user->can('routine_tasks.view') || $user->can('routine_tasks.view_all') || $user->can('inspections.view') || $user->can('assets.view'))
+                    <p class="nav-heading">Routine Operations</p>
+                    @can('routine_tasks.view')<a class="nav-link {{ request()->routeIs('routine-tasks.*') ? 'nav-link-active' : '' }}" href="{{ route('routine-tasks.index') }}"><x-icon name="tasks" /><span>My Routine Tasks</span></a>@endcan
+                    @can('routine_tasks.view_all')<a class="nav-link {{ request()->routeIs('routine-templates.*') ? 'nav-link-active' : '' }}" href="{{ route('routine-templates.index') }}"><x-icon name="clock" /><span>Recurring Tasks</span></a>@endcan
+                    @can('inspections.view')<a class="nav-link {{ request()->routeIs('inspections.*') ? 'nav-link-active' : '' }}" href="{{ route('inspections.index') }}"><x-icon name="search" /><span>Inspections</span></a>@endcan
+                    @can('assets.view')<a class="nav-link {{ request()->routeIs('assets.*') ? 'nav-link-active' : '' }}" href="{{ route('assets.index') }}"><x-icon name="tag" /><span>Assets / Equipment</span></a>@endcan
+                @endif
+
                 @if ($user->can('personnel.view') || $user->can('skills.view') || $user->can('buildings.view') || $user->can('campuses.view') || $user->can('locations.view') || $user->can('work_order_categories.view'))
                     <p class="nav-heading">Management</p>
                     @can('personnel.view')
@@ -76,6 +84,7 @@
                 @if ($user->can('reports.view_work_orders') || $user->can('work_orders.view_own') || $user->can('work_orders.view_assigned'))
                     <p class="nav-heading">Reports</p>
                     <a class="nav-link {{ request()->routeIs('reports.*') ? 'nav-link-active' : '' }}" href="{{ route('reports.history') }}"><x-icon name="chart" /><span>Work History</span></a>
+                    @can('reports.view_routine_operations')<a class="nav-link {{ request()->routeIs('reports.routine') ? 'nav-link-active' : '' }}" href="{{ route('reports.routine') }}"><x-icon name="chart" /><span>Routine History</span></a>@endcan
                 @endif
 
                 @if ($user->can('users.view_pending_registrations') || $user->can('users.view') || $user->can('roles.view'))
@@ -163,6 +172,9 @@
             <main class="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
                 @if (session('success'))
                     <x-alert type="success" class="mb-6">{{ session('success') }}</x-alert>
+                @endif
+                @if (session('status'))
+                    <x-alert type="success" class="mb-6">{{ session('status') }}</x-alert>
                 @endif
                 @if (session('warning'))
                     <x-alert type="warning" class="mb-6">{{ session('warning') }}</x-alert>

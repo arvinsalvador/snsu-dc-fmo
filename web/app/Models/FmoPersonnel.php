@@ -53,4 +53,9 @@ class FmoPersonnel extends Model
     {
         return $this->hasMany(WorkOrderAssignment::class);
     }
+
+    public function routineTemplateAssignments(): HasMany
+    {
+        return $this->hasMany(RoutineTaskTemplateAssignment::class);
+    }
 }

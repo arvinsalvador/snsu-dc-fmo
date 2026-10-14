@@ -101,7 +101,7 @@ class WorkOrderController extends Controller
                 ->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->filter->isAssignable();
         }
 
-        $workOrder->load('requester.requesterProfile', 'category', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier');
+        $workOrder->load('requester.requesterProfile', 'category.guidedProfile', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier');
 
         return view('work-orders.show', [
             'order' => $workOrder,

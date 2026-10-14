@@ -69,3 +69,16 @@ The mobile bootstrap intentionally ignores management-wide view permissions: app
 ## Phase 11 notifications and reports
 
 Notifications are always recipient-scoped through the authenticated user's own relation; no separate `notifications.view_own` permission is needed. The reporting permissions are `dashboard.view_management`, `dashboard.view_oversight`, `reports.view_work_orders`, `reports.export_work_orders`, `reports.view_personnel_history`, and `reports.view_location_history`. FMO Head and Dispatcher receive operational dashboard/report permissions; Campus Director, Director for Instruction, and FMO Oversight receive read-focused dashboard/report permissions. System Administrator receives the full catalog. Requester and ordinary FMO Staff use existing own-request/assigned-work visibility, without management-wide reporting rights. Management history requires `reports.view_work_orders` **and** `work_orders.view_all`; CSV additionally requires `reports.export_work_orders`. Personnel/location filters require their dedicated history permissions. See [Reporting](REPORTING.md).
+# Routine operations permissions
+
+Routine operations use explicit Spatie permissions and server-side scope checks:
+
+- `routine_tasks.view`, `routine_tasks.perform`: view and update only snapshotted assigned occurrences.
+- `routine_tasks.view_all`, `routine_tasks.manage`, `routine_tasks.assign`: management visibility, template schedules, and team assignment.
+- `assets.view`, `assets.manage`: registry visibility and maintenance.
+- `inspections.view`, `inspections.perform`: assigned inspection access and item recording.
+- `inspections.view_all`: management inspection oversight.
+- `reports.view_routine_operations`: routine and inspection history reporting.
+
+FMO Staff receive assigned routine/inspection access. FMO Dispatcher receives operational oversight and assignment capabilities. FMO Head and System Administrator receive the complete management set. Protected evidence repeats the occurrence/run scope check at file-serving time.
+

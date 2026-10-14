@@ -146,10 +146,31 @@ export function initializeEvidenceViewer() {
     });
 }
 
+export function initializeGuidedDescription(container) {
+    const actions = new Map(JSON.parse(container.dataset.actions || '[]').map(item => [item.code, item]));
+    const outcomes = new Map(JSON.parse(container.dataset.outcomes || '[]').map(item => [item.code, item]));
+    const summary = container.querySelector('[data-guided-summary]');
+    let lastGenerated = '';
+    const naturalJoin = parts => parts.length < 2 ? (parts[0] || '') : parts.length === 2 ? parts.join(' and ') : `${parts.slice(0, -1).join(', ')}, and ${parts.at(-1)}`;
+    const generate = () => {
+        const selected = [...container.querySelectorAll('input[name="guided_actions[]"]:checked')].map(input => actions.get(input.value)?.clause).filter(Boolean);
+        const outcomeInput = container.querySelector('input[name="guided_outcome"]:checked');
+        const outcome = outcomeInput ? outcomes.get(outcomeInput.value) : null;
+        if (!selected.length || !outcome) return;
+        const work = naturalJoin(selected);
+        const generated = `${work.charAt(0).toUpperCase()}${work.slice(1)}. ${outcome.clause}`;
+        if (!summary.value.trim() || summary.value === lastGenerated) summary.value = generated;
+        lastGenerated = generated;
+    };
+    container.querySelectorAll('input[name="guided_actions[]"], input[name="guided_outcome"]').forEach(input => input.addEventListener('change', generate));
+    generate();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initializeCollapsibles();
     document.querySelectorAll('[data-work-order-location]').forEach(initializeLocationSelects);
     document.querySelectorAll('[data-photo-picker]').forEach(initializePhotoPicker);
+    document.querySelectorAll('[data-guided-description]').forEach(initializeGuidedDescription);
     initializeEvidenceViewer();
     const drawer = document.querySelector('[data-sidebar]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');

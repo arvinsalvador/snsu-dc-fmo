@@ -40,6 +40,10 @@ return [
         'work_order_categories.view', 'work_order_categories.create', 'work_order_categories.update', 'work_order_categories.manage_status', 'work_order_categories.delete',
         'dashboard.view_management', 'dashboard.view_oversight',
         'reports.view_work_orders', 'reports.export_work_orders', 'reports.view_personnel_history', 'reports.view_location_history',
+        'routine_tasks.view', 'routine_tasks.manage', 'routine_tasks.assign', 'routine_tasks.perform', 'routine_tasks.view_all',
+        'assets.view', 'assets.manage',
+        'inspections.view', 'inspections.perform', 'inspections.view_all',
+        'reports.view_routine_operations',
     ],
     'delegable_permissions' => [
         'users.view_pending_registrations',
@@ -60,6 +64,9 @@ return [
         'work_orders.assign', 'work_orders.reassign', 'work_orders.remove_assignee',
         'work_orders.resolve_assessment', 'work_orders.cancel', 'work_orders.mark_beyond_scope', 'work_orders.refer_external',
         'work_orders.view_execution', 'work_orders.verify_completion', 'work_orders.return_for_work', 'work_orders.manage_sessions',
+        'routine_tasks.view', 'routine_tasks.manage', 'routine_tasks.assign', 'routine_tasks.perform', 'routine_tasks.view_all',
+        'assets.view', 'assets.manage', 'inspections.view', 'inspections.perform', 'inspections.view_all',
+        'reports.view_routine_operations',
     ],
     'core_roles' => [
         'Requester', 'FMO Staff', 'FMO Dispatcher', 'FMO Head',

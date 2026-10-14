@@ -34,7 +34,11 @@
                 <x-collapsible-summary :expanded="true" class="-mx-2 text-slate-900">Add work update</x-collapsible-summary>
                 <form method="POST" enctype="multipart/form-data" action="{{ route('work-orders.execution.update', [$order, $mySession]) }}" class="mt-4 space-y-4">@csrf
                     <label>Update type<select name="type">@foreach (['BEFORE' => 'Before / Initial Evidence', 'PROGRESS' => 'Progress', 'ISSUE' => 'Issue', 'COMPLETION' => 'Completion / Outcome Evidence', 'OTHER' => 'Other'] as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></label>
-                    <label>Work performed or finding<textarea name="description" required placeholder="Describe what you did or found."></textarea></label>
+                    @if ($order->category->guidedProfile)
+                        <x-guided-work-description :profile="$order->category->guidedProfile" />
+                    @else
+                        <label>Work performed or finding<textarea name="description" required placeholder="Describe what you did or found."></textarea></label>
+                    @endif
                     <label>Requester-visible summary <span class="font-normal text-slate-400">(optional)</span><textarea name="requester_summary" placeholder="A plain-language update the requester may see."></textarea></label>
                     <x-photo-picker id="work-update-{{ $mySession->id }}" title="Add Progress Evidence" help="These files will be attached to this work update." :allow-video="true" />
                     <button class="btn btn-primary w-full sm:w-auto" type="submit"><x-icon name="check-circle" />Save Update</button>
@@ -68,7 +72,7 @@
     @if ($visibleUpdates->isNotEmpty())
         <div class="mt-7 border-t border-slate-100 pt-6"><h3 class="font-semibold text-slate-900">Work Progress</h3><ol class="mt-4">
             @foreach ($visibleUpdates as $update)
-                <li class="progress-entry"><div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500"><span>{{ $update->recorded_at->timezone('Asia/Manila')->format('M j · g:i A') }}</span>@if ($executionViewer)<span>• {{ $update->personnel->user->name }}</span><span class="status-badge status-neutral">{{ \Illuminate\Support\Str::of($update->type->value)->replace('_', ' ')->title() }}</span>@endif</div><p class="mt-2 leading-6 text-slate-700">{{ $executionViewer ? $update->description : $update->requester_summary }}</p>@if ($executionViewer && $update->requester_summary)<p class="mt-2 text-sm text-slate-500">Requester update: {{ $update->requester_summary }}</p>@endif @if ($update->attachments->isNotEmpty())<p class="mt-2 text-xs font-medium text-blue-700">{{ $update->attachments->count() }} evidence {{ \Illuminate\Support\Str::plural('file', $update->attachments->count()) }}</p>@endif</li>
+                <li class="progress-entry"><div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500"><span>{{ $update->recorded_at->timezone('Asia/Manila')->format('M j · g:i A') }}</span>@if ($executionViewer)<span>• {{ $update->personnel->user->name }}</span><span class="status-badge status-neutral">{{ \Illuminate\Support\Str::of($update->type->value)->replace('_', ' ')->title() }}</span>@endif</div><p class="mt-2 leading-6 text-slate-700">{{ $executionViewer ? $update->description : $update->requester_summary }}</p>@if ($executionViewer && $update->additional_remarks)<p class="mt-2 text-sm text-slate-500">Remarks: {{ $update->additional_remarks }}</p>@endif @if ($executionViewer && $update->requester_summary)<p class="mt-2 text-sm text-slate-500">Requester update: {{ $update->requester_summary }}</p>@endif @if ($update->attachments->isNotEmpty())<p class="mt-2 text-xs font-medium text-blue-700">{{ $update->attachments->count() }} evidence {{ \Illuminate\Support\Str::plural('file', $update->attachments->count()) }}</p>@endif</li>
             @endforeach
         </ol></div>
     @else

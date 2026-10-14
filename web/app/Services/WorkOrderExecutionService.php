@@ -74,7 +74,21 @@ class WorkOrderExecutionService
             if (! in_array($type, [WorkUpdateType::Before, WorkUpdateType::Progress, WorkUpdateType::Issue, WorkUpdateType::Completion, WorkUpdateType::Other], true)) {
                 throw ValidationException::withMessages(['type' => 'This update type is reserved for session actions.']);
             }
-            $update = $active->updates()->create(['work_order_id' => $locked->id, 'fmo_personnel_id' => $active->fmo_personnel_id, 'created_by_user_id' => $actor->id, 'type' => $type, 'description' => $data['description'], 'requester_summary' => $data['requester_summary'] ?? null, 'recorded_at' => now(), 'execution_cycle' => $locked->execution_cycle]);
+            $profile = $locked->category()->with('guidedProfile')->first()?->guidedProfile;
+            $generated = null;
+            if ($profile && (! empty($data['guided_actions']) || ! empty($data['guided_outcome']))) {
+                if (empty($data['guided_actions']) || empty($data['guided_outcome'])) {
+                    throw ValidationException::withMessages(['guided_actions' => 'Select both the work performed and the result.']);
+                }
+                $generated = app(GuidedDescriptionService::class)->generate($profile, $data['guided_actions'], $data['guided_outcome']);
+            }
+            $update = $active->updates()->create([
+                'work_order_id' => $locked->id, 'fmo_personnel_id' => $active->fmo_personnel_id, 'created_by_user_id' => $actor->id,
+                'type' => $type, 'description' => $data['description'], 'requester_summary' => $data['requester_summary'] ?? null,
+                'guided_description_profile_id' => $profile?->id, 'structured_actions' => $data['guided_actions'] ?? null,
+                'guided_outcome' => $data['guided_outcome'] ?? null, 'generated_summary' => $generated,
+                'additional_remarks' => $data['additional_remarks'] ?? null, 'recorded_at' => now(), 'execution_cycle' => $locked->execution_cycle,
+            ]);
             $this->evidence($locked, $active, $update, $actor, $files, $type->value);
             $this->workflow->recordOperational($locked, $actor, 'WORK_UPDATE', $type->value.': '.$data['description'], $data['requester_summary'] ?? null);
 

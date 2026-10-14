@@ -70,6 +70,18 @@ class AuthorizationSeeder extends Seeder
         Role::findByName('Requester', 'web')->givePermissionTo('work_orders.create');
         Role::findByName('FMO Staff', 'web')->givePermissionTo(['work_orders.view_assigned', 'work_orders.assess_assigned']);
         Role::findByName('FMO Staff', 'web')->givePermissionTo(['work_orders.start_assigned', 'work_orders.update_assigned', 'work_orders.end_session', 'work_orders.submit_completion']);
+        Role::findByName('FMO Staff', 'web')->givePermissionTo([
+            'routine_tasks.view', 'routine_tasks.perform', 'assets.view', 'inspections.view', 'inspections.perform',
+        ]);
+        Role::findByName('FMO Dispatcher', 'web')->givePermissionTo([
+            'routine_tasks.view', 'routine_tasks.assign', 'routine_tasks.view_all', 'assets.view',
+            'inspections.view', 'inspections.view_all', 'reports.view_routine_operations',
+        ]);
+        Role::findByName('FMO Head', 'web')->givePermissionTo([
+            'routine_tasks.view', 'routine_tasks.manage', 'routine_tasks.assign', 'routine_tasks.perform', 'routine_tasks.view_all',
+            'assets.view', 'assets.manage', 'inspections.view', 'inspections.perform', 'inspections.view_all',
+            'reports.view_routine_operations',
+        ]);
         foreach (['Campus Director', 'Director for Instruction', 'FMO Dispatcher', 'FMO Oversight'] as $role) {
             Role::findByName($role, 'web')->givePermissionTo(['work_orders.view_all', 'work_orders.update_own_submitted', 'work_orders.resubmit_own', 'work_order_categories.view']);
         }

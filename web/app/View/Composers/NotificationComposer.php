@@ -4,6 +4,7 @@ namespace App\View\Composers;
 
 use App\Support\NotificationPresenter;
 use App\Support\NotificationWorkOrderContext;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -22,7 +23,10 @@ class NotificationComposer
 
         $user = Auth::user();
         $unreadCount = $view->getData()['unreadCount'] ?? $user->unreadNotifications()->count();
-        $recentNotifications = $user->notifications()->latest()->limit(5)->get();
+        $pageNotifications = $view->getData()['notifications'] ?? null;
+        $recentNotifications = request()->routeIs('notifications.index') && $pageNotifications instanceof LengthAwarePaginator
+            ? $pageNotifications->getCollection()->take(5)
+            : $user->notifications()->latest()->limit(5)->get();
         $workOrders = $this->workOrderContext->load($recentNotifications);
         $recent = $recentNotifications->map(
             fn ($notification): array => [

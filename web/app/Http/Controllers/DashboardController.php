@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\WorkOrderStatus;
 use App\Models\FmoPersonnel;
+use App\Models\InspectionRun;
+use App\Models\RoutineTaskOccurrence;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderWorkflowEvent;
 use App\Models\WorkSession;
@@ -35,6 +37,28 @@ class DashboardController extends Controller
         $activeSessions = collect();
         $recentCompleted = collect();
         $personnelWorkload = collect();
+        $routineCounts = collect();
+        $routineFrequencyCounts = collect();
+        $inspectionSummary = collect();
+        if ($user->can('routine_tasks.view') || $user->can('routine_tasks.view_all')) {
+            $routineScope = RoutineTaskOccurrence::query();
+            if (! $user->can('routine_tasks.view_all')) {
+                $routineScope->whereHas('assignees', fn ($query) => $query->where('user_id', $user->id));
+            }
+            $routineCounts = $routineScope->selectRaw('status, COUNT(*) AS total')->groupBy('status')->pluck('total', 'status');
+            $frequencyScope = RoutineTaskOccurrence::query()->join('routine_task_templates', 'routine_task_templates.id', '=', 'routine_task_occurrences.routine_task_template_id')
+                ->whereDate('routine_task_occurrences.expected_date', now(config('app.timezone'))->toDateString());
+            if (! $user->can('routine_tasks.view_all')) {
+                $frequencyScope->whereHas('assignees', fn ($query) => $query->where('user_id', $user->id));
+            }
+            $routineFrequencyCounts = $frequencyScope->selectRaw('routine_task_templates.frequency, COUNT(*) AS total')->groupBy('routine_task_templates.frequency')->pluck('total', 'routine_task_templates.frequency');
+        }
+        if ($user->can('inspections.view_all')) {
+            $inspectionSummary = InspectionRun::query()->withCount([
+                'items', 'items as inspected_count' => fn ($query) => $query->where('status', 'INSPECTED'),
+                'items as attention_count' => fn ($query) => $query->whereIn('result', ['NEEDS_ATTENTION', 'DEFECTIVE', 'MISSING', 'OUT_OF_SERVICE', 'NEEDS_REFILL', 'EXPIRED']),
+            ])->whereIn('status', ['OPEN', 'IN_PROGRESS'])->latest()->limit(6)->get();
+        }
         if ($management) {
             $attention = WorkOrder::with('building', 'category')->select('work_orders.*')
                 ->addSelect(['state_entered_at' => WorkOrderWorkflowEvent::select('created_at')
@@ -65,6 +89,6 @@ class DashboardController extends Controller
         }
 
         return view('dashboard', compact('counts', 'periodSubmitted', 'periodCompleted', 'averageHours',
-            'attention', 'activeSessions', 'recentCompleted', 'personnelWorkload', 'management', 'from', 'to'));
+            'attention', 'activeSessions', 'recentCompleted', 'personnelWorkload', 'routineCounts', 'routineFrequencyCounts', 'inspectionSummary', 'management', 'from', 'to'));
     }
 }

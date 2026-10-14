@@ -89,7 +89,12 @@ class WorkOrderExecutionController extends Controller
 
     public function updateRules(): array
     {
-        return ['type' => ['required', Rule::enum(WorkUpdateType::class)], 'description' => ['required', 'string', 'max:10000'], 'requester_summary' => ['nullable', 'string', 'max:2000'], ...$this->evidenceRules()];
+        return [
+            'type' => ['required', Rule::enum(WorkUpdateType::class)], 'description' => ['required', 'string', 'max:10000'],
+            'guided_actions' => ['nullable', 'array'], 'guided_actions.*' => ['string', 'max:60'],
+            'guided_outcome' => ['nullable', 'string', 'max:60'], 'additional_remarks' => ['nullable', 'string', 'max:5000'],
+            'requester_summary' => ['nullable', 'string', 'max:2000'], ...$this->evidenceRules(),
+        ];
     }
 
     public function endRules(): array
