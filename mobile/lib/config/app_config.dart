@@ -9,6 +9,8 @@ class AppConfig {
       throw StateError('API_BASE_URL must be supplied with --dart-define.');
     }
 
-    return Uri.parse('${apiBaseUrl.replaceFirst(RegExp(r'/+$'), '')}/api/v1/health');
+    return Uri.parse(
+      '${apiBaseUrl.replaceFirst(RegExp(r'/+$'), '')}/api/v1/health',
+    );
   }
 }

@@ -1,56 +1,147 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snsu_dc_fmo/core/app_controller.dart';
 import 'package:snsu_dc_fmo/core/storage/local_store.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   late Directory directory;
   setUpAll(sqfliteFfiInit);
-  setUp(() async { directory = await Directory.systemTemp.createTemp('fmo-store-test-'); });
-  tearDown(() async { await directory.delete(recursive: true); });
-
-  LocalStore store(String account) => LocalStore(account,
-    databasePath: '${directory.path}/$account.db', factory: databaseFactoryFfi);
-
-  test('creates v1 database and isolates assigned snapshots per account', () async {
-    final alice = store('alice');
-    final bob = store('bob');
-    expect(await (await alice.db).getVersion(), 1);
-    await alice.replaceSnapshot([{'id': 'order-1', 'subject': 'Repair light', 'sessions': []}], '2026-09-25T00:00:00Z');
-    expect((await alice.orders()).single['subject'], 'Repair light');
-    expect(await bob.orders(), isEmpty);
-    await alice.close();
-    await bob.close();
+  setUp(() async {
+    directory = await Directory.systemTemp.createTemp('fmo-store-test-');
+  });
+  tearDown(() async {
+    await directory.delete(recursive: true);
   });
 
-  test('queue and media survive database reopening and retain stable IDs', () async {
-    var local = store('alice');
-    await local.replaceSnapshot([{'id': 'order-1', 'subject': 'Repair light', 'sessions': []}], '2026-09-25T00:00:00Z');
-    final operationId = await local.enqueue('order-1', 'SUBMIT_ASSESSMENT',
-      {'outcome': 'READY_FOR_WORK', 'findings': 'Safe'});
-    final mediaId = await local.enqueueMedia('order-1', operationId, '/private/evidence.jpg', 'image/jpeg', 1200);
-    await local.close();
+  LocalStore store(String account) => LocalStore(
+        account,
+        databasePath: '${directory.path}/$account.db',
+        factory: databaseFactoryFfi,
+      );
 
-    local = store('alice');
-    expect((await local.operations()).single['id'], operationId);
-    expect((await local.media()).single['id'], mediaId);
-    expect(await local.unresolvedCount(), 2);
-    await local.operationState(operationId, 'SYNCED', result: {'assessment_id': 'server-1'});
-    await local.mediaState(mediaId, 'SYNCED', attachmentId: 'attachment-1');
-    expect(await local.unresolvedCount(), 0);
-    await local.close();
-  });
+  test(
+    'creates v1 database and isolates assigned snapshots per account',
+    () async {
+      final alice = store('alice');
+      final bob = store('bob');
+      expect(await (await alice.db).getVersion(), 1);
+      await alice.replaceSnapshot([
+        {'id': 'order-1', 'subject': 'Repair light', 'sessions': []},
+      ], '2026-09-25T00:00:00Z');
+      expect((await alice.orders()).single['subject'], 'Repair light');
+      expect(await bob.orders(), isEmpty);
+      await alice.close();
+      await bob.close();
+    },
+  );
 
-  test('revoked tasks leave active list but pending field work stays recoverable', () async {
+  test(
+    'queue and media survive database reopening and retain stable IDs',
+    () async {
+      var local = store('alice');
+      await local.replaceSnapshot([
+        {'id': 'order-1', 'subject': 'Repair light', 'sessions': []},
+      ], '2026-09-25T00:00:00Z');
+      final operationId = await local.enqueue('order-1', 'SUBMIT_ASSESSMENT', {
+        'outcome': 'READY_FOR_WORK',
+        'findings': 'Safe',
+      });
+      final mediaId = await local.enqueueMedia(
+        'order-1',
+        operationId,
+        '/private/evidence.jpg',
+        'image/jpeg',
+        1200,
+      );
+      await local.close();
+
+      local = store('alice');
+      expect((await local.operations()).single['id'], operationId);
+      expect((await local.media()).single['id'], mediaId);
+      expect(await local.unresolvedCount(), 2);
+      await local.operationState(
+        operationId,
+        'SYNCED',
+        result: {'assessment_id': 'server-1'},
+      );
+      await local.mediaState(mediaId, 'SYNCED', attachmentId: 'attachment-1');
+      expect(await local.unresolvedCount(), 0);
+      await local.close();
+    },
+  );
+
+  test('evidence queries stay scoped to their Work Order', () async {
     final local = store('alice');
-    await local.replaceSnapshot([{'id': 'order-1', 'subject': 'Repair light', 'sessions': []}], '2026-09-25T00:00:00Z');
-    final operationId = await local.enqueue('order-1', 'START_WORK', {});
-    await local.replaceSnapshot([], '2026-09-25T01:00:00Z');
-    expect(await local.orders(), isEmpty);
-    expect(await local.order('order-1'), isNotNull);
-    await local.operationState(operationId, 'CONFLICT', error: 'Assignment removed');
-    expect((await local.operations(unresolvedOnly: true)).single['state'], 'CONFLICT');
+    final first = await local.enqueue('order-1', 'ADD_WORK_UPDATE', {
+      'description': 'First',
+    });
+    final second = await local.enqueue('order-2', 'ADD_WORK_UPDATE', {
+      'description': 'Second',
+    });
+    await local.enqueueMedia(
+      'order-1',
+      first,
+      '/private/first.jpg',
+      'image/jpeg',
+      1200,
+    );
+    await local.enqueueMedia(
+      'order-2',
+      second,
+      '/private/second.jpg',
+      'image/jpeg',
+      1300,
+    );
+    final evidence = await local.mediaForOrder('order-1');
+    expect(evidence, hasLength(1));
+    expect(evidence.single['file_path'], '/private/first.jpg');
     await local.close();
   });
+
+  test('queued lifecycle actions remain visibly provisional on My Tasks',
+      () async {
+    final local = store('alice');
+    await local.replaceSnapshot([
+      {
+        'id': 'order-1',
+        'status': 'ASSIGNED',
+        'subject': 'Repair light',
+        'sessions': []
+      },
+    ], '2026-10-14T00:00:00Z');
+    final controller = AppController()..store = local;
+    await controller.queue('order-1', 'ACK_ASSESSMENT', {});
+    expect(
+        controller.projectedStatus(controller.orders.single), 'FOR_ASSESSMENT');
+    expect(controller.orders.single['status'], 'ASSIGNED');
+    controller.store = null;
+    await local.close();
+    controller.dispose();
+  });
+
+  test(
+    'revoked tasks leave active list but pending field work stays recoverable',
+    () async {
+      final local = store('alice');
+      await local.replaceSnapshot([
+        {'id': 'order-1', 'subject': 'Repair light', 'sessions': []},
+      ], '2026-09-25T00:00:00Z');
+      final operationId = await local.enqueue('order-1', 'START_WORK', {});
+      await local.replaceSnapshot([], '2026-09-25T01:00:00Z');
+      expect(await local.orders(), isEmpty);
+      expect(await local.order('order-1'), isNotNull);
+      await local.operationState(
+        operationId,
+        'CONFLICT',
+        error: 'Assignment removed',
+      );
+      expect(
+        (await local.operations(unresolvedOnly: true)).single['state'],
+        'CONFLICT',
+      );
+      await local.close();
+    },
+  );
 }

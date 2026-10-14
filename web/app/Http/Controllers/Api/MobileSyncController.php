@@ -11,9 +11,9 @@ use App\Models\WorkOrderAssessment;
 use App\Models\WorkSession;
 use App\Models\WorkUpdate;
 use App\Services\ClientOperationService;
+use App\Services\EvidenceMediaService;
 use App\Services\WorkOrderAssessmentService;
 use App\Services\WorkOrderAssignmentService;
-use App\Services\EvidenceMediaService;
 use App\Services\WorkOrderExecutionService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,17 +26,37 @@ class MobileSyncController extends Controller
         abort_unless($request->user()->can('work_orders.view_assigned'), 403);
         $person = FmoPersonnel::with('user')->where('user_id', $request->user()->id)->first();
         abort_unless($person && $person->isAssignable(), 403);
-        $orders = WorkOrder::with('requester', 'category', 'campus', 'building', 'floor', 'location', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user')
+        $orders = WorkOrder::with('requester', 'category', 'campus', 'building', 'floor', 'location',
+            'activeAssignments.personnel.user', 'activeAssignments.personnel.skills',
+            'assessments.personnel.user', 'assessments.attachments',
+            'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments')
             ->activelyAssignedTo($request->user())
             ->orderBy('id')->get();
 
         return response()->json(['data' => ['personnel' => ['id' => $person->id, 'user_id' => $request->user()->id, 'name' => $request->user()->name], 'orders' => $orders->map(fn ($order) => [
             'id' => $order->id, 'number' => $order->work_order_number, 'subject' => $order->subject, 'description' => $order->description, 'status' => $order->status->value, 'requester_name' => $order->requester->name, 'category' => $order->category->name, 'campus' => $order->campus->name, 'building' => $order->building->name, 'floor' => $order->floor?->name, 'location' => $order->location?->name, 'server_updated_at' => $order->updated_at?->toIso8601String(),
-            'team' => $order->activeAssignments->map(fn ($assignment) => ['personnel_id' => $assignment->fmo_personnel_id, 'name' => $assignment->personnel->user->name]),
-            'assessments' => $order->assessments->map(fn ($assessment) => ['id' => $assessment->id, 'personnel_id' => $assessment->fmo_personnel_id, 'outcome' => $assessment->outcome->value, 'findings' => $assessment->findings, 'resource_notes' => $assessment->resource_notes, 'assessed_at' => $assessment->assessed_at?->toIso8601String()]),
+            'team' => $order->activeAssignments->map(fn ($assignment) => ['personnel_id' => $assignment->fmo_personnel_id, 'name' => $assignment->personnel->user->name,
+                'designation' => $assignment->personnel->designation,
+                'primary_skill' => $assignment->personnel->skills->firstWhere('pivot.is_primary', true)?->name]),
+            'assessments' => $order->assessments->map(fn ($assessment) => ['id' => $assessment->id, 'personnel_id' => $assessment->fmo_personnel_id, 'outcome' => $assessment->outcome->value, 'findings' => $assessment->findings, 'resource_notes' => $assessment->resource_notes, 'assessed_at' => $assessment->assessed_at?->toIso8601String(),
+                'evidence' => $assessment->attachments->map(fn ($file) => $this->evidenceData($order, $file))]),
             'sessions' => $order->sessions->map(fn ($session) => ['id' => $session->id, 'personnel_id' => $session->fmo_personnel_id, 'started_at' => $session->started_at?->toIso8601String(), 'ended_at' => $session->ended_at?->toIso8601String(), 'outcome' => $session->end_outcome?->value]),
-            'updates' => $order->updates->map(fn ($update) => ['id' => $update->id, 'session_id' => $update->work_session_id, 'personnel_id' => $update->fmo_personnel_id, 'type' => $update->type->value, 'description' => $update->description, 'recorded_at' => $update->recorded_at?->toIso8601String()]),
+            'updates' => $order->updates->map(fn ($update) => ['id' => $update->id, 'session_id' => $update->work_session_id, 'personnel_id' => $update->fmo_personnel_id, 'type' => $update->type->value, 'description' => $update->description, 'recorded_at' => $update->recorded_at?->toIso8601String(),
+                'evidence' => $update->attachments->map(fn ($file) => $this->evidenceData($order, $file))]),
         ])->values(), 'snapshot_at' => now()->toIso8601String()]]);
+    }
+
+    private function evidenceData(WorkOrder $order, $file): array
+    {
+        return [
+            'id' => $file->id,
+            'type' => $file->evidence_type,
+            'filename' => $file->original_filename,
+            'mime_type' => $file->mime_type,
+            'thumbnail_path' => "/api/v1/work-orders/{$order->id}/attachments/{$file->id}/thumbnail",
+            'original_path' => "/api/v1/work-orders/{$order->id}/attachments/{$file->id}",
+            'created_at' => $file->created_at?->toIso8601String(),
+        ];
     }
 
     public function operation(Request $request, ClientOperationService $operations, WorkOrderAssessmentService $assessments, WorkOrderExecutionService $execution)

@@ -89,6 +89,11 @@ class MobileSyncTest extends TestCase
         $upload = $this->apiAs($staff)->post('/api/v1/mobile/media', [...$media, 'file' => UploadedFile::fake()->image('work.jpg')])->assertOk()->json('data');
         $this->apiAs($staff)->post('/api/v1/mobile/media', [...$media, 'file' => UploadedFile::fake()->image('work.jpg')])->assertOk()->assertJsonPath('data.attachment_id', $upload['attachment_id']);
         $this->assertDatabaseCount('work_order_attachments', 1);
+        $this->apiAs($staff)->getJson('/api/v1/mobile/bootstrap')->assertOk()->assertJsonFragment([
+            'id' => $upload['attachment_id'],
+            'thumbnail_path' => "/api/v1/work-orders/{$order->id}/attachments/{$upload['attachment_id']}/thumbnail",
+            'original_path' => "/api/v1/work-orders/{$order->id}/attachments/{$upload['attachment_id']}",
+        ]);
         $this->apiAs($staff)->postJson('/api/v1/mobile/operations', [...$start, 'type' => 'SUBMIT_COMPLETION', 'payload' => ['completion_summary' => 'Done', 'work_performed_summary' => 'Fixed']])->assertStatus(409);
     }
 

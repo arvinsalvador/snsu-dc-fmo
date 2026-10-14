@@ -32,32 +32,60 @@ class SyncEngine {
         final orderId = row['order_id'] as String;
         // Never overtake an unresolved action or evidence upload for this order.
         if (await _hasEarlierUnresolved(row)) continue;
-        final payload = Map<String, dynamic>.from(jsonDecode(row['payload'] as String) as Map);
+        final payload = Map<String, dynamic>.from(
+          jsonDecode(row['payload'] as String) as Map,
+        );
         final sessionOperation = payload.remove('session_client_operation_id');
         if (sessionOperation != null) {
           final dependency = await store.operation(sessionOperation as String);
           if (dependency == null || dependency['state'] != 'SYNCED') continue;
-          final result = Map<String, dynamic>.from(jsonDecode(dependency['server_result'] as String) as Map);
+          final result = Map<String, dynamic>.from(
+            jsonDecode(dependency['server_result'] as String) as Map,
+          );
           payload['session_id'] = result['session_id'];
         }
         await store.operationState(id, 'SYNCING');
         try {
           final result = await api.operation({
-            'client_operation_id': id, 'installation_id': installationId,
-            'client_created_at': row['created_at'], 'type': row['type'],
-            'work_order_id': orderId, 'payload': payload,
+            'client_operation_id': id,
+            'installation_id': installationId,
+            'client_created_at': row['created_at'],
+            'type': row['type'],
+            'work_order_id': orderId,
+            'payload': payload,
           });
           await store.operationState(id, 'SYNCED', result: result);
-          if (!await _pushMedia()) { blocked = true; break; }
+          if (!await _pushMedia()) {
+            blocked = true;
+            break;
+          }
         } on ApiFailure catch (error) {
           if (error.status == 401) {
-            await store.operationState(id, 'PENDING', error: 'Session expired. Sign in again to sync.');
-            return _report('Session expired. Local work is safe; sign in again.', false);
+            await store.operationState(
+              id,
+              'PENDING',
+              error: 'Session expired. Sign in again to sync.',
+            );
+            return _report(
+              'Session expired. Local work is safe; sign in again.',
+              false,
+            );
           }
-          await store.operationState(id, error.isConflict ? 'CONFLICT' : 'FAILED', error: _friendly(error));
-          if (!error.isConflict) { blocked = true; break; }
+          await store.operationState(
+            id,
+            error.isConflict ? 'CONFLICT' : 'FAILED',
+            error: _friendly(error),
+          );
+          if (!error.isConflict) {
+            blocked = true;
+            break;
+          }
         } catch (_) {
-          await store.operationState(id, 'FAILED', error: 'Connection lost. Will retry.');
+          await store.operationState(
+            id,
+            'FAILED',
+            error: 'Connection lost. Will retry.',
+          );
           blocked = true;
           break;
         }
@@ -65,17 +93,38 @@ class SyncEngine {
       if (!blocked) await _pushMedia();
       try {
         final snapshot = await api.bootstrap();
-        await store.replaceSnapshot(snapshot['orders'] as List<dynamic>, snapshot['snapshot_at'] as String);
-        final personnel = Map<String, dynamic>.from(snapshot['personnel'] as Map);
+        await store.replaceSnapshot(
+          snapshot['orders'] as List<dynamic>,
+          snapshot['snapshot_at'] as String,
+        );
+        final personnel = Map<String, dynamic>.from(
+          snapshot['personnel'] as Map,
+        );
         await store.setMetadata('personnel_id', personnel['id'] as String);
       } on ApiFailure catch (error) {
-        if (error.status == 401) return _report('Session expired. Sign in again to sync.', false);
-        if (error.status == 403) return _report('Field access is unavailable. Local work is preserved.', false);
-        return _report('Could not refresh assignments. Cached tasks remain available.', false);
+        if (error.status == 401) {
+          return _report('Session expired. Sign in again to sync.', false);
+        }
+        if (error.status == 403) {
+          return _report(
+            'Field access is unavailable. Local work is preserved.',
+            false,
+          );
+        }
+        return _report(
+          'Could not refresh assignments. Cached tasks remain available.',
+          false,
+        );
       } catch (_) {
-        return _report('Offline — changes will sync when a connection is available.', true);
+        return _report(
+          'Offline — changes will sync when a connection is available.',
+          true,
+        );
       }
-      return _report(blocked ? 'Some changes need a retry.' : 'Sync finished.', false);
+      return _report(
+        blocked ? 'Some changes need a retry.' : 'Sync finished.',
+        false,
+      );
     } finally {
       _running = false;
     }
@@ -85,30 +134,61 @@ class SyncEngine {
     for (final row in await store.media()) {
       if (row['state'] == 'SYNCED' || row['state'] == 'CONFLICT') continue;
       final id = row['id'] as String;
-      final parent = await store.operation(row['target_operation_id'] as String);
+      final parent = await store.operation(
+        row['target_operation_id'] as String,
+      );
       if (parent == null || parent['state'] != 'SYNCED') continue;
-      final result = Map<String, dynamic>.from(jsonDecode(parent['server_result'] as String) as Map);
-      final kind = parent['type'] == 'SUBMIT_ASSESSMENT' ? 'ASSESSMENT' : 'UPDATE';
-      final targetId = kind == 'ASSESSMENT' ? result['assessment_id'] : result['update_id'];
+      final result = Map<String, dynamic>.from(
+        jsonDecode(parent['server_result'] as String) as Map,
+      );
+      final kind =
+          parent['type'] == 'SUBMIT_ASSESSMENT' ? 'ASSESSMENT' : 'UPDATE';
+      final targetId =
+          kind == 'ASSESSMENT' ? result['assessment_id'] : result['update_id'];
       if (targetId is! String) continue;
       await store.mediaState(id, 'SYNCING');
       try {
         if (!await File(row['file_path'] as String).exists()) {
-          await store.mediaState(id, 'CONFLICT', error: 'Local evidence file is missing.');
+          await store.mediaState(
+            id,
+            'CONFLICT',
+            error: 'Local evidence file is missing.',
+          );
           continue;
         }
-        final response = await api.upload(id: id, installationId: installationId,
-          targetKind: kind, targetId: targetId, filePath: row['file_path'] as String);
-        await store.mediaState(id, 'SYNCED', attachmentId: response['attachment_id'] as String);
+        final response = await api.upload(
+          id: id,
+          installationId: installationId,
+          targetKind: kind,
+          targetId: targetId,
+          filePath: row['file_path'] as String,
+        );
+        await store.mediaState(
+          id,
+          'SYNCED',
+          attachmentId: response['attachment_id'] as String,
+        );
       } on ApiFailure catch (error) {
         if (error.status == 401) {
-          await store.mediaState(id, 'PENDING', error: 'Session expired. Sign in again to sync.');
+          await store.mediaState(
+            id,
+            'PENDING',
+            error: 'Session expired. Sign in again to sync.',
+          );
           return false;
         }
-        await store.mediaState(id, error.isConflict ? 'CONFLICT' : 'FAILED', error: _friendly(error));
+        await store.mediaState(
+          id,
+          error.isConflict ? 'CONFLICT' : 'FAILED',
+          error: _friendly(error),
+        );
         if (!error.isConflict) return false;
       } catch (_) {
-        await store.mediaState(id, 'FAILED', error: 'Upload interrupted. Will retry.');
+        await store.mediaState(
+          id,
+          'FAILED',
+          error: 'Upload interrupted. Will retry.',
+        );
         return false;
       }
     }
@@ -118,24 +198,61 @@ class SyncEngine {
   Future<bool> _hasEarlierUnresolved(Map<String, Object?> current) async {
     final operations = await store.operations();
     final media = await store.media();
-    return operations.takeWhile((row) => row['id'] != current['id']).any((row) =>
-      row['order_id'] == current['order_id'] && row['state'] != 'SYNCED') ||
-      media.any((row) => row['order_id'] == current['order_id'] && row['state'] != 'SYNCED' &&
-        (row['created_at'] as String).compareTo(current['created_at'] as String) <= 0);
+    return operations.takeWhile((row) => row['id'] != current['id']).any(
+              (row) =>
+                  row['order_id'] == current['order_id'] &&
+                  row['state'] != 'SYNCED',
+            ) ||
+        media.any(
+          (row) =>
+              row['order_id'] == current['order_id'] &&
+              row['state'] != 'SYNCED' &&
+              (row['created_at'] as String).compareTo(
+                    current['created_at'] as String,
+                  ) <=
+                  0,
+        );
   }
 
   Future<SyncReport> _report(String message, bool offline) async {
     final unresolved = await store.operations(unresolvedOnly: true);
     final media = await store.media(unresolvedOnly: true);
-    final conflicts = unresolved.where((row) => row['state'] == 'CONFLICT').length +
-      media.where((row) => row['state'] == 'CONFLICT').length;
-    return SyncReport(message, unresolved.length + media.length, conflicts, offline);
+    final conflicts =
+        unresolved.where((row) => row['state'] == 'CONFLICT').length +
+            media.where((row) => row['state'] == 'CONFLICT').length;
+    return SyncReport(
+      message,
+      unresolved.length + media.length,
+      conflicts,
+      offline,
+    );
   }
 
   String _friendly(ApiFailure error) {
-    if (error.status == 403) return 'You are no longer authorized for this Work Order. Your local work is preserved.';
-    if (error.status == 404) return 'This Work Order or session is no longer available. Your local work is preserved.';
-    if (error.status == 409 || error.status == 422) return 'The server state changed. Review this action before retrying.';
+    if (error.status == 403) {
+      return 'You are no longer authorized for this Work Order. Your local work is preserved.';
+    }
+    if (error.status == 404) {
+      return 'This Work Order or session is no longer available. Your local work is preserved.';
+    }
+    final message = error.message.toLowerCase();
+    if (message.contains('active work session')) {
+      return 'Another active work session already exists. End it before retrying this action.';
+    }
+    if (message.contains('already ended')) {
+      return 'This work session already ended on the server. Review the saved action.';
+    }
+    if (message.contains('not ready') ||
+        message.contains('not accepting') ||
+        message.contains('cannot be submitted')) {
+      return 'The Work Order workflow moved forward on the server. Review this saved action before retrying.';
+    }
+    if (message.contains('completed')) {
+      return 'This Work Order was completed elsewhere. Your local work is preserved.';
+    }
+    if (error.status == 409 || error.status == 422) {
+      return 'The server state changed or rejected a workflow requirement. Review this saved action.';
+    }
     return 'Server unavailable. Will retry.';
   }
 }

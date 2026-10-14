@@ -8,7 +8,9 @@ class OfflineController extends AppController {
 }
 
 void main() {
-  testWidgets('shows the field-personnel login before a session exists', (tester) async {
+  testWidgets('shows the field-personnel login before a session exists', (
+    tester,
+  ) async {
     final controller = OfflineController();
     await tester.pumpWidget(FmoApp(controller: controller));
 

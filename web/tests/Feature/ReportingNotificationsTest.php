@@ -89,7 +89,11 @@ class ReportingNotificationsTest extends TestCase
         $this->assertSame(0, $other->notifications()->count());
         $token = $staff->createToken('reports-test')->plainTextToken;
         app('auth')->forgetGuards();
-        $this->withToken($token)->getJson('/api/v1/notifications')->assertOk()->assertJsonPath('unread_count', 1);
+        $this->withToken($token)->getJson('/api/v1/notifications')->assertOk()
+            ->assertJsonPath('unread_count', 1)
+            ->assertJsonPath('data.0.work_order_number', $order->work_order_number)
+            ->assertJsonPath('data.0.work_order_subject', $order->subject)
+            ->assertJsonPath('data.0.requester_name', $order->requester->name);
         app('auth')->forgetGuards();
         $this->withToken($other->createToken('reports-test')->plainTextToken)
             ->postJson('/api/v1/notifications/'.$staff->notifications()->first()->id.'/read')->assertNotFound();
