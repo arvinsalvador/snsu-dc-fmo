@@ -150,20 +150,137 @@ export function initializeGuidedDescription(container) {
     const actions = new Map(JSON.parse(container.dataset.actions || '[]').map(item => [item.code, item]));
     const outcomes = new Map(JSON.parse(container.dataset.outcomes || '[]').map(item => [item.code, item]));
     const summary = container.querySelector('[data-guided-summary]');
+    const otherField = container.querySelector('[data-other-action-field]');
+    const otherInput = otherField?.querySelector('input');
+    const useButton = container.querySelector('[data-guided-use]');
+    const editButton = container.querySelector('[data-guided-edit]');
     let lastGenerated = '';
     const naturalJoin = parts => parts.length < 2 ? (parts[0] || '') : parts.length === 2 ? parts.join(' and ') : `${parts.slice(0, -1).join(', ')}, and ${parts.at(-1)}`;
     const generate = () => {
-        const selected = [...container.querySelectorAll('input[name="guided_actions[]"]:checked')].map(input => actions.get(input.value)?.clause).filter(Boolean);
-        const outcomeInput = container.querySelector('input[name="guided_outcome"]:checked');
+        const selectedInputs = [...container.querySelectorAll('input[name="guided_actions[]"]:checked')];
+        const hasOther = selectedInputs.some(input => input.value === 'OTHER_ACTION');
+        otherField?.classList.toggle('hidden', !hasOther);
+        if (otherInput) otherInput.required = hasOther;
+        const selected = selectedInputs.map(input => input.value === 'OTHER_ACTION' && otherInput?.value.trim()
+            ? otherInput.value.trim().replace(/[.\s]+$/, '')
+            : actions.get(input.value)?.clause).filter(Boolean);
+        const outcomeInput = container.querySelector('input[name="guided_outcome"]:checked, input[name="guided_outcome"][type="hidden"]');
         const outcome = outcomeInput ? outcomes.get(outcomeInput.value) : null;
         if (!selected.length || !outcome) return;
         const work = naturalJoin(selected);
-        const generated = `${work.charAt(0).toUpperCase()}${work.slice(1)}. ${outcome.clause}`;
+        const actionSentence = `${work.charAt(0).toUpperCase()}${work.slice(1)}.`;
+        const form = container.closest('form');
+        const context = container.dataset.guidedContext;
+        let generated = `${actionSentence} ${outcome.clause}`;
+        if (context === 'stop') {
+            generated = `${actionSentence} ${form.querySelector('input[name="stop_reason"]:checked')?.value === 'AREA_UNAVAILABLE' ? 'Work is paused because the area is temporarily unavailable.' : 'Additional work remains and will continue during the next work period.'}`;
+        } else if (context === 'blocked') {
+            const reason = form.querySelector('input[name="blocker_reason"]:checked')?.value;
+            const material = form.querySelector('input[name="material_description"]')?.value.trim();
+            const blocker = ['MATERIALS_UNAVAILABLE', 'REPLACEMENT_PART'].includes(reason)
+                ? material ? `Work cannot continue because ${material} is required. The task will resume once the material is available.` : 'Work cannot continue because replacement materials are required. The task will resume once the necessary materials are available.'
+                : ['EXTERNAL_SERVICE', 'FURTHER_INSPECTION'].includes(reason) ? 'The exact cause could not yet be confirmed. Further investigation is required before the repair can continue.'
+                    : reason === 'TOOLS_UNAVAILABLE' ? 'Work is paused because the required tools or equipment are unavailable.'
+                        : reason === 'NO_ACCESS' ? 'Work is paused because the area cannot currently be accessed.'
+                            : reason === 'NEED_STAFF_HELP' ? 'Work is paused until help from another staff member is available.'
+                                : reason === 'SAFETY' ? 'Work is paused because of a safety concern.' : 'Work is paused until the reported blocker is resolved.';
+            generated = `${actionSentence} ${blocker}`;
+        } else if (context === 'contribution') {
+            generated = `${actionSentence} My assigned work is complete.`;
+        } else if (context === 'complete') {
+            generated = `${actionSentence} All required work is complete and ready for FMO verification.`;
+        }
         if (!summary.value.trim() || summary.value === lastGenerated) summary.value = generated;
         lastGenerated = generated;
+        container.dispatchEvent(new CustomEvent('guided-summary-changed', { bubbles: true, detail: { generated } }));
     };
     container.querySelectorAll('input[name="guided_actions[]"], input[name="guided_outcome"]').forEach(input => input.addEventListener('change', generate));
+    otherInput?.addEventListener('input', generate);
+    useButton?.addEventListener('click', () => {
+        if (lastGenerated) summary.value = lastGenerated;
+        summary.focus();
+        container.dispatchEvent(new CustomEvent('guided-summary-changed', { bubbles: true, detail: { generated: lastGenerated } }));
+    });
+    editButton?.addEventListener('click', () => { summary.focus(); summary.setSelectionRange(summary.value.length, summary.value.length); });
+    summary.addEventListener('input', () => container.dispatchEvent(new CustomEvent('guided-summary-changed', { bubbles: true, detail: { generated: lastGenerated } })));
     generate();
+}
+
+export function initializeWorkActionGuide(container) {
+    const chooser = container.querySelector('[data-work-action-chooser]');
+    const panels = [...container.querySelectorAll('[data-work-action-panel]')];
+    const show = action => {
+        chooser.classList.toggle('hidden', Boolean(action));
+        panels.forEach(panel => panel.classList.toggle('hidden', panel.dataset.workActionPanel !== action));
+        if (action) {
+            const panel = panels.find(item => item.dataset.workActionPanel === action);
+            panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+    container.querySelectorAll('[data-work-action-choice]').forEach(button => button.addEventListener('click', () => show(button.dataset.workActionChoice)));
+    container.querySelectorAll('[data-work-action-back]').forEach(button => button.addEventListener('click', () => show(null)));
+
+    container.querySelectorAll('input[name="stop_reason"]').forEach(input => input.addEventListener('change', () => {
+        const form = input.form;
+        const paused = input.value === 'AREA_UNAVAILABLE';
+        form.querySelector('input[name="outcome"]').value = paused ? 'PAUSED' : 'CONTINUATION';
+        form.querySelector('textarea[name="remaining_work"]').required = !paused;
+    }));
+
+    container.querySelectorAll('input[name="blocker_reason"]').forEach(input => input.addEventListener('change', () => {
+        const form = input.form;
+        const material = ['MATERIALS_UNAVAILABLE', 'REPLACEMENT_PART'].includes(input.value);
+        const investigation = ['EXTERNAL_SERVICE', 'FURTHER_INSPECTION'].includes(input.value);
+        form.querySelector('input[name="outcome"]').value = material ? 'WAITING_FOR_MATERIALS' : investigation ? 'NEEDS_FURTHER_INVESTIGATION' : 'PAUSED';
+        form.querySelector('input[name="guided_outcome"]').value = material ? 'WAITING_SUPPLIES' : investigation ? 'INVESTIGATION' : 'PROBLEM_PERSISTS';
+        const materialField = form.querySelector('[data-material-field]');
+        materialField.classList.toggle('hidden', !material);
+        materialField.querySelector('input').required = material;
+        form.querySelector('[data-guided-description] input[name="guided_outcome"]').dispatchEvent(new Event('change', { bubbles: true }));
+    }));
+    container.querySelectorAll('input[name="material_description"]').forEach(input => input.addEventListener('input', () => {
+        input.form.querySelector('[data-guided-description] input[name="guided_outcome"]').dispatchEvent(new Event('change', { bubbles: true }));
+    }));
+
+    container.querySelectorAll('[data-final-review-button]').forEach(button => button.addEventListener('click', () => {
+        const form = button.form;
+        const actions = [...form.querySelectorAll('input[name="guided_actions[]"]:checked')];
+        const firstAction = form.querySelector('input[name="guided_actions[]"]');
+        firstAction?.setCustomValidity(actions.length ? '' : 'Please select at least one action you completed.');
+        if (!form.reportValidity()) return;
+        const summary = form.querySelector('[data-guided-summary]').value;
+        form.querySelector('input[name="completion_summary"]').value = summary;
+        form.querySelector('input[name="work_performed_summary"]').value = summary;
+        const list = form.querySelector('[data-final-actions]');
+        list.replaceChildren(...actions.map(input => {
+            const item = document.createElement('li');
+            item.className = 'flex gap-2 text-sm text-slate-700';
+            item.textContent = `✓ ${input.closest('label').innerText.trim()}`;
+            return item;
+        }));
+        form.querySelector('[data-final-summary]').textContent = summary;
+        const photos = [...form.querySelectorAll('[data-photo-input]')].reduce((count, input) => count + input.files.length, 0);
+        form.querySelector('[data-final-photo-count]').textContent = `${photos} ${photos === 1 ? 'photo' : 'photos'} attached`;
+        form.querySelector('[data-final-builder]').classList.add('hidden');
+        form.querySelector('[data-final-review]').classList.remove('hidden');
+        const confirmation = form.querySelector('[data-final-confirm]');
+        confirmation.disabled = false;
+        confirmation.required = true;
+        form.querySelector('[data-final-review]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+    container.querySelectorAll('[data-final-review-back]').forEach(button => button.addEventListener('click', () => {
+        const form = button.form;
+        const confirmation = form.querySelector('[data-final-confirm]');
+        confirmation.required = false;
+        confirmation.disabled = true;
+        confirmation.checked = false;
+        form.querySelector('[data-final-review]').classList.add('hidden');
+        form.querySelector('[data-final-builder]').classList.remove('hidden');
+    }));
+
+    container.querySelectorAll('input[name="stop_reason"]:checked, input[name="blocker_reason"]:checked').forEach(input => input.dispatchEvent(new Event('change', { bubbles: true })));
+
+    show(container.dataset.initialAction || null);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -171,6 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-work-order-location]').forEach(initializeLocationSelects);
     document.querySelectorAll('[data-photo-picker]').forEach(initializePhotoPicker);
     document.querySelectorAll('[data-guided-description]').forEach(initializeGuidedDescription);
+    document.querySelectorAll('[data-work-action-guide]').forEach(initializeWorkActionGuide);
     initializeEvidenceViewer();
     const drawer = document.querySelector('[data-sidebar]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');

@@ -33,23 +33,23 @@ class WorkOrderExecutionController extends Controller
 
     public function update(Request $request, WorkOrder $workOrder, WorkSession $session, WorkOrderExecutionService $execution)
     {
-        $data = $request->validate($this->updateRules());
+        $data = $request->validate($this->updateRules(), $this->friendlyMessages(), $this->friendlyAttributes());
         $execution->update($workOrder, $session, $request->user(), $data, $request->file('evidence', []));
 
-        return back()->with('success', 'Individual work update recorded.');
+        return back()->with('success', 'Work progress saved.');
     }
 
     public function end(Request $request, WorkOrder $workOrder, WorkSession $session, WorkOrderExecutionService $execution)
     {
-        $data = $request->validate($this->endRules());
+        $data = $request->validate($this->endRules(), $this->friendlyMessages(), $this->friendlyAttributes());
         $execution->end($workOrder, $session, $request->user(), $data, $request->file('evidence', []));
 
-        return back()->with('success', 'Work session ended.');
+        return back()->with('success', 'Your work status was saved.');
     }
 
     public function submit(Request $request, WorkOrder $workOrder, WorkOrderExecutionService $execution)
     {
-        $data = $request->validate($this->completionRules());
+        $data = $request->validate($this->completionRules(), $this->friendlyMessages(), $this->friendlyAttributes());
         $execution->submit($workOrder, $request->user(), $data);
 
         return back()->with('success', 'Work submitted for management verification.');
@@ -90,16 +90,27 @@ class WorkOrderExecutionController extends Controller
     public function updateRules(): array
     {
         return [
+            'staff_action' => ['nullable', Rule::in(['progress', 'before'])],
             'type' => ['required', Rule::enum(WorkUpdateType::class)], 'description' => ['required', 'string', 'max:10000'],
             'guided_actions' => ['nullable', 'array'], 'guided_actions.*' => ['string', 'max:60'],
-            'guided_outcome' => ['nullable', 'string', 'max:60'], 'additional_remarks' => ['nullable', 'string', 'max:5000'],
+            'guided_outcome' => ['nullable', 'string', 'max:60'], 'other_action' => ['nullable', 'string', 'max:1000'],
+            'additional_remarks' => ['nullable', 'string', 'max:5000'],
             'requester_summary' => ['nullable', 'string', 'max:2000'], ...$this->evidenceRules(),
         ];
     }
 
     public function endRules(): array
     {
-        return ['outcome' => ['required', Rule::enum(WorkSessionOutcome::class)], 'summary' => ['required', 'string', 'max:10000'], 'requester_summary' => ['nullable', 'string', 'max:2000'], 'material_description' => ['nullable', 'string', 'max:255'], 'remaining_work' => ['nullable', 'string', 'max:5000'], ...$this->completionRules(false), ...$this->evidenceRules()];
+        return [
+            'staff_action' => ['nullable', Rule::in(['stop', 'blocked', 'contribution', 'complete'])],
+            'stop_reason' => ['nullable', 'string', 'max:60'], 'blocker_reason' => ['nullable', 'string', 'max:60'],
+            'outcome' => ['required', Rule::enum(WorkSessionOutcome::class)], 'summary' => ['required', 'string', 'max:10000'],
+            'guided_actions' => ['nullable', 'array'], 'guided_actions.*' => ['string', 'max:60'],
+            'guided_outcome' => ['nullable', 'string', 'max:60'], 'other_action' => ['nullable', 'string', 'max:1000'],
+            'additional_remarks' => ['nullable', 'string', 'max:5000'],
+            'requester_summary' => ['nullable', 'string', 'max:2000'], 'material_description' => ['nullable', 'string', 'max:255'],
+            'remaining_work' => ['nullable', 'string', 'max:5000'], ...$this->completionRules(false), ...$this->evidenceRules(),
+        ];
     }
 
     public function completionRules(bool $required = true): array
@@ -110,5 +121,28 @@ class WorkOrderExecutionController extends Controller
     private function evidenceRules(): array
     {
         return ['evidence' => ['array', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp,mp4', 'max:'.config('work_orders.attachments.max_size_kb')]];
+    }
+
+    /** @return array<string, string> */
+    private function friendlyMessages(): array
+    {
+        return [
+            'description.required' => 'Please review or edit the work summary before saving.',
+            'summary.required' => 'Please describe what you completed before stopping.',
+            'outcome.required' => 'Please choose what happened with the work.',
+            'evidence.max' => 'Please choose no more than :max photos for this submission.',
+            'evidence.*.mimes' => 'Please choose a JPG, PNG, WebP, or MP4 file.',
+            'evidence.*.max' => 'One of the selected files is too large to upload.',
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function friendlyAttributes(): array
+    {
+        return [
+            'description' => 'work summary', 'summary' => 'work summary', 'guided_actions' => 'work performed',
+            'guided_outcome' => 'work result', 'other_action' => 'other work performed', 'material_description' => 'materials needed',
+            'remaining_work' => 'remaining work', 'evidence' => 'photos', 'evidence.*' => 'photo',
+        ];
     }
 }

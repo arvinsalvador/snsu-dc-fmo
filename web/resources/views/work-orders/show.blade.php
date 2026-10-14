@@ -68,7 +68,7 @@
             @elseif ($assigned && $order->status === \App\Enums\WorkOrderStatus::ForAssessment)
                 <p class="detail-label mb-2">Next action</p><a class="btn btn-primary min-h-12 w-full sm:w-auto" href="#assessment">Record Assessment</a>
             @elseif ($assigned && $mySession)
-                <p class="detail-label mb-2">Current task</p><a class="btn btn-primary min-h-12 w-full sm:w-auto" href="#field-actions"><x-icon name="pencil" />Add Update or End Session</a>
+                <p class="detail-label mb-2">Current task</p><a class="btn btn-primary min-h-12 w-full sm:w-auto" href="#field-actions"><x-icon name="wrench" />Continue Working</a>
             @elseif ($assigned && in_array($order->status, [\App\Enums\WorkOrderStatus::ReadyForWork, \App\Enums\WorkOrderStatus::ForContinuation, \App\Enums\WorkOrderStatus::Paused, \App\Enums\WorkOrderStatus::WaitingForMaterials], true) && $user->can('work_orders.start_assigned'))
                 <p class="detail-label mb-2">Next action</p><form method="POST" action="{{ route('work-orders.start-work', $order) }}">@csrf<button class="btn btn-success min-h-12 w-full sm:w-auto" type="submit"><x-icon name="play" />Start Work</button></form>
             @elseif ($canAssign && $order->status === \App\Enums\WorkOrderStatus::Approved)

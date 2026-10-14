@@ -13,6 +13,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Models\WorkOrderCategory;
 use App\Services\EvidenceMediaService;
+use App\Services\GuidedDescriptionService;
 use App\Services\StoredFileTransaction;
 use App\Services\WorkOrderAssignmentService;
 use App\Services\WorkOrderWorkflowService;
@@ -106,6 +107,7 @@ class WorkOrderController extends Controller
         return view('work-orders.show', [
             'order' => $workOrder,
             'assignablePersonnel' => $assignablePersonnel,
+            'guidedProfile' => app(GuidedDescriptionService::class)->profileForCategory($workOrder->category),
             'clarification' => $workOrder->status === WorkOrderStatus::NeedsInformation ? $workOrder->latestClarificationRequest() : null,
         ]);
     }

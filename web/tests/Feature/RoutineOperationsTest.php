@@ -150,7 +150,7 @@ class RoutineOperationsTest extends TestCase
     {
         $profile = GuidedDescriptionProfile::where('code', 'ELECTRICAL')->firstOrFail();
         $summary = app(GuidedDescriptionService::class)->generate($profile, ['INSPECT_AREA', 'REPLACE_OUTLET', 'TEST_REPAIR'], 'RESOLVED');
-        $this->assertSame('Inspected the affected area, replaced the damaged electrical outlet, and tested the installation after repair. The task was completed successfully.', $summary);
+        $this->assertSame('Inspected the affected area, replaced the damaged electrical outlet, and tested the installation after repair. The reported issue is now working properly.', $summary);
 
         $requester = $this->user('Requester');
         $category = WorkOrderCategory::where('name', 'Electrical')->firstOrFail();

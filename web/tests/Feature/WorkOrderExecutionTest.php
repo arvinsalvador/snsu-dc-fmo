@@ -9,11 +9,14 @@ use App\Models\FmoPersonnel;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderCategory;
+use App\Services\GuidedDescriptionService;
 use App\Services\WorkOrderAssignmentService;
 use Database\Seeders\AuthorizationSeeder;
+use Database\Seeders\RoutineOperationsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class WorkOrderExecutionTest extends TestCase
@@ -177,5 +180,89 @@ class WorkOrderExecutionTest extends TestCase
         $this->apiAs($staff)->postJson("/api/v1/work-orders/{$order->id}/submit-for-verification", ['completion_summary' => 'Inspection complete', 'work_performed_summary' => 'Inspected equipment', 'non_photo_reason' => 'The electrical inspection had no visible physical change to photograph.'])->assertOk()->assertJsonPath('data.status', 'FOR_VERIFICATION');
         $this->apiAs($requester)->getJson("/api/v1/work-orders/{$order->id}")->assertOk()->assertJsonPath('data.status', 'FOR_VERIFICATION')->assertDontSee('Completed a non-visual inspection');
         $this->apiAs($head)->postJson("/api/v1/work-orders/{$order->id}/verify")->assertOk()->assertJsonPath('data.status', 'COMPLETED');
+    }
+
+    public function test_active_staff_see_plain_language_guided_actions_and_save_structured_progress(): void
+    {
+        $head = $this->user('FMO Head');
+        $staff = $this->user('FMO Staff');
+        $order = $this->ready($this->user('Requester'), $head, [$this->person($staff)]);
+        $this->seed(RoutineOperationsSeeder::class);
+        $this->actingAs($staff)->post("/work-orders/{$order->id}/start-work")->assertRedirect();
+
+        $this->actingAs($staff)->get("/work-orders/{$order->id}")
+            ->assertOk()
+            ->assertSeeText('What would you like to do?')
+            ->assertSeeText('Add Work Progress')
+            ->assertSeeText('Stop Work for Now')
+            ->assertSeeText('I Cannot Continue')
+            ->assertSeeText('My Assigned Work Is Finished')
+            ->assertSeeText('The Whole Job Is Finished')
+            ->assertSeeText('Checked electrical wiring')
+            ->assertDontSeeText('Update Type')
+            ->assertDontSeeText('Session Summary')
+            ->assertDontSeeText('Contribution Complete');
+
+        $session = $order->activeSessions()->firstOrFail();
+        $summary = 'Inspected the affected area, replaced the damaged electrical outlet, and tested the installation after repair. The reported issue is now working properly.';
+        $this->actingAs($staff)->post("/work-orders/{$order->id}/sessions/{$session->id}/updates", [
+            'staff_action' => 'progress', 'type' => 'OTHER', 'guided_actions' => ['INSPECT_AREA', 'REPLACE_OUTLET', 'TEST_REPAIR'],
+            'guided_outcome' => 'RESOLVED', 'description' => $summary,
+        ])->assertRedirect();
+        $update = $order->updates()->where('type', 'PROGRESS')->latest('recorded_at')->firstOrFail();
+        $this->assertSame(['INSPECT_AREA', 'REPLACE_OUTLET', 'TEST_REPAIR'], $update->structured_actions);
+        $this->assertSame('RESOLVED', $update->guided_outcome);
+        $this->assertSame($summary, $update->generated_summary);
+        $this->assertSame($summary, $update->description);
+    }
+
+    public function test_plain_language_stop_and_blocker_choices_map_to_existing_outcomes(): void
+    {
+        $head = $this->user('FMO Head');
+        $staff = $this->user('FMO Staff');
+        $order = $this->ready($this->user('Requester'), $head, [$this->person($staff)]);
+        $this->seed(RoutineOperationsSeeder::class);
+        $this->actingAs($staff)->post("/work-orders/{$order->id}/start-work")->assertRedirect();
+        $session = $order->activeSessions()->firstOrFail();
+
+        $this->actingAs($staff)->post("/work-orders/{$order->id}/sessions/{$session->id}/end", [
+            'staff_action' => 'stop', 'stop_reason' => 'CONTINUE_TOMORROW', 'outcome' => 'PAUSED',
+            'guided_actions' => ['INSPECT_AREA'], 'guided_outcome' => 'PARTIAL',
+            'summary' => 'Inspected the affected area. Work will continue tomorrow.', 'remaining_work' => 'Replace the outlet tomorrow.',
+        ])->assertRedirect();
+        $this->assertSame('CONTINUATION', $session->fresh()->end_outcome->value);
+        $this->assertSame(WorkOrderStatus::ForContinuation, $order->fresh()->status);
+
+        $this->actingAs($staff)->post("/work-orders/{$order->id}/start-work")->assertRedirect();
+        $blocked = $order->activeSessions()->firstOrFail();
+        $this->actingAs($staff)->post("/work-orders/{$order->id}/sessions/{$blocked->id}/end", [
+            'staff_action' => 'blocked', 'blocker_reason' => 'MATERIALS_UNAVAILABLE', 'outcome' => 'PAUSED',
+            'guided_actions' => ['INSPECT_AREA'], 'guided_outcome' => 'WAITING_SUPPLIES',
+            'summary' => 'Work cannot continue because a replacement electrical outlet is required. The task will resume once the material is available.',
+            'material_description' => 'a replacement electrical outlet',
+        ])->assertRedirect();
+        $this->assertSame('WAITING_FOR_MATERIALS', $blocked->fresh()->end_outcome->value);
+        $this->assertSame(WorkOrderStatus::WaitingForMaterials, $order->fresh()->status);
+        $this->assertDatabaseHas('work_updates', [
+            'work_session_id' => $blocked->id, 'type' => 'WAITING_FOR_MATERIALS',
+            'material_description' => 'a replacement electrical outlet', 'guided_outcome' => 'WAITING_SUPPLIES',
+            'generated_summary' => 'Inspected the affected area. Work cannot continue because a replacement electrical outlet is required. The task will resume once the material is available.',
+        ]);
+    }
+
+    public function test_generic_profile_and_other_action_never_require_an_ai_service(): void
+    {
+        $category = WorkOrderCategory::create(['name' => 'Unmapped Specialist Work', 'is_active' => true]);
+        $guided = app(GuidedDescriptionService::class);
+        $profile = $guided->profileForCategory($category);
+
+        $this->assertSame('GENERIC', $profile->code);
+        $this->assertContains('OTHER_ACTION', collect($profile->actions)->pluck('code')->all());
+        $this->assertSame(
+            'Secured the custom mounting bracket. The reported issue is now working properly.',
+            $guided->generate($profile, ['OTHER_ACTION'], 'RESOLVED', 'secured the custom mounting bracket')
+        );
+        $this->expectException(ValidationException::class);
+        $guided->generate($profile, ['OTHER_ACTION'], 'RESOLVED');
     }
 }

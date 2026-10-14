@@ -70,22 +70,30 @@ class WorkOrderExecutionService
             if ($locked->status !== WorkOrderStatus::InProgress) {
                 throw new ConflictHttpException('This Work Order is not accepting execution updates.');
             }
-            $type = WorkUpdateType::from($data['type']);
+            $type = match ($data['staff_action'] ?? null) {
+                'progress' => WorkUpdateType::Progress,
+                'before' => WorkUpdateType::Before,
+                default => WorkUpdateType::from($data['type']),
+            };
             if (! in_array($type, [WorkUpdateType::Before, WorkUpdateType::Progress, WorkUpdateType::Issue, WorkUpdateType::Completion, WorkUpdateType::Other], true)) {
                 throw ValidationException::withMessages(['type' => 'This update type is reserved for session actions.']);
             }
-            $profile = $locked->category()->with('guidedProfile')->first()?->guidedProfile;
+            if (($data['staff_action'] ?? null) === 'before' && ! count($files)) {
+                throw ValidationException::withMessages(['evidence' => 'Please add at least one photo showing the condition before repair.']);
+            }
+            $category = $locked->category()->with('guidedProfile')->firstOrFail();
+            $profile = app(GuidedDescriptionService::class)->profileForCategory($category);
             $generated = null;
-            if ($profile && (! empty($data['guided_actions']) || ! empty($data['guided_outcome']))) {
+            if (! empty($data['guided_actions']) || ! empty($data['guided_outcome'])) {
                 if (empty($data['guided_actions']) || empty($data['guided_outcome'])) {
-                    throw ValidationException::withMessages(['guided_actions' => 'Select both the work performed and the result.']);
+                    throw ValidationException::withMessages(['guided_actions' => 'Please select what you did and what happened after the work.']);
                 }
-                $generated = app(GuidedDescriptionService::class)->generate($profile, $data['guided_actions'], $data['guided_outcome']);
+                $generated = app(GuidedDescriptionService::class)->generate($profile, $data['guided_actions'], $data['guided_outcome'], $data['other_action'] ?? null);
             }
             $update = $active->updates()->create([
                 'work_order_id' => $locked->id, 'fmo_personnel_id' => $active->fmo_personnel_id, 'created_by_user_id' => $actor->id,
                 'type' => $type, 'description' => $data['description'], 'requester_summary' => $data['requester_summary'] ?? null,
-                'guided_description_profile_id' => $profile?->id, 'structured_actions' => $data['guided_actions'] ?? null,
+                'guided_description_profile_id' => $profile->exists ? $profile->id : null, 'structured_actions' => $data['guided_actions'] ?? null,
                 'guided_outcome' => $data['guided_outcome'] ?? null, 'generated_summary' => $generated,
                 'additional_remarks' => $data['additional_remarks'] ?? null, 'recorded_at' => now(), 'execution_cycle' => $locked->execution_cycle,
             ]);
@@ -114,18 +122,18 @@ class WorkOrderExecutionService
             if ($locked->status !== WorkOrderStatus::InProgress) {
                 throw new ConflictHttpException('This Work Order is not in progress.');
             }
-            $outcome = WorkSessionOutcome::from($data['outcome']);
+            $outcome = app(StaffWorkActionMapper::class)->outcome($data);
             if ($outcome === WorkSessionOutcome::Continuation && blank($data['remaining_work'] ?? null)) {
-                throw ValidationException::withMessages(['remaining_work' => 'Describe the work remaining.']);
+                throw ValidationException::withMessages(['remaining_work' => 'Please describe what still needs to be done.']);
             }
             if ($outcome === WorkSessionOutcome::Continuation && config('work_orders.execution.require_continuation_evidence') && ! count($files) && ! $active->updates()->whereIn('type', [WorkUpdateType::Progress->value, WorkUpdateType::Issue->value])->whereHas('attachments')->exists()) {
-                throw ValidationException::withMessages(['evidence' => 'Current-state evidence is required for continuation.']);
+                throw ValidationException::withMessages(['evidence' => 'Please add a photo showing the work before stopping.']);
             }
             if ($outcome === WorkSessionOutcome::WaitingForMaterials && blank($data['material_description'] ?? null)) {
-                throw ValidationException::withMessages(['material_description' => 'Describe the required materials or resources.']);
+                throw ValidationException::withMessages(['material_description' => 'Please describe the materials or replacement part you need.']);
             }
             if ($outcome === WorkSessionOutcome::NeedsFurtherInvestigation && ! count($files) && ! $active->updates()->where('type', WorkUpdateType::Issue->value)->whereHas('attachments')->exists()) {
-                throw ValidationException::withMessages(['evidence' => 'Provide evidence of the issue requiring investigation.']);
+                throw ValidationException::withMessages(['evidence' => 'Please add a photo showing the issue that needs further inspection.']);
             }
             if ($outcome === WorkSessionOutcome::WorkOrderCompletionSubmitted && ! $actor->can('work_orders.submit_completion')) {
                 abort(403);
@@ -137,7 +145,29 @@ class WorkOrderExecutionService
                 WorkSessionOutcome::NeedsFurtherInvestigation => WorkUpdateType::Investigation,
                 WorkSessionOutcome::ContributionComplete, WorkSessionOutcome::WorkOrderCompletionSubmitted => WorkUpdateType::Completion,
             };
-            $update = $active->updates()->create(['work_order_id' => $locked->id, 'fmo_personnel_id' => $active->fmo_personnel_id, 'created_by_user_id' => $actor->id, 'type' => $type, 'description' => $data['summary'], 'requester_summary' => $data['requester_summary'] ?? null, 'material_description' => $data['material_description'] ?? null, 'remaining_work' => $data['remaining_work'] ?? null, 'recorded_at' => now(), 'execution_cycle' => $locked->execution_cycle]);
+            $category = $locked->category()->with('guidedProfile')->firstOrFail();
+            $profile = app(GuidedDescriptionService::class)->profileForCategory($category);
+            $generated = null;
+            if (! empty($data['guided_actions']) || ! empty($data['guided_outcome'])) {
+                if (empty($data['guided_actions']) || empty($data['guided_outcome'])) {
+                    throw ValidationException::withMessages(['guided_actions' => 'Please select what you completed and the result.']);
+                }
+                $guided = app(GuidedDescriptionService::class);
+                $generated = isset($data['staff_action'])
+                    ? app(StaffWorkActionMapper::class)->generatedSummary(
+                        $guided->actionSentence($profile, $data['guided_actions'], $data['other_action'] ?? null),
+                        $data,
+                    )
+                    : $guided->generate($profile, $data['guided_actions'], $data['guided_outcome'], $data['other_action'] ?? null);
+            }
+            $update = $active->updates()->create([
+                'work_order_id' => $locked->id, 'fmo_personnel_id' => $active->fmo_personnel_id, 'created_by_user_id' => $actor->id,
+                'type' => $type, 'description' => $data['summary'], 'requester_summary' => $data['requester_summary'] ?? null,
+                'material_description' => $data['material_description'] ?? null, 'remaining_work' => $data['remaining_work'] ?? null,
+                'guided_description_profile_id' => $profile->exists ? $profile->id : null, 'structured_actions' => $data['guided_actions'] ?? null,
+                'guided_outcome' => $data['guided_outcome'] ?? null, 'generated_summary' => $generated,
+                'additional_remarks' => $data['additional_remarks'] ?? null, 'recorded_at' => now(), 'execution_cycle' => $locked->execution_cycle,
+            ]);
             $this->evidence($locked, $active, $update, $actor, $files, $type->value);
             $active->update(['ended_at' => now(), 'end_outcome' => $outcome, 'session_summary' => $data['summary'], 'active_marker' => null]);
             $this->workflow->recordOperational($locked, $actor, 'SESSION_ENDED', $outcome->value.': '.$data['summary'], $data['requester_summary'] ?? null);
@@ -180,18 +210,18 @@ class WorkOrderExecutionService
             throw ValidationException::withMessages(['session' => 'All active team work sessions must be ended before submission.']);
         }
         if (blank($data['completion_summary'] ?? null) || blank($data['work_performed_summary'] ?? null)) {
-            throw ValidationException::withMessages(['completion_summary' => 'A completion summary and work performed description are required.']);
+            throw ValidationException::withMessages(['completion_summary' => 'Please review and provide the completion summary before submitting.']);
         }
         $completion = $order->updates()->where('type', WorkUpdateType::Completion->value)->where('execution_cycle', $order->execution_cycle)->latest('recorded_at')->first();
         if (! $completion) {
-            throw ValidationException::withMessages(['completion' => 'Record a completion update in a work session first.']);
+            throw ValidationException::withMessages(['completion' => 'Please record the finished work before submitting it for verification.']);
         }
         if (config('work_orders.execution.require_before_evidence') && ! $order->updates()->where('type', WorkUpdateType::Before->value)->where('execution_cycle', $order->execution_cycle)->whereHas('attachments')->exists()) {
-            throw ValidationException::withMessages(['evidence' => 'Before/initial evidence is required for this work category.']);
+            throw ValidationException::withMessages(['evidence' => 'Please add a before-work photo for this type of work.']);
         }
         $hasEvidence = $order->updates()->where('type', WorkUpdateType::Completion->value)->where('execution_cycle', $order->execution_cycle)->whereHas('attachments', fn ($query) => $query->where('mime_type', 'like', 'image/%'))->exists();
         if (config('work_orders.execution.require_completion_photo') && ! $hasEvidence && mb_strlen(trim($data['non_photo_reason'] ?? '')) < 20) {
-            throw ValidationException::withMessages(['non_photo_reason' => 'Attach completion evidence or provide a specific non-photographic justification of at least 20 characters.']);
+            throw ValidationException::withMessages(['non_photo_reason' => 'Please add at least one completion photo, or explain in at least 20 characters why a photo cannot show the result.']);
         }
         $order->update(['completion_summary' => $data['completion_summary'], 'work_performed_summary' => $data['work_performed_summary'], 'non_photo_reason' => $data['non_photo_reason'] ?? null, 'completion_submitted_by' => $actor->id, 'completion_submitted_at' => now(), 'verified_by' => null, 'verified_at' => null, 'verification_note' => null]);
         $this->workflow->recordOperational($order, $actor, 'COMPLETION_SUBMITTED', $data['completion_summary'], $data['requester_summary'] ?? 'Work has been submitted for FMO verification.');
