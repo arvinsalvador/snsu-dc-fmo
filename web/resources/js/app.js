@@ -387,6 +387,73 @@ export function initializeRoutineAssignmentModal() {
     }
 }
 
+export function initializeAssetQrModal() {
+    const modal = document.querySelector('[data-asset-qr-modal]');
+    if (!modal) return;
+
+    const panel = modal.querySelector('[data-asset-qr-panel]');
+    const label = modal.querySelector('#asset-qr-label');
+    const printButton = modal.querySelector('[data-asset-qr-print]');
+    const openButtons = [...document.querySelectorAll('[data-asset-qr-open]')];
+    let previousFocus = null;
+    let printRoot = null;
+
+    const open = () => {
+        previousFocus = document.activeElement;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('overflow-hidden');
+        window.requestAnimationFrame(() => modal.querySelector('[data-asset-qr-close][aria-label]')?.focus());
+    };
+    const close = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('overflow-hidden');
+        previousFocus?.focus();
+    };
+    const cleanPrintRoot = () => {
+        printRoot?.remove();
+        printRoot = null;
+        document.body.classList.remove('asset-qr-printing');
+    };
+    const printLabel = () => {
+        cleanPrintRoot();
+        printRoot = document.createElement('div');
+        printRoot.id = 'asset-qr-print-root';
+        printRoot.setAttribute('aria-hidden', 'true');
+        printRoot.append(label.cloneNode(true));
+        printRoot.querySelector('#asset-qr-label')?.removeAttribute('id');
+        document.body.append(printRoot);
+        document.body.classList.add('asset-qr-printing');
+        window.requestAnimationFrame(() => {
+            window.print();
+            window.setTimeout(cleanPrintRoot, 0);
+        });
+    };
+
+    openButtons.forEach(button => button.addEventListener('click', open));
+    modal.querySelectorAll('[data-asset-qr-close]').forEach(button => button.addEventListener('click', close));
+    printButton?.addEventListener('click', printLabel);
+    window.addEventListener('afterprint', cleanPrintRoot);
+    document.addEventListener('keydown', event => {
+        if (modal.classList.contains('hidden')) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            close();
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const focusable = [...panel.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])')];
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initializeCollapsibles();
     document.querySelectorAll('[data-work-order-location]').forEach(initializeLocationSelects);
@@ -394,6 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-guided-description]').forEach(initializeGuidedDescription);
     document.querySelectorAll('[data-work-action-guide]').forEach(initializeWorkActionGuide);
     initializeRoutineAssignmentModal();
+    initializeAssetQrModal();
     initializeEvidenceViewer();
     const drawer = document.querySelector('[data-sidebar]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');

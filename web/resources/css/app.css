@@ -102,3 +102,39 @@
     .mobile-card-table td[colspan] { @apply block text-left; }
     .mobile-card-table td[colspan]::before { display: none; }
 }
+
+.asset-qr-svg svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+#asset-qr-print-root {
+    display: none;
+}
+
+@media print {
+    body.asset-qr-printing {
+        min-height: 0;
+        background: white;
+    }
+
+    body.asset-qr-printing > :not(#asset-qr-print-root) {
+        display: none !important;
+    }
+
+    body.asset-qr-printing > #asset-qr-print-root {
+        display: flex !important;
+        justify-content: flex-start;
+        padding: 0;
+    }
+
+    body.asset-qr-printing .asset-qr-label {
+        width: 76mm;
+        max-width: 76mm;
+        margin: 0;
+        break-inside: avoid;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+}

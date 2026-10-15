@@ -10,6 +10,7 @@ use App\Models\Campus;
 use App\Models\Floor;
 use App\Models\InspectableAsset;
 use App\Services\AssetLifecycleService;
+use App\Services\AssetQrCodeService;
 use App\Services\OperationalEvidenceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -66,7 +67,7 @@ class AssetController extends Controller
         return redirect()->route('assets.show', $asset)->with('status', 'Inspectable asset added.');
     }
 
-    public function show(Request $request, InspectableAsset $asset)
+    public function show(Request $request, InspectableAsset $asset, AssetQrCodeService $qr)
     {
         abort_unless($request->user()->can('assets.view'), 403);
         $asset->load(['assetType', 'campus', 'building', 'floor', 'location', 'attachments.uploader',
@@ -74,8 +75,9 @@ class AssetController extends Controller
             'maintenanceRecords.recorder', 'maintenanceRecords.attachments', 'lifecycleEvents.actor']);
         $history = $asset->inspectionItems()->with(['run.template', 'inspector.user', 'attachments'])->where('status', 'INSPECTED')->latest('inspected_at')->paginate(15);
         $pendingAction = $asset->actionRequests->where('status', 'PENDING')->sortByDesc('requested_at')->first();
+        $qrSvg = $qr->svg($asset);
 
-        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction'));
+        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction', 'qrSvg'));
     }
 
     public function edit(Request $request, InspectableAsset $asset)

@@ -84,8 +84,19 @@ class AssetLifecycleTest extends TestCase
         }
         $this->actingAs($this->staff)->get(route('assets.scan', $asset->qr_token))->assertOk()->assertSee('FE-DC-001')->assertSee('Inspect Asset');
         $this->actingAs($this->user('Requester'))->get(route('assets.scan', $asset->qr_token))->assertForbidden();
-        $this->actingAs($this->head)->get(route('assets.qr.print', $asset))->assertOk()->assertSee('<svg', false)->assertSee('SNSU-DC FMO');
         $oldToken = $asset->qr_token;
+        $this->actingAs($this->head)->get(route('assets.show', $asset))->assertOk()
+            ->assertSee('QR Code')->assertSee('Scan this code to open this asset for inspection or maintenance.')
+            ->assertSee('data-asset-qr-modal', false)->assertSee('id="asset-qr-label"', false)
+            ->assertSee('data-asset-qr-print', false)->assertSee('<svg', false)
+            ->assertSee('LRC Building')->assertSee('Ground Floor • Registrar Entrance')
+            ->assertDontSee($asset->qr_token)
+            ->assertDontSee('href="'.route('assets.qr.print', $asset).'"', false);
+        $this->assertSame($oldToken, $asset->fresh()->qr_token);
+        $this->actingAs($this->staff)->get(route('assets.show', $asset))->assertOk()
+            ->assertSee('QR Code')->assertSee('<svg', false)->assertDontSee('data-asset-qr-modal', false);
+        $this->actingAs($this->staff)->get(route('assets.qr.print', $asset))->assertForbidden();
+        $this->actingAs($this->head)->get(route('assets.qr.print', $asset))->assertOk()->assertSee('<svg', false)->assertSee('SNSU-DC FMO');
         $this->actingAs($this->head)->post(route('assets.qr.regenerate', $asset))->assertRedirect();
         $this->assertNotSame($oldToken, $asset->fresh()->qr_token);
         $this->actingAs($this->staff)->get(route('assets.scan', $oldToken))->assertNotFound();
