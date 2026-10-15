@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WorkOrderAssignment extends Model
@@ -20,9 +20,8 @@ class WorkOrderAssignment extends Model
 
     public function scopeActiveForUser(Builder $query, User $user): Builder
     {
-        return $query->whereNull('unassigned_at')->whereHas('personnel', fn (Builder $personnel) =>
-            $personnel->where('user_id', $user->id)->where('personnel_status', 'ACTIVE')->whereNull('archived_at')
-                ->whereHas('user', fn (Builder $account) => $account->where('status', 'APPROVED'))
+        return $query->whereNull('unassigned_at')->whereHas('personnel', fn (Builder $personnel) => $personnel->where('user_id', $user->id)->where('personnel_status', 'ACTIVE')->whereNull('archived_at')
+            ->whereHas('user', fn (Builder $account) => $account->where('status', 'APPROVED'))
         );
     }
 

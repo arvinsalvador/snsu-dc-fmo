@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\WorkOrderController;
 use App\Http\Controllers\Api\WorkOrderExecutionController;
 use App\Http\Controllers\Api\WorkOrderWorkflowController;
 use App\Http\Controllers\Auth\ApiAuthController;
+use App\Http\Controllers\RoutineOperations\AssetActionController;
+use App\Http\Controllers\RoutineOperations\AssetInspectionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -41,7 +43,13 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/routine-tasks/{routineTask}/start', [RoutineOperationsController::class, 'start']);
         Route::post('/routine-tasks/{routineTask}/resolve', [RoutineOperationsController::class, 'resolve']);
         Route::get('/inspectable-assets', [RoutineOperationsController::class, 'assets']);
+        Route::get('/inspectable-assets/scan/{token}', [RoutineOperationsController::class, 'assetByQr']);
         Route::get('/inspectable-assets/{asset}', [RoutineOperationsController::class, 'asset']);
+        Route::post('/inspectable-assets/{asset}/inspections', [AssetInspectionController::class, 'store']);
+        Route::post('/inspectable-assets/{asset}/actions', [AssetActionController::class, 'request']);
+        Route::post('/asset-actions/{assetAction}/review', [AssetActionController::class, 'review']);
+        Route::post('/inspectable-assets/{asset}/maintenance', [AssetActionController::class, 'maintain']);
+        Route::post('/inspectable-assets/{asset}/dispose', [AssetActionController::class, 'dispose']);
         Route::get('/asset-types', [RoutineOperationsController::class, 'assetTypes']);
         Route::get('/inspection-runs', [RoutineOperationsController::class, 'inspections']);
         Route::get('/inspection-runs/{inspection}', [RoutineOperationsController::class, 'inspection']);

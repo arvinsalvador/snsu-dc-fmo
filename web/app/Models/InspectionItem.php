@@ -13,7 +13,7 @@ class InspectionItem extends Model
 
     protected $fillable = [
         'inspection_run_id', 'inspectable_asset_id', 'status', 'inspector_personnel_id', 'inspector_user_id',
-        'inspected_at', 'result', 'checklist_results', 'structured_actions', 'generated_summary', 'remarks',
+        'inspected_at', 'result', 'condition', 'recommended_action', 'checklist_results', 'structured_actions', 'generated_summary', 'remarks',
     ];
 
     protected function casts(): array

@@ -95,6 +95,9 @@
         @case('camera')
             <path d="M4 7h3l1.5-2h7L17 7h3v12H4Z" /><circle cx="12" cy="13" r="3.5" />
             @break
+        @case('qr-code')
+            <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M6 6h1v1H6zM17 6h1v1h-1zM6 17h1v1H6zM14 14h3v3h-3zM19 14h2v2M14 19h2v2M18 18h3v3" />
+            @break
         @case('upload')
             <path d="M12 17V5m-4 4 4-4 4 4M4 20h16" />
             @break

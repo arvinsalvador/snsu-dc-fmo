@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Enums\AssetStatus;
+use App\Enums\AssetLifecycleStatus;
 use App\Enums\RoutineFrequency;
 use App\Enums\RoutineOccurrenceStatus;
 use App\Enums\RoutineTaskType;
@@ -94,7 +94,7 @@ class RoutineOccurrenceService
             'routine_task_occurrence_id' => $occurrence->id, 'routine_task_template_id' => $template->id,
             'period_key' => $occurrence->period_key, 'status' => 'OPEN',
         ]);
-        $assets = InspectableAsset::query()->where('asset_type_id', $template->asset_type_id)->where('status', AssetStatus::Active->value)
+        $assets = InspectableAsset::query()->where('asset_type_id', $template->asset_type_id)->where('lifecycle_status', AssetLifecycleStatus::Active->value)
             ->where('campus_id', $template->campus_id)
             ->when($template->building_id, fn ($q) => $q->where('building_id', $template->building_id))
             ->when($template->floor_id, fn ($q) => $q->where('floor_id', $template->floor_id))

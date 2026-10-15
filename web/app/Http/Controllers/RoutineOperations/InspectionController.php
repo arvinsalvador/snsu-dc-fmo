@@ -43,6 +43,7 @@ class InspectionController extends Controller
         $this->authorizeRun($request, $inspection, true);
         abort_unless($item->inspection_run_id === $inspection->id, 404);
         $item->load('asset.assetType', 'attachments');
+        abort_if(in_array($item->asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422, 'Disposed or retired assets cannot receive new inspections.');
         $options = $item->asset->assetType->result_options;
         $data = $request->validate([
             'result' => ['required', Rule::in($options)], 'checklist' => ['required', 'array'], 'checklist.*' => ['required', Rule::in(['YES', 'NO', 'NOT_APPLICABLE'])],
@@ -55,6 +56,9 @@ class InspectionController extends Controller
         if ($inspection->template->evidence_required && $item->attachments->isEmpty() && empty($data['evidence'])) {
             throw ValidationException::withMessages(['evidence' => 'Photo evidence is required for this inspection.']);
         }
+        if (in_array($data['result'], ['DEFECTIVE', 'OUT_OF_SERVICE', 'MISSING'], true) && $item->attachments->isEmpty() && empty($data['evidence'])) {
+            throw ValidationException::withMessages(['evidence' => 'Photo evidence is required for a damaged or non-serviceable asset.']);
+        }
         $personnel = $request->user()->personnelProfile;
         DB::transaction(function () use ($item, $inspection, $data, $request, $personnel, $evidence): void {
             $failedLabels = collect($item->asset->assetType->checklist)->filter(fn ($check) => ($data['checklist'][$check['code']] ?? null) === 'NO')->pluck('label');
@@ -62,8 +66,12 @@ class InspectionController extends Controller
             if ($failedLabels->isNotEmpty()) {
                 $summary .= ' Needs attention: '.$failedLabels->join(', ', ', and ').'.';
             }
+            $condition = match ($data['result']) {
+                'GOOD' => 'GOOD', 'NEEDS_ATTENTION' => 'FAIR', 'MISSING' => 'UNUSABLE', default => 'NEEDS_REPAIR'
+            };
             $item->update(['status' => 'INSPECTED', 'inspector_personnel_id' => $personnel?->id, 'inspector_user_id' => $request->user()->id,
-                'inspected_at' => now(), 'result' => $data['result'], 'checklist_results' => $data['checklist'], 'generated_summary' => $summary, 'remarks' => $data['remarks'] ?? null]);
+                'inspected_at' => now(), 'result' => $data['result'], 'condition' => $condition, 'checklist_results' => $data['checklist'], 'generated_summary' => $summary, 'remarks' => $data['remarks'] ?? null]);
+            $item->asset->update(['condition' => $condition, 'last_inspected_at' => now()]);
             if (! empty($data['evidence'])) {
                 $evidence->attach($item, $data['evidence'], $request->user()->id, 'INSPECTION_EVIDENCE');
             }

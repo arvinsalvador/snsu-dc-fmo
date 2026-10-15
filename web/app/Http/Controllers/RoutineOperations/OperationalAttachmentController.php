@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\RoutineOperations;
 
 use App\Http\Controllers\Controller;
+use App\Models\AssetActionRequest;
+use App\Models\AssetMaintenanceRecord;
+use App\Models\InspectableAsset;
 use App\Models\InspectionItem;
 use App\Models\OperationalAttachment;
 use App\Models\RoutineTaskOccurrence;
@@ -18,7 +21,14 @@ class OperationalAttachmentController extends Controller
         if ($target instanceof RoutineTaskOccurrence) {
             abort_unless($request->user()->can('routine_tasks.view_all') || ($request->user()->can('routine_tasks.view') && $access->assignedTo($target, $request->user())), 403);
         } elseif ($target instanceof InspectionItem) {
-            abort_unless($request->user()->can('inspections.view_all') || ($request->user()->can('inspections.view') && $access->assignedToInspection($target->run, $request->user())), 403);
+            $allowed = $target->run
+                ? $request->user()->can('inspections.view_all') || ($request->user()->can('inspections.view') && $access->assignedToInspection($target->run, $request->user()))
+                : $request->user()->can('assets.view');
+            abort_unless($allowed, 403);
+        } elseif ($target instanceof InspectableAsset) {
+            abort_unless($request->user()->can('assets.view'), 403);
+        } elseif ($target instanceof AssetActionRequest || $target instanceof AssetMaintenanceRecord) {
+            abort_unless($request->user()->can('assets.view'), 403);
         } else {
             abort(404);
         }

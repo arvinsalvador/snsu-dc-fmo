@@ -1,21 +1,19 @@
-# Asset Inspections
+# Asset Inspections and QR
 
-## Inspectable asset registry
+## QR identity
 
-`InspectableAsset` represents one identifiable item such as `FE-DC-001`, never a bulk quantity. It belongs to a database-backed `AssetType` and reuses the existing campus, building, floor, and office/room/area hierarchy with optional exact placement. Registry states are `ACTIVE`, `OUT_OF_SERVICE`, `RETIRED`, and `MISSING`.
+Every asset receives a stable random 48-character token. Its QR contains only the authenticated `/assets/scan/{token}` URL—never staff identifiers, asset JSON, history, or secrets. The token locates a record but grants no authority: normal login, account approval, and `assets.view` checks still apply. Authorized management can print a compact label or regenerate a compromised token; regeneration invalidates the previous label and creates a lifecycle audit event.
 
-The initial seeded types are Fire Extinguisher, Emergency Light, Air Conditioner, Wall Fan, and Ceiling Fan. Asset types store configurable checklist entries and valid result options; checklists are not hard-coded in Blade.
+The scan screen shows code, type, location, current condition, lifecycle, and last inspection. Staff may inspect the asset, open its record, or report a problem. If the asset belongs to a currently accessible open recurring inspection run, scanning resolves to that exact run item. A supplied run that does not contain the asset displays a warning and records nothing. Asset-code search is the no-camera fallback; no large browser scanner dependency is required.
 
-This is intentionally a facilities inspection registry, not an inventory ERP. Purchasing, depreciation, suppliers, warehousing, valuation, and stock movement are outside this phase.
+## Inspection records
 
-## Inspection runs and records
+`InspectionItem` is the permanent exact-asset record for both recurring-run and standalone QR inspections. It stores inspector personnel/user, timestamp, condition, checklist results, summary, remarks, recommendation, and private attachments. Every submission creates history rather than overwriting an earlier inspection.
 
-An inspection-type routine template selects one asset type and a location scope. When its occurrence is generated, the server creates an `InspectionRun` and snapshots every matching active asset into `InspectionItem` rows. Later registry changes cannot silently rewrite that run.
+Condition choices use staff-facing explanations for pristine, good, needs attention, needs repair, broken, and disposal recommendation. Each checklist comes from the selected Asset Type rather than a hard-coded Blade form. Asset and optional placement photos use camera capture or file choice. Evidence is mandatory for repair, damaged/broken/unusable, and disposal recommendations.
 
-Each item requires every checklist response, a high-level result, inspector identity, and inspection time. Evidence follows the template rule. Supported generic results include `GOOD`, `NEEDS_ATTENTION`, `DEFECTIVE`, `MISSING`, and `OUT_OF_SERVICE`; asset types can add suitable options such as `NEEDS_REFILL` and `EXPIRED`.
+Completing an inspection updates `last_inspected_at` and current condition. For a recurring run it also updates item progress; the occurrence completes only after every snapshotted asset item is inspected.
 
-A run moves from open to in progress and completes only when every snapshotted item has an inspection record. Progress and attention counts are calculated from item records. Asset detail retains historical inspections even after an item is retired or placed out of service.
+## Future mobile work
 
-## Digital inspection tag readiness
-
-The stored period, asset ULID/code, item checks, result, inspector, timestamp, summary, and evidence can support a future physical-tag-like digital view or QR lookup. No final tag layout or public scan endpoint is included until the physical tag specification and disclosure rules are supplied.
+Flutter remains deferred. A future client should cache authorized assets, resolve opaque QR tokens, stage checklist/evidence mutations offline, upload media through the existing private pipeline, and surface sync conflicts without weakening server authorization.

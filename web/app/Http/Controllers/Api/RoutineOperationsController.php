@@ -104,6 +104,14 @@ class RoutineOperationsController extends Controller
         return response()->json(['data' => $asset->load(['assetType', 'campus', 'building', 'floor', 'location', 'inspectionItems.run'])]);
     }
 
+    public function assetByQr(Request $request, string $token)
+    {
+        abort_unless($request->user()->can('assets.view'), 403);
+        $asset = InspectableAsset::where('qr_token', $token)->firstOrFail();
+
+        return response()->json(['data' => $asset->load(['assetType', 'campus', 'building', 'floor', 'location'])]);
+    }
+
     public function inspections(Request $request, RoutineTaskAccessService $access)
     {
         abort_unless($request->user()->can('inspections.view'), 403);
@@ -125,6 +133,7 @@ class RoutineOperationsController extends Controller
         $this->authorizeInspection($request, $inspection, true);
         abort_unless($item->inspection_run_id === $inspection->id, 404);
         $item->load(['asset.assetType', 'attachments']);
+        abort_if(in_array($item->asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422, 'Disposed or retired assets cannot receive new inspections.');
         $data = $request->validate(['result' => ['required', Rule::in($item->asset->assetType->result_options)], 'checklist' => ['required', 'array'],
             'checklist.*' => ['required', Rule::in(['YES', 'NO', 'NOT_APPLICABLE'])], 'remarks' => ['nullable', 'string', 'max:5000'],
             'evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')]]);
@@ -135,10 +144,17 @@ class RoutineOperationsController extends Controller
         if ($inspection->template->evidence_required && $item->attachments->isEmpty() && empty($data['evidence'])) {
             throw ValidationException::withMessages(['evidence' => 'Photo evidence is required for this inspection.']);
         }
+        if (in_array($data['result'], ['DEFECTIVE', 'OUT_OF_SERVICE', 'MISSING'], true) && $item->attachments->isEmpty() && empty($data['evidence'])) {
+            throw ValidationException::withMessages(['evidence' => 'Photo evidence is required for a damaged or non-serviceable asset.']);
+        }
         DB::transaction(function () use ($item, $inspection, $data, $request, $evidence): void {
+            $condition = match ($data['result']) {
+                'GOOD' => 'GOOD', 'NEEDS_ATTENTION' => 'FAIR', 'MISSING' => 'UNUSABLE', default => 'NEEDS_REPAIR'
+            };
             $item->update(['status' => 'INSPECTED', 'inspector_personnel_id' => $request->user()->personnelProfile?->id, 'inspector_user_id' => $request->user()->id,
-                'inspected_at' => now(), 'result' => $data['result'], 'checklist_results' => $data['checklist'],
+                'inspected_at' => now(), 'result' => $data['result'], 'condition' => $condition, 'checklist_results' => $data['checklist'],
                 'generated_summary' => 'Inspected '.$item->asset->asset_code.'. Result: '.str_replace('_', ' ', strtolower($data['result'])).'.', 'remarks' => $data['remarks'] ?? null]);
+            $item->asset->update(['condition' => $condition, 'last_inspected_at' => now()]);
             if (! empty($data['evidence'])) {
                 $evidence->attach($item, $data['evidence'], $request->user()->id, 'INSPECTION_EVIDENCE');
             }

@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\InspectionItem;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
 
@@ -15,7 +14,13 @@ class OperationalEvidenceService
     {
         $this->files->run(function () use ($target, $uploads, $userId, $purpose): void {
             foreach ($uploads as $upload) {
-                $directory = $target instanceof InspectionItem ? 'inspection-evidence/'.$target->id : 'routine-evidence/'.$target->id;
+                $directory = match (class_basename($target)) {
+                    'InspectableAsset' => 'asset-photos/'.$target->id,
+                    'InspectionItem' => 'inspection-evidence/'.$target->id,
+                    'AssetActionRequest' => 'asset-action-evidence/'.$target->id,
+                    'AssetMaintenanceRecord' => 'asset-maintenance-evidence/'.$target->id,
+                    default => 'routine-evidence/'.$target->id,
+                };
                 $target->attachments()->create($this->media->store($upload, $directory, 'evidence') + [
                     'uploaded_by' => $userId, 'purpose' => $purpose, 'evidence_type' => 'PHOTO',
                 ]);

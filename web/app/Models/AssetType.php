@@ -10,7 +10,7 @@ class AssetType extends Model
 {
     use HasUlids;
 
-    protected $fillable = ['code', 'name', 'checklist', 'result_options', 'is_active'];
+    protected $fillable = ['code', 'name', 'description', 'default_inspection_frequency', 'checklist', 'result_options', 'is_active'];
 
     protected function casts(): array
     {
