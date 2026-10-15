@@ -97,47 +97,62 @@ class RoutineOperationsController extends Controller
         return response()->json(InspectableAsset::with(['assetType', 'campus', 'building', 'floor', 'location'])->orderBy('asset_code')->paginate(min(100, max(1, $request->integer('per_page', 25)))));
     }
 
-    public function asset(Request $request, InspectableAsset $asset)
+    public function asset(Request $request, InspectableAsset $asset, RoutineTaskAccessService $access)
     {
         abort_unless($request->user()->can('assets.view'), 403);
+        $asset->load(['assetType', 'campus', 'building', 'floor', 'location']);
+        $this->appendInspectionAccess($asset, $request, $access);
 
-        return response()->json(['data' => $asset->load(['assetType', 'campus', 'building', 'floor', 'location', 'inspectionItems.run'])]);
+        return response()->json(['data' => $asset]);
     }
 
-    public function assetByQr(Request $request, string $token)
+    public function assetByQr(Request $request, string $token, RoutineTaskAccessService $access)
     {
         abort_unless($request->user()->can('assets.view'), 403);
-        $asset = InspectableAsset::where('qr_token', $token)->firstOrFail();
+        $asset = InspectableAsset::with(['assetType', 'campus', 'building', 'floor', 'location'])->where('qr_token', $token)->firstOrFail();
+        $this->appendInspectionAccess($asset, $request, $access);
 
-        return response()->json(['data' => $asset->load(['assetType', 'campus', 'building', 'floor', 'location'])]);
+        return response()->json(['data' => $asset]);
     }
 
     public function inspections(Request $request, RoutineTaskAccessService $access)
     {
         abort_unless($request->user()->can('inspections.view'), 403);
-        $query = InspectionRun::with(['template.assetType', 'occurrence'])->withCount(['items', 'items as inspected_count' => fn ($q) => $q->where('status', 'INSPECTED')])->latest();
+        $personnel = $access->activePersonnel($request->user());
+        $assignedScope = fn ($query) => $request->user()->can('inspections.view_all') ? $query : $query->whereHas('assignments', fn ($assignment) => $assignment
+            ->where('fmo_personnel_id', $personnel?->id)->whereNull('unassigned_at'));
+        $query = InspectionRun::with(['template.assetType', 'occurrence'])->withCount([
+            'items as items_count' => fn ($q) => $assignedScope($q),
+            'items as inspected_count' => fn ($q) => $assignedScope($q)->where('status', 'INSPECTED'),
+            'items as overdue_count' => fn ($q) => $assignedScope($q)->where('status', '!=', 'INSPECTED')->whereHas('run.occurrence', fn ($occurrence) => $occurrence->where('due_at', '<', now(config('app.timezone')))),
+        ])->latest();
         $access->scopeInspectionRuns($query, $request->user());
 
         return response()->json($query->paginate(min(100, max(1, $request->integer('per_page', 20)))));
     }
 
-    public function inspection(Request $request, InspectionRun $inspection)
+    public function inspection(Request $request, InspectionRun $inspection, RoutineTaskAccessService $access)
     {
         $this->authorizeInspection($request, $inspection);
 
-        return response()->json(['data' => $inspection->load(['template.assetType', 'occurrence', 'items.asset.assetType', 'items.attachments'])]);
+        $inspection->load(['template.assetType', 'occurrence', 'items' => fn ($query) => ($request->user()->can('inspections.view_all') ? $query : $access->scopeInspectionItems($query, $request->user()))
+            ->with(['asset.assetType', 'attachments', 'activeAssignees.user'])]);
+
+        return response()->json(['data' => $inspection]);
     }
 
     public function recordInspection(Request $request, InspectionRun $inspection, InspectionItem $item, OperationalEvidenceService $evidence)
     {
-        $this->authorizeInspection($request, $inspection, true);
         abort_unless($item->inspection_run_id === $inspection->id, 404);
+        $access = app(RoutineTaskAccessService::class);
+        abort_unless($access->canPerformInspectionItem($item, $request->user()), 403);
+        abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
         $item->load(['asset.assetType', 'attachments']);
         abort_if(in_array($item->asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422, 'Disposed or retired assets cannot receive new inspections.');
         $data = $request->validate(['result' => ['required', Rule::in($item->asset->assetType->result_options)], 'checklist' => ['required', 'array'],
             'checklist.*' => ['required', Rule::in(['YES', 'NO', 'NOT_APPLICABLE'])], 'remarks' => ['nullable', 'string', 'max:5000'],
             'evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')]]);
-        $expected = collect($item->asset->assetType->checklist)->pluck('code');
+        $expected = collect($item->checklist_snapshot ?: $item->asset->assetType->checklist)->pluck('code');
         if ($expected->diff(array_keys($data['checklist']))->isNotEmpty()) {
             throw ValidationException::withMessages(['checklist' => 'Complete every checklist item.']);
         }
@@ -148,6 +163,8 @@ class RoutineOperationsController extends Controller
             throw ValidationException::withMessages(['evidence' => 'Photo evidence is required for a damaged or non-serviceable asset.']);
         }
         DB::transaction(function () use ($item, $inspection, $data, $request, $evidence): void {
+            $item = InspectionItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
+            abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
             $condition = match ($data['result']) {
                 'GOOD' => 'GOOD', 'NEEDS_ATTENTION' => 'FAIR', 'MISSING' => 'UNUSABLE', default => 'NEEDS_REPAIR'
             };
@@ -200,5 +217,26 @@ class RoutineOperationsController extends Controller
         if (! $request->user()->can('inspections.view_all')) {
             abort_unless(app(RoutineTaskAccessService::class)->assignedToInspection($run, $request->user()), 403);
         }
+    }
+
+    private function appendInspectionAccess(InspectableAsset $asset, Request $request, RoutineTaskAccessService $access): void
+    {
+        $items = $asset->inspectionItems()->where('status', '!=', 'INSPECTED')
+            ->whereHas('run', fn ($runs) => $runs->whereIn('status', ['OPEN', 'IN_PROGRESS']))
+            ->with(['run.template', 'run.occurrence', 'activeAssignees'])->get()->sortBy(fn ($item) => $item->run->occurrence->due_at);
+        $current = $items->first(fn ($item) => $access->assignedToInspectionItem($item, $request->user())) ?: $items->first();
+        $asset->setAttribute('is_assigned_inspector', $current ? $access->assignedToInspectionItem($current, $request->user()) : false);
+        $asset->setAttribute('can_inspect', $current ? $access->canPerformInspectionItem($current, $request->user()) : false);
+        $asset->setAttribute('current_inspection_item', $current);
+        $asset->setAttribute('inspection_due', $current ? $current->run->occurrence->due_at->isPast() || $current->run->occurrence->expected_date->isToday() : false);
+        $asset->setAttribute('available_inspections', $items->map(fn ($item) => [
+            'id' => $item->id,
+            'inspection_run_id' => $item->inspection_run_id,
+            'title' => $item->run->template->title,
+            'period_key' => $item->run->period_key,
+            'due_at' => $item->run->occurrence->due_at,
+            'is_assigned_inspector' => $access->assignedToInspectionItem($item, $request->user()),
+            'can_inspect' => $access->canPerformInspectionItem($item, $request->user()),
+        ])->values());
     }
 }

@@ -75,10 +75,13 @@ Routine operations use explicit Spatie permissions and server-side scope checks:
 
 - `routine_tasks.view`, `routine_tasks.perform`: view and update only occurrences whose template has a current active assignment to the authenticated user's active, approved FMO personnel profile. Occurrence assignee snapshots are audit history and do not grant current access after reassignment.
 - `routine_tasks.view_all`, `routine_tasks.manage`, `routine_tasks.assign`: management visibility, template schedules, and team assignment.
-- `assets.view`, `assets.manage`: registry visibility and maintenance.
-- `inspections.view`, `inspections.perform`: assigned inspection access and item recording.
-- `inspections.view_all`: management inspection oversight.
+- `assets.view`, `assets.manage`: registry visibility and registry administration.
+- `assets.maintain`: record repair work only when the user's active personnel profile is also assigned to the repair action.
+- `assets.assign_maintenance`: select or replace the active repair team while retaining assignment history.
+- `inspections.view`, `inspections.perform`: assigned inspection visibility and item recording. Recording additionally requires `assets.inspect` and an active assignment on the exact unfinished item.
+- `inspections.view_all`: management inspection oversight; this never grants perform authority by itself.
+- `inspections.assign`: change the future template team, all unfinished items in a current run, or one unfinished item. Completed items remain immutable.
 - `reports.view_routine_operations`: routine and inspection history reporting.
 
-FMO Staff receive assigned routine/inspection access. List queries and direct record authorization use the same active-template-assignment rule, including inspection runs and API endpoints. FMO Dispatcher receives operational oversight and assignment capabilities. FMO Head and System Administrator receive the complete management set. Protected evidence repeats the occurrence/run scope check at file-serving time.
+FMO Staff receive assigned routine/inspection access. For inspections, list queries, details, QR actions, API responses, mutations, and protected item evidence all use the same active item-assignment rule. Template membership alone does not grant access to a generated run, and current-run assignment does not rewrite the template. FMO Dispatcher receives operational oversight and inspection-assignment capability but does not gain inspection performance unless separately granted the required capabilities and assigned to an item. FMO Head and System Administrator receive the complete management set. Campus Director has inspection oversight/assignment according to the seeded catalog, but management roles still cannot perform unassigned items.
 

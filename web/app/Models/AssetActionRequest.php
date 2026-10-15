@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
@@ -48,5 +49,18 @@ class AssetActionRequest extends Model
     public function attachments(): MorphMany
     {
         return $this->morphMany(OperationalAttachment::class, 'attachable');
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(AssetActionAssignment::class);
+    }
+
+    public function activeAssignees(): BelongsToMany
+    {
+        return $this->belongsToMany(FmoPersonnel::class, 'asset_action_assignments')
+            ->wherePivotNull('unassigned_at')
+            ->withPivot(['id', 'assigned_at', 'assigned_by', 'change_reason'])
+            ->withTimestamps();
     }
 }

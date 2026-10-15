@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Models\FmoPersonnel;
+use App\Models\InspectionItem;
 use App\Models\InspectionRun;
 use App\Models\RoutineTaskOccurrence;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 class RoutineTaskAccessService
 {
@@ -22,9 +24,14 @@ class RoutineTaskAccessService
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->whereHas('template.assignments', fn (Builder $assignment) => $assignment
-            ->where('fmo_personnel_id', $personnel->id)
-            ->whereNull('unassigned_at'));
+        return $query->where(function (Builder $scope) use ($personnel): void {
+            $scope->whereHas('inspectionRun.items.assignments', fn (Builder $assignment) => $assignment
+                ->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at'))
+                ->orWhere(function (Builder $general) use ($personnel): void {
+                    $general->whereDoesntHave('inspectionRun')->whereHas('template.assignments', fn (Builder $assignment) => $assignment
+                        ->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at'));
+                });
+        });
     }
 
     public function assignedTo(RoutineTaskOccurrence $occurrence, User $user): bool
@@ -34,9 +41,13 @@ class RoutineTaskAccessService
             return false;
         }
 
+        if ($occurrence->inspectionRun()->exists()) {
+            return $occurrence->inspectionRun()->whereHas('items.assignments', fn (Builder $assignment) => $assignment
+                ->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at'))->exists();
+        }
+
         return $occurrence->template()->whereHas('assignments', fn (Builder $assignment) => $assignment
-            ->where('fmo_personnel_id', $personnel->id)
-            ->whereNull('unassigned_at'))->exists();
+            ->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at'))->exists();
     }
 
     /** @param Builder<InspectionRun> $query @return Builder<InspectionRun> */
@@ -51,9 +62,8 @@ class RoutineTaskAccessService
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->whereHas('occurrence.template.assignments', fn (Builder $assignment) => $assignment
-            ->where('fmo_personnel_id', $personnel->id)
-            ->whereNull('unassigned_at'));
+        return $query->whereHas('items.assignments', fn (Builder $assignment) => $assignment
+            ->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at'));
     }
 
     public function assignedToInspection(InspectionRun $run, User $user): bool
@@ -63,12 +73,45 @@ class RoutineTaskAccessService
             return false;
         }
 
-        return $run->occurrence()->whereHas('template.assignments', fn (Builder $assignment) => $assignment
-            ->where('fmo_personnel_id', $personnel->id)
-            ->whereNull('unassigned_at'))->exists();
+        return $run->items()->whereHas('assignments', fn (Builder $assignment) => $assignment
+            ->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at'))->exists();
     }
 
-    private function activePersonnel(User $user): ?FmoPersonnel
+    /** @return Builder<InspectionItem>|\Illuminate\Database\Eloquent\Relations\Relation<InspectionItem, *, *> */
+    public function scopeInspectionItems(Builder|Relation $query, User $user): Builder|Relation
+    {
+        $personnel = $this->activePersonnel($user);
+        if (! $personnel) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereHas('assignments', fn (Builder $assignment) => $assignment
+            ->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at'));
+    }
+
+    public function assignedToInspectionItem(InspectionItem $item, User $user): bool
+    {
+        $personnel = $this->activePersonnel($user);
+        if (! $personnel) {
+            return false;
+        }
+
+        if ($item->relationLoaded('activeAssignees')) {
+            return $item->activeAssignees->contains('id', $personnel->id);
+        }
+
+        return $item->assignments()->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at')->exists();
+    }
+
+    public function canPerformInspectionItem(InspectionItem $item, User $user): bool
+    {
+        return $user->can('assets.inspect')
+            && $user->can('inspections.perform')
+            && $this->assignedToInspectionItem($item, $user)
+            && $item->status !== 'INSPECTED';
+    }
+
+    public function activePersonnel(User $user): ?FmoPersonnel
     {
         $personnel = $user->personnelProfile()->with('user')->first();
 

@@ -15,3 +15,15 @@ For a continuation requiring evidence, a photo on a current-session `PROGRESS` o
 An operation ID is immutable. Re-send identical type/payload/target with the same ID after an uncertain network response; do not generate a new one. Reusing it with different content returns 409. Media retries must use the same bytes and ID. Once a media upload is accepted, the original attachment ID is returned on retry. The server's `processed_client_operations` table stores only compact result JSON and request fingerprint, not uploaded file bytes.
 
 The new routes do not change existing Phase 1–9 API routes. The bootstrap includes only task-related team summaries, not the personnel directory or unrelated Work Orders.
+
+## Routine inspection authorization contract
+
+The existing routine-operation endpoints now enforce per-item inspection scope:
+
+- Inspection collections and run details return only actively assigned items for ordinary staff; management-wide viewers may receive all items.
+- Inspectable-asset and QR responses include `is_assigned_inspector`, `can_inspect`, `current_inspection_item`, `inspection_due`, and `available_inspections` where applicable. Several open schedules for one asset are returned as separate options.
+- Recording an item requires `assets.inspect`, `inspections.perform`, an active assignment to that exact item, and an unfinished item status. The same rule applies to web and API requests, and is rechecked inside the write transaction.
+- QR tokens identify assets but never grant authority. An authenticated, unassigned user can receive the safe asset overview while mutation remains forbidden.
+- Inspection assignment and repair assignment are independent. Repair recording requires `assets.maintain` plus an active repair-action assignment.
+
+These response additions prepare a later Flutter update; no Flutter screens, offline inspection mutation queue, or camera workflow are included in this web delivery.

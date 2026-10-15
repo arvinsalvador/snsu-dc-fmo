@@ -4,7 +4,7 @@ Asset action requests preserve who requested review, the originating inspection 
 
 ## Repair
 
-Staff with `assets.request_repair` may submit a repair review from an inspection or asset page. Users with `assets.review_repair` may mark it **Repairable — Approve for Repair**, **Not Repairable**, return it for more information, or reject it. Approval moves the asset to `UNDER_REPAIR`. Repair personnel with `assets.maintain` record work performed, textual parts/materials, result, remarks, and required photo evidence.
+Staff with `assets.request_repair` may submit a repair review from an inspection or asset page. Users with `assets.review_repair` may mark it **Repairable — Approve for Repair**, **Not Repairable**, return it for more information, or reject it. Approval moves the asset to `UNDER_REPAIR`. Repair recording is a separate responsibility from inspection: a person needs both `assets.maintain` and an active assignment to that repair action. Users with `assets.assign_maintenance` can replace the repair team; ended rows retain the actor, timestamp, and reason.
 
 - Repaired/serviceable → condition `GOOD`, lifecycle `ACTIVE`.
 - Partially repaired → condition `NEEDS_REPAIR`, lifecycle remains `UNDER_REPAIR`.
@@ -16,9 +16,9 @@ Staff with `assets.request_disposal` may recommend disposal but cannot approve o
 
 ## Notifications and permissions
 
-Repair requests notify all users with `assets.review_repair`; disposal requests notify all users with `assets.approve_disposal`. Defaults grant those review capabilities to FMO Head, Campus Director, and System Administrator. Decisions notify the original requester once per event/request. No user IDs are hard-coded.
+Repair requests notify all users with `assets.review_repair`; disposal requests notify all users with `assets.approve_disposal`. Repair assignment updates notify added and removed personnel. Defaults grant review capabilities to FMO Head, Campus Director, and System Administrator. Decisions notify the original requester once per event/request. No user IDs are hard-coded.
 
-Core capabilities are `assets.view`, `assets.view_all`, `assets.manage`, `assets.inspect`, `assets.maintain`, `assets.request_repair`, `assets.review_repair`, `assets.request_disposal`, `assets.approve_disposal`, `assets.mark_disposed`, `assets.generate_qr`, and `asset_types.manage`.
+Core capabilities are `assets.view`, `assets.view_all`, `assets.manage`, `assets.inspect`, `assets.maintain`, `assets.assign_maintenance`, `assets.request_repair`, `assets.review_repair`, `assets.request_disposal`, `assets.approve_disposal`, `assets.mark_disposed`, `assets.generate_qr`, and `asset_types.manage`.
 
 ## Lifecycle
 

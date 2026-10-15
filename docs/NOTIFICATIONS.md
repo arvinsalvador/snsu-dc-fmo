@@ -21,3 +21,7 @@ Notification types are centralized in `WorkflowNotificationService`. Authoritati
 | Registration approved | Approved applicant |
 
 Management and oversight recipients are chosen by effective permissions, not merely by role names. Low-level progress updates do not generate notifications. Notification links still require normal Work Order authorization; a removed assignee's notice opens the scoped historical print record. The mobile app can retrieve its own notifications through the authenticated API; no FCM/push or separate offline notification queue is provided in Phase 11. Native Flutter retrieval UI remains unverified until the Flutter SDK is available. A future phase may add configurable preferences, push, and explicit retention after defining operational policy.
+
+## Routine inspection and repair notices
+
+The routine generator groups inspection due/overdue notices by run and personnel, reporting the number of unfinished assigned assets instead of emitting one notification per asset. Run- or item-level reassignment sends one summary to each affected person, including removal notices. Repair assignment changes use the same added/removed pattern. These notices do not broaden access: following a notification still passes the current permission and active-assignment checks.

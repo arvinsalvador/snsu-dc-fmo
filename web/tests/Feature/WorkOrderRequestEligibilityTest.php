@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class WorkOrderRequestEligibilityTest extends TestCase
@@ -162,13 +163,13 @@ class WorkOrderRequestEligibilityTest extends TestCase
         $user = $this->user('FMO Staff');
         $user->givePermissionTo('work_orders.create');
         foreach (['FMO Head', 'FMO Dispatcher', 'FMO Staff'] as $role) {
-            \Spatie\Permission\Models\Role::findByName($role, 'web')->givePermissionTo('work_orders.create');
+            Role::findByName($role, 'web')->givePermissionTo('work_orders.create');
         }
 
         $this->seed(AuthorizationSeeder::class);
 
         foreach (['FMO Head', 'FMO Dispatcher', 'FMO Staff'] as $role) {
-            $this->assertFalse(\Spatie\Permission\Models\Role::findByName($role, 'web')->hasPermissionTo('work_orders.create'));
+            $this->assertFalse(Role::findByName($role, 'web')->hasPermissionTo('work_orders.create'));
         }
         $this->assertTrue($user->fresh()->hasDirectPermission('work_orders.create'));
         $this->actingAs($user)->get('/work-orders/create')->assertForbidden();

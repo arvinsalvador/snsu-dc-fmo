@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Enums\WorkOrderStatus;
 use App\Models\Building;
+use App\Models\BuildingLocation;
 use App\Models\Campus;
+use App\Models\Floor;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderCategory;
@@ -121,13 +123,13 @@ class WorkOrderRequestTest extends TestCase
     {
         $requester = $this->user();
         $context = $this->context();
-        $floor = \App\Models\Floor::create(['building_id' => $context['building']->id, 'name' => 'Ground Floor', 'is_active' => true]);
-        $area = \App\Models\BuildingLocation::create(['building_id' => $context['building']->id, 'floor_id' => $floor->id, 'type' => 'LABORATORY', 'name' => 'Computer Laboratory', 'is_active' => true]);
-        $buildingLevel = \App\Models\BuildingLocation::create(['building_id' => $context['building']->id, 'type' => 'HALLWAY', 'name' => 'Main Hallway', 'is_active' => true]);
+        $floor = Floor::create(['building_id' => $context['building']->id, 'name' => 'Ground Floor', 'is_active' => true]);
+        $area = BuildingLocation::create(['building_id' => $context['building']->id, 'floor_id' => $floor->id, 'type' => 'LABORATORY', 'name' => 'Computer Laboratory', 'is_active' => true]);
+        $buildingLevel = BuildingLocation::create(['building_id' => $context['building']->id, 'type' => 'HALLWAY', 'name' => 'Main Hallway', 'is_active' => true]);
         $otherCampus = Campus::create(['code' => 'OT', 'name' => 'Other', 'is_active' => true]);
         $otherBuilding = Building::create(['campus_id' => $otherCampus->id, 'name' => 'Other Building', 'is_active' => true]);
-        $otherFloor = \App\Models\Floor::create(['building_id' => $otherBuilding->id, 'name' => 'Other Floor', 'is_active' => true]);
-        $otherArea = \App\Models\BuildingLocation::create(['building_id' => $otherBuilding->id, 'floor_id' => $otherFloor->id, 'type' => 'ROOM', 'name' => 'Other Room', 'is_active' => true]);
+        $otherFloor = Floor::create(['building_id' => $otherBuilding->id, 'name' => 'Other Floor', 'is_active' => true]);
+        $otherArea = BuildingLocation::create(['building_id' => $otherBuilding->id, 'floor_id' => $otherFloor->id, 'type' => 'ROOM', 'name' => 'Other Room', 'is_active' => true]);
 
         $this->actingAs($requester)->post('/work-orders', $this->payload($context, ['subject' => 'Building wide']))->assertRedirect();
         $this->actingAs($requester)->post('/work-orders', $this->payload($context, ['subject' => 'Floor wide', 'floor_id' => $floor->id]))->assertRedirect();

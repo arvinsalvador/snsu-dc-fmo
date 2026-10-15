@@ -16,7 +16,8 @@ class RoutineTaskTemplate extends Model
 
     protected $fillable = [
         'title', 'description', 'task_type', 'frequency', 'recurrence_config', 'campus_id', 'building_id',
-        'floor_id', 'building_location_id', 'exact_placement', 'asset_type_id', 'guided_description_profile_id',
+        'floor_id', 'building_location_id', 'exact_placement', 'asset_type_id', 'inspection_asset_scope',
+        'customize_asset_assignments', 'guided_description_profile_id',
         'start_date', 'end_date', 'due_time', 'evidence_required', 'requires_review', 'assignment_note', 'is_active', 'created_by',
     ];
 
@@ -26,6 +27,7 @@ class RoutineTaskTemplate extends Model
             'task_type' => RoutineTaskType::class, 'frequency' => RoutineFrequency::class,
             'recurrence_config' => 'array', 'start_date' => 'date', 'end_date' => 'date',
             'evidence_required' => 'boolean', 'requires_review' => 'boolean', 'is_active' => 'boolean',
+            'customize_asset_assignments' => 'boolean',
         ];
     }
 
@@ -78,5 +80,15 @@ class RoutineTaskTemplate extends Model
     {
         return $this->belongsToMany(FmoPersonnel::class, 'routine_task_template_assignments')
             ->wherePivotNull('unassigned_at')->withPivot(['id', 'assigned_at', 'assigned_by'])->withTimestamps();
+    }
+
+    public function selectedAssets(): BelongsToMany
+    {
+        return $this->belongsToMany(InspectableAsset::class, 'routine_task_template_assets')->withTimestamps();
+    }
+
+    public function assetAssignmentOverrides(): HasMany
+    {
+        return $this->hasMany(InspectionTemplateAssetAssignment::class, 'routine_task_template_id');
     }
 }

@@ -20,11 +20,9 @@ class AssetInspectionController extends Controller
         abort_unless($request->user()->can('assets.inspect'), 403);
         abort_if(in_array($asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422, 'Disposed or retired assets are read-only.');
         $asset->load(['assetType', 'building', 'floor', 'location']);
-        $item = null;
-        if ($request->filled('item')) {
-            $item = InspectionItem::with('run')->whereKey($request->string('item'))->where('inspectable_asset_id', $asset->id)->firstOrFail();
-            abort_unless($request->user()->can('inspections.view_all') || $access->assignedToInspection($item->run, $request->user()), 403);
-        }
+        abort_unless($request->filled('item'), 403, 'Choose an assigned inspection before inspecting this asset.');
+        $item = InspectionItem::with('run')->whereKey($request->string('item'))->where('inspectable_asset_id', $asset->id)->firstOrFail();
+        abort_unless($access->canPerformInspectionItem($item, $request->user()), 403);
 
         return view('routine-operations.assets.inspect', compact('asset', 'item'));
     }
@@ -35,7 +33,7 @@ class AssetInspectionController extends Controller
         abort_if(in_array($asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422, 'Disposed or retired assets are read-only.');
         $asset->load('assetType');
         $data = $request->validate([
-            'inspection_item_id' => ['nullable', 'exists:inspection_items,id'],
+            'inspection_item_id' => ['required', 'exists:inspection_items,id'],
             'condition' => ['required', Rule::in(['PRISTINE', 'GOOD', 'FAIR', 'NEEDS_REPAIR', 'DAMAGED', 'BROKEN', 'UNUSABLE'])],
             'checklist' => ['required', 'array'], 'checklist.*' => ['required', Rule::in(['YES', 'NO', 'NOT_APPLICABLE'])],
             'summary' => ['required', 'string', 'max:5000'], 'remarks' => ['nullable', 'string', 'max:5000'],
@@ -43,7 +41,9 @@ class AssetInspectionController extends Controller
             'evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
             'location_evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'location_evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
         ]);
-        $expected = collect($asset->assetType->checklist)->pluck('code');
+        $item = InspectionItem::with('run')->whereKey($data['inspection_item_id'])->where('inspectable_asset_id', $asset->id)->firstOrFail();
+        abort_unless($access->canPerformInspectionItem($item, $request->user()), 403);
+        $expected = collect($item->checklist_snapshot ?: $asset->assetType->checklist)->pluck('code');
         if ($expected->diff(array_keys($data['checklist']))->isNotEmpty()) {
             throw ValidationException::withMessages(['checklist' => 'Complete every checklist item.']);
         }
@@ -54,18 +54,15 @@ class AssetInspectionController extends Controller
             $permission = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'assets.request_repair' : 'assets.request_disposal';
             abort_unless($request->user()->can($permission), 403);
         }
-        $item = null;
-        if ($data['inspection_item_id'] ?? null) {
-            $item = InspectionItem::with('run')->whereKey($data['inspection_item_id'])->where('inspectable_asset_id', $asset->id)->firstOrFail();
-            abort_unless($request->user()->can('inspections.view_all') || $access->assignedToInspection($item->run, $request->user()), 403);
-            abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
-        }
+        abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
         DB::transaction(function () use (&$item, $asset, $data, $request, $evidence, $lifecycle): void {
+            $item = InspectionItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
+            abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
             $attributes = ['status' => 'INSPECTED', 'inspector_personnel_id' => $request->user()->personnelProfile?->id,
                 'inspector_user_id' => $request->user()->id, 'inspected_at' => now(), 'result' => $data['condition'],
                 'condition' => $data['condition'], 'recommended_action' => $data['recommended_action'], 'checklist_results' => $data['checklist'],
                 'generated_summary' => $data['summary'], 'remarks' => $data['remarks'] ?? null];
-            $item ? $item->update($attributes) : $item = $asset->inspectionItems()->create($attributes);
+            $item->update($attributes);
             if (! empty($data['evidence'])) {
                 $evidence->attach($item, $data['evidence'], $request->user()->id, 'INSPECTION_EVIDENCE');
             }

@@ -8,10 +8,13 @@ use App\Models\Building;
 use App\Models\BuildingLocation;
 use App\Models\Campus;
 use App\Models\Floor;
+use App\Models\FmoPersonnel;
 use App\Models\InspectableAsset;
 use App\Services\AssetLifecycleService;
+use App\Services\AssetMaintenanceAssignmentService;
 use App\Services\AssetQrCodeService;
 use App\Services\OperationalEvidenceService;
+use App\Services\RoutineTaskAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -67,17 +70,29 @@ class AssetController extends Controller
         return redirect()->route('assets.show', $asset)->with('status', 'Inspectable asset added.');
     }
 
-    public function show(Request $request, InspectableAsset $asset, AssetQrCodeService $qr)
+    public function show(Request $request, InspectableAsset $asset, AssetQrCodeService $qr, RoutineTaskAccessService $access, AssetMaintenanceAssignmentService $maintenanceAssignments)
     {
         abort_unless($request->user()->can('assets.view'), 403);
         $asset->load(['assetType', 'campus', 'building', 'floor', 'location', 'attachments.uploader',
-            'actionRequests.requester', 'actionRequests.reviewer', 'actionRequests.attachments',
+            'actionRequests.requester', 'actionRequests.reviewer', 'actionRequests.attachments', 'actionRequests.activeAssignees.user',
             'maintenanceRecords.recorder', 'maintenanceRecords.attachments', 'lifecycleEvents.actor']);
         $history = $asset->inspectionItems()->with(['run.template', 'inspector.user', 'attachments'])->where('status', 'INSPECTED')->latest('inspected_at')->paginate(15);
         $pendingAction = $asset->actionRequests->where('status', 'PENDING')->sortByDesc('requested_at')->first();
         $qrSvg = $qr->svg($asset);
+        $assignedInspectionItems = collect();
+        if ($request->user()->can('assets.inspect') && $request->user()->can('inspections.perform')) {
+            $query = $asset->inspectionItems()->with(['run.template', 'run.occurrence'])->where('status', '!=', 'INSPECTED')
+                ->whereHas('run', fn ($run) => $run->whereIn('status', ['OPEN', 'IN_PROGRESS']));
+            $access->scopeInspectionItems($query, $request->user());
+            $assignedInspectionItems = $query->get();
+        }
+        $repairAction = $asset->actionRequests->whereIn('decision', ['APPROVE_REPAIR', 'SEND_FOR_REPAIR'])->sortByDesc('reviewed_at')->first();
+        $canMaintainAsset = $request->user()->can('assets.maintain') && $maintenanceAssignments->assignedToRepair($asset, $request->user());
+        $maintenancePersonnel = $request->user()->can('assets.assign_maintenance')
+            ? FmoPersonnel::with(['user', 'skills'])->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->orderBy('personnel_identifier')->get()
+            : collect();
 
-        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction', 'qrSvg'));
+        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction', 'qrSvg', 'assignedInspectionItems', 'repairAction', 'canMaintainAsset', 'maintenancePersonnel'));
     }
 
     public function edit(Request $request, InspectableAsset $asset)

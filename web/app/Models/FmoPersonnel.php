@@ -58,4 +58,14 @@ class FmoPersonnel extends Model
     {
         return $this->hasMany(RoutineTaskTemplateAssignment::class);
     }
+
+    public function inspectionItemAssignments(): HasMany
+    {
+        return $this->hasMany(InspectionItemAssignment::class);
+    }
+
+    public function assetActionAssignments(): HasMany
+    {
+        return $this->hasMany(AssetActionAssignment::class);
+    }
 }

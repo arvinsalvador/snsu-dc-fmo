@@ -10,7 +10,12 @@ use App\Models\Campus;
 use App\Models\Floor;
 use App\Models\FmoPersonnel;
 use App\Models\InspectableAsset;
+use App\Models\InspectionItem;
+use App\Models\RoutineTaskTemplate;
+use App\Models\RoutineTaskTemplateAssignment;
 use App\Models\User;
+use App\Services\RoutineOccurrenceService;
+use Carbon\CarbonImmutable;
 use Database\Seeders\AuthorizationSeeder;
 use Database\Seeders\RoutineOperationsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -82,7 +87,7 @@ class AssetLifecycleTest extends TestCase
             Storage::disk('local')->assertExists($photo->thumbnail_path);
             $this->actingAs($this->staff)->get(route('routine-evidence.show', [$photo, 'thumbnail']))->assertOk();
         }
-        $this->actingAs($this->staff)->get(route('assets.scan', $asset->qr_token))->assertOk()->assertSee('FE-DC-001')->assertSee('Inspect Asset');
+        $this->actingAs($this->staff)->get(route('assets.scan', $asset->qr_token))->assertOk()->assertSee('FE-DC-001')->assertSee('No current inspection');
         $this->actingAs($this->user('Requester'))->get(route('assets.scan', $asset->qr_token))->assertForbidden();
         $oldToken = $asset->qr_token;
         $this->actingAs($this->head)->get(route('assets.show', $asset))->assertOk()
@@ -106,8 +111,10 @@ class AssetLifecycleTest extends TestCase
     {
         Storage::fake('local');
         $asset = $this->asset();
+        $item = $this->inspectionItem($asset);
         $checklist = collect($this->type->checklist)->mapWithKeys(fn ($check) => [$check['code'] => 'YES'])->all();
         $this->actingAs($this->staff)->post(route('assets.inspections.store', $asset), [
+            'inspection_item_id' => $item->id,
             'condition' => 'NEEDS_REPAIR', 'checklist' => $checklist, 'summary' => 'Pressure gauge is outside the normal range.',
             'recommended_action' => 'REPAIR_REVIEW', 'evidence' => [UploadedFile::fake()->image('gauge.jpg', 1200, 900)],
         ])->assertRedirect(route('assets.show', $asset));
@@ -122,6 +129,7 @@ class AssetLifecycleTest extends TestCase
         $this->actingAs($this->head)->post(route('assets.actions.review', $repair), ['decision' => 'APPROVE_REPAIR'])->assertRedirect();
         $this->assertSame('UNDER_REPAIR', $asset->fresh()->lifecycle_status->value);
         $this->assertSame('ASSET_REPAIR_APPROVED', $this->staff->notifications()->firstOrFail()->data['event_key']);
+        $this->actingAs($this->head)->post(route('assets.actions.assign-maintenance', $repair), ['assignee_ids' => [$this->staff->personnelProfile->id]])->assertRedirect();
         $this->actingAs($this->staff)->post(route('assets.maintenance.store', $asset), [
             'work_performed' => 'Replaced the faulty gauge and tested pressure.', 'parts_materials' => 'Replacement gauge',
             'result' => 'REPAIRED_SERVICEABLE', 'evidence' => [UploadedFile::fake()->image('repaired.jpg', 1200, 900)],
@@ -179,5 +187,24 @@ class AssetLifecycleTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    private function inspectionItem(InspectableAsset $asset): InspectionItem
+    {
+        $template = RoutineTaskTemplate::create([
+            'title' => 'Daily asset inspection', 'task_type' => 'INSPECTION', 'frequency' => 'DAILY',
+            'recurrence_config' => [], 'campus_id' => $this->campus->id, 'building_id' => $this->building->id,
+            'asset_type_id' => $this->type->id, 'inspection_asset_scope' => 'TYPE_LOCATION',
+            'start_date' => now()->toDateString(), 'due_time' => '17:00', 'evidence_required' => false,
+            'requires_review' => false, 'is_active' => true, 'created_by' => $this->head->id,
+        ]);
+        RoutineTaskTemplateAssignment::create([
+            'routine_task_template_id' => $template->id, 'fmo_personnel_id' => $this->staff->personnelProfile->id,
+            'assigned_by' => $this->head->id, 'assigned_at' => now(), 'active_marker' => 1,
+        ]);
+        $today = CarbonImmutable::today(config('app.timezone'));
+        app(RoutineOccurrenceService::class)->generate($today, $today);
+
+        return $template->occurrences()->firstOrFail()->inspectionRun->items()->where('inspectable_asset_id', $asset->id)->firstOrFail();
     }
 }

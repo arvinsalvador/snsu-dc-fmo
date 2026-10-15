@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 
 class RoutineOccurrenceService
 {
+    public function __construct(private readonly InspectionAssignmentService $inspectionAssignments) {}
+
     public function generate(CarbonImmutable $from, CarbonImmutable $to): int
     {
         $timezone = config('app.timezone', 'Asia/Manila');
@@ -94,11 +96,29 @@ class RoutineOccurrenceService
             'routine_task_occurrence_id' => $occurrence->id, 'routine_task_template_id' => $template->id,
             'period_key' => $occurrence->period_key, 'status' => 'OPEN',
         ]);
-        $assets = InspectableAsset::query()->where('asset_type_id', $template->asset_type_id)->where('lifecycle_status', AssetLifecycleStatus::Active->value)
-            ->where('campus_id', $template->campus_id)
-            ->when($template->building_id, fn ($q) => $q->where('building_id', $template->building_id))
-            ->when($template->floor_id, fn ($q) => $q->where('floor_id', $template->floor_id))
-            ->when($template->building_location_id, fn ($q) => $q->where('building_location_id', $template->building_location_id))->pluck('id');
-        $run->items()->createMany($assets->map(fn (string $id): array => ['inspectable_asset_id' => $id])->all());
+        $assets = InspectableAsset::with(['assetType', 'campus', 'building', 'floor', 'location'])
+            ->where('asset_type_id', $template->asset_type_id)
+            ->where('lifecycle_status', AssetLifecycleStatus::Active->value)
+            ->when($template->inspection_asset_scope === 'SPECIFIC', fn ($query) => $query->whereIn('id', $template->selectedAssets()->select('inspectable_assets.id')))
+            ->when($template->inspection_asset_scope === 'TYPE_LOCATION', fn ($query) => $query
+                ->where('campus_id', $template->campus_id)
+                ->when($template->building_id, fn ($q) => $q->where('building_id', $template->building_id))
+                ->when($template->floor_id, fn ($q) => $q->where('floor_id', $template->floor_id))
+                ->when($template->building_location_id, fn ($q) => $q->where('building_location_id', $template->building_location_id)))
+            ->orderBy('asset_code')->get();
+        $items = $run->items()->createMany($assets->map(fn (InspectableAsset $asset): array => [
+            'inspectable_asset_id' => $asset->id,
+            'checklist_snapshot' => $asset->assetType->checklist,
+            'asset_context' => [
+                'asset_code' => $asset->asset_code,
+                'asset_type' => $asset->assetType->name,
+                'campus' => $asset->campus?->name,
+                'building' => $asset->building?->name,
+                'floor' => $asset->floor?->name,
+                'location' => $asset->location?->name,
+                'exact_placement' => $asset->exact_placement,
+            ],
+        ])->all());
+        $this->inspectionAssignments->snapshot($template, $run, $items);
     }
 }

@@ -454,6 +454,100 @@ export function initializeAssetQrModal() {
     });
 }
 
+export function initializeInspectionTemplateForm(form) {
+    const taskType = form.querySelector('[data-template-task-type]');
+    const inspectionConfig = form.querySelector('[data-inspection-config]');
+    const assetType = form.querySelector('[data-inspection-asset-type]');
+    const scopeInputs = [...form.querySelectorAll('input[name="inspection_asset_scope"]')];
+    const locationScope = form.querySelector('[data-location-scope]');
+    const specificAssets = form.querySelector('[data-specific-assets]');
+    const assetCards = [...form.querySelectorAll('[data-template-asset]')];
+    const assetOverrides = form.querySelector('[data-asset-overrides]');
+    const overrideList = form.querySelector('[data-asset-override-list]');
+    const overrideCards = [...form.querySelectorAll('[data-asset-override]')];
+    const customize = form.querySelector('[data-customize-assets]');
+    const generalGuidance = form.querySelector('[data-general-guidance]');
+    const search = form.querySelector('[data-asset-search]');
+    const noAssets = form.querySelector('[data-no-assets]');
+    const locationFields = ['campus', 'building', 'floor', 'location'].map(id => form.querySelector(`#${id}`));
+
+    const toggleSection = (section, visible) => {
+        section?.classList.toggle('hidden', !visible);
+        section?.querySelectorAll('input, select, textarea').forEach(field => { field.disabled = !visible; });
+    };
+    const selectedScope = () => scopeInputs.find(input => input.checked)?.value || 'TYPE_LOCATION';
+    const selectedAssetIds = () => new Set(assetCards.filter(card => card.querySelector('input[type="checkbox"]')?.checked).map(card => card.dataset.assetId));
+    const locationMatches = card => {
+        const [campus, building, floor, area] = locationFields.map(field => field?.value || '');
+        return (!campus || card.dataset.campus === campus)
+            && (!building || card.dataset.building === building)
+            && (!floor || card.dataset.floor === floor)
+            && (!area || card.dataset.area === area);
+    };
+    const assetMatchesScope = card => {
+        if (!assetType?.value || card.dataset.type !== assetType.value) return false;
+        if (selectedScope() === 'SPECIFIC') return selectedAssetIds().has(card.dataset.assetId);
+        if (selectedScope() === 'TYPE_LOCATION') return locationMatches(card);
+        return true;
+    };
+    const updateAssetCards = () => {
+        const query = search?.value.trim().toLowerCase() || '';
+        let visible = 0;
+        assetCards.forEach(card => {
+            const matches = Boolean(assetType?.value) && card.dataset.type === assetType.value && (!query || card.dataset.search.includes(query));
+            card.classList.toggle('hidden', !matches);
+            card.querySelectorAll('input').forEach(input => { input.disabled = !matches || selectedScope() !== 'SPECIFIC'; });
+            if (matches) visible += 1;
+        });
+        noAssets?.classList.toggle('hidden', visible !== 0);
+    };
+    const updateOverrides = () => {
+        const showList = taskType.value === 'INSPECTION' && customize?.checked;
+        overrideList?.classList.toggle('hidden', !showList);
+        overrideCards.forEach(card => {
+            const visible = showList && assetMatchesScope(card);
+            card.classList.toggle('hidden', !visible);
+            card.querySelectorAll('input').forEach(input => { input.disabled = !visible; });
+        });
+    };
+    const update = () => {
+        const inspection = taskType.value === 'INSPECTION';
+        const scope = selectedScope();
+        toggleSection(inspectionConfig, inspection);
+        toggleSection(generalGuidance, !inspection);
+        toggleSection(locationScope, !inspection || scope === 'TYPE_LOCATION');
+        if (!locationScope.classList.contains('hidden')) {
+            const [campus, building, floor, area] = locationFields;
+            campus.disabled = false;
+            building.disabled = !campus.value || building.options.length <= 1;
+            floor.disabled = !building.value || floor.options.length <= 1;
+            area.disabled = !building.value || area.options.length <= 1;
+        }
+        toggleSection(specificAssets, inspection && scope === 'SPECIFIC');
+        toggleSection(assetOverrides, inspection);
+        if (inspection && scope === 'TYPE_LOCATION') {
+            form.querySelector('#campus')?.setAttribute('required', 'required');
+        } else {
+            form.querySelector('#campus')?.removeAttribute('required');
+        }
+        updateAssetCards();
+        updateOverrides();
+    };
+
+    taskType.addEventListener('change', update);
+    assetType?.addEventListener('change', update);
+    scopeInputs.forEach(input => input.addEventListener('change', update));
+    locationFields.forEach(field => field?.addEventListener('change', () => window.setTimeout(updateOverrides, 0)));
+    assetCards.forEach(card => card.querySelector('input[type="checkbox"]')?.addEventListener('change', updateOverrides));
+    customize?.addEventListener('change', updateOverrides);
+    search?.addEventListener('input', updateAssetCards);
+    form.querySelector('[data-select-visible-assets]')?.addEventListener('click', () => {
+        assetCards.filter(card => !card.classList.contains('hidden')).forEach(card => { card.querySelector('input[type="checkbox"]').checked = true; });
+        updateOverrides();
+    });
+    update();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initializeCollapsibles();
     document.querySelectorAll('[data-work-order-location]').forEach(initializeLocationSelects);
@@ -462,6 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-work-action-guide]').forEach(initializeWorkActionGuide);
     initializeRoutineAssignmentModal();
     initializeAssetQrModal();
+    document.querySelectorAll('[data-inspection-template-form]').forEach(initializeInspectionTemplateForm);
     initializeEvidenceViewer();
     const drawer = document.querySelector('[data-sidebar]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');

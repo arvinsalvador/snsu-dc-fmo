@@ -22,7 +22,7 @@ class OperationalAttachmentController extends Controller
             abort_unless($request->user()->can('routine_tasks.view_all') || ($request->user()->can('routine_tasks.view') && $access->assignedTo($target, $request->user())), 403);
         } elseif ($target instanceof InspectionItem) {
             $allowed = $target->run
-                ? $request->user()->can('inspections.view_all') || ($request->user()->can('inspections.view') && $access->assignedToInspection($target->run, $request->user()))
+                ? $request->user()->can('inspections.view_all') || ($request->user()->can('inspections.view') && $access->assignedToInspectionItem($target, $request->user()))
                 : $request->user()->can('assets.view');
             abort_unless($allowed, 403);
         } elseif ($target instanceof InspectableAsset) {

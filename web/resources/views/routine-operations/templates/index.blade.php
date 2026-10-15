@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Recurring Tasks')
 @section('content')
-<x-page-header title="Recurring Tasks" description="Reusable schedules generate dated occurrences. Team changes take effect immediately for current task access while each occurrence keeps its original assignment snapshot for history.">
+<x-page-header title="Recurring Tasks" description="Reusable schedules generate dated occurrences. Inspection team changes apply to future periods; current inspection assignments are managed from the generated run.">
     <x-slot:action>@can('routine_tasks.manage')<a class="btn btn-primary" href="{{ route('routine-templates.create') }}"><x-icon name="plus" />New template</a>@endcan</x-slot:action>
 </x-page-header>
 
@@ -61,7 +61,7 @@
             @csrf
             <input type="hidden" name="assignment_template_id" value="{{ old('assignment_template_id') }}" data-assignment-template-id>
             <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
-                <div class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p class="font-semibold">Current access follows this team.</p><p class="mt-1">Saving changes immediately updates who can view and perform this template’s tasks. Existing occurrence assignment snapshots remain unchanged for audit history.</p></div>
+                <div class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p class="font-semibold">This is the schedule’s default team.</p><p class="mt-1">For asset inspections, changes apply to future generated periods. Existing inspection runs keep their current assignments unless they are manually reassigned from the inspection run.</p></div>
                 <label>Search personnel<input type="search" placeholder="Search by name, designation, or skill" autocomplete="off" data-assignment-search></label>
                 <fieldset><legend class="text-sm font-semibold text-slate-900">Responsible personnel</legend><p class="mt-1 text-xs text-slate-500">Select one or more active, approved FMO personnel.</p>
                     <div class="mt-3 space-y-2" data-personnel-list>

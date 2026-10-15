@@ -4,8 +4,10 @@ namespace App\Http\Controllers\RoutineOperations;
 
 use App\Http\Controllers\Controller;
 use App\Models\AssetActionRequest;
+use App\Models\FmoPersonnel;
 use App\Models\InspectableAsset;
 use App\Services\AssetLifecycleService;
+use App\Services\AssetMaintenanceAssignmentService;
 use App\Services\OperationalEvidenceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -69,11 +71,12 @@ class AssetActionController extends Controller
     public function maintain(Request $request, InspectableAsset $asset, AssetLifecycleService $lifecycle, OperationalEvidenceService $evidence)
     {
         abort_unless($request->user()->can('assets.maintain'), 403);
+        abort_unless(app(AssetMaintenanceAssignmentService::class)->assignedToRepair($asset, $request->user()), 403);
         abort_unless($asset->lifecycle_status->value === 'UNDER_REPAIR', 422, 'This asset is not currently approved for repair.');
         $data = $request->validate(['work_performed' => ['required', 'string', 'max:5000'], 'parts_materials' => ['nullable', 'string', 'max:5000'],
             'result' => ['required', Rule::in(['REPAIRED_SERVICEABLE', 'PARTIALLY_REPAIRED', 'NOT_REPAIRABLE'])], 'remarks' => ['nullable', 'string', 'max:5000'],
             'evidence' => ['required', 'array', 'min:1', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')]]);
-        $action = $asset->actionRequests()->where('type', 'REPAIR')->where('decision', 'APPROVE_REPAIR')->latest()->first();
+        $action = $asset->actionRequests()->whereIn('decision', ['APPROVE_REPAIR', 'SEND_FOR_REPAIR'])->latest('reviewed_at')->first();
         $record = null;
         DB::transaction(function () use ($asset, $action, $data, $request, $lifecycle, $evidence, &$record): void {
             $record = $asset->maintenanceRecords()->create(['asset_action_request_id' => $action?->id, 'recorded_by' => $request->user()->id, 'recorded_at' => now()] + $data);
@@ -93,6 +96,22 @@ class AssetActionController extends Controller
         }
 
         return back()->with('status', 'Repair update recorded.');
+    }
+
+    public function assignMaintenance(Request $request, AssetActionRequest $assetAction, AssetMaintenanceAssignmentService $assignments)
+    {
+        abort_unless($request->user()->can('assets.assign_maintenance'), 403);
+        abort_unless(in_array($assetAction->decision, ['APPROVE_REPAIR', 'SEND_FOR_REPAIR'], true), 422);
+        $data = $request->validate([
+            'assignee_ids' => ['required', 'array', 'min:1'],
+            'assignee_ids.*' => ['distinct', Rule::exists('fmo_personnel', 'id')->where('personnel_status', 'ACTIVE')->whereNull('archived_at')],
+            'reason' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $personnel = FmoPersonnel::with('user')->whereIn('id', $data['assignee_ids'])->get();
+        abort_unless($personnel->count() === count(array_unique($data['assignee_ids'])) && $personnel->every(fn (FmoPersonnel $person) => $person->isAssignable()), 422, 'Every repair assignee must be active and available.');
+        $assignments->replaceTeam($assetAction, $data['assignee_ids'], $request->user(), $data['reason'] ?? null);
+
+        return back()->with('status', 'Repair assignment updated.');
     }
 
     public function dispose(Request $request, InspectableAsset $asset, AssetLifecycleService $lifecycle, OperationalEvidenceService $evidence)

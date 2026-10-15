@@ -16,7 +16,9 @@ Unresolved work becomes `OVERDUE`; it is never deleted or silently skipped. The 
 
 ## Assignments and history
 
-Templates support one or many existing `FmoPersonnel` records. Template assignments are ended with `unassigned_at`, not overwritten. Each generated occurrence snapshots its assigned team for audit history, but current web/API visibility and performance authorization follow the template's active assignments (`unassigned_at IS NULL`). Reassigning a template therefore removes the former staff member's access and immediately grants the replacement access to unresolved current occurrences. The actual performer is stored independently.
+Templates support one or many existing `FmoPersonnel` records. Template assignments are ended with `unassigned_at`, not overwritten. General routine-task access follows the template's current active team. Changing that team therefore updates access to unresolved general-task occurrences while retaining the generated occurrence snapshot for audit history. The actual performer is stored independently.
+
+Inspection templates deliberately use a stricter snapshot model. They can target specific assets, all active assets of a type, or a type within a campus/building/location scope. A default team applies to all generated items, with optional per-asset overrides. Each generated item snapshots its checklist, asset context, and active assignees. Later template edits affect only future runs; managers use the run/item reassignment controls when current unfinished work must change. Reassignment ends old rows and creates new rows with actor, timestamp, and reason. Completed items are immutable.
 
 The management list loads assignees and their skills eagerly and calculates occurrence and unresolved-overdue totals with aggregate queries. Its centered Assign Team dialog supports personnel search, multi-selection, eligibility feedback, routine workload counts, and a management-only assignment note.
 
@@ -26,4 +28,4 @@ Routine evidence uses the existing `EvidenceMediaService` and `StoredFileTransac
 
 ## API and future mobile work
 
-Authenticated `/api/v1/routine-tasks`, `/api/v1/inspectable-assets`, `/api/v1/asset-types`, `/api/v1/inspection-runs`, and `/api/v1/guided-description-profiles` endpoints expose stable ULIDs, explicit statuses, assigned scope, structured action codes, and inspection links. Assigned personnel can start/resolve routine occurrences and submit item inspections through scoped API mutation routes. Offline mutation queues, device media staging, conflict handling, and Flutter screens are intentionally deferred.
+Authenticated `/api/v1/routine-tasks`, `/api/v1/inspectable-assets`, `/api/v1/asset-types`, `/api/v1/inspection-runs`, and `/api/v1/guided-description-profiles` endpoints expose stable ULIDs, explicit statuses, assigned scope, structured action codes, and inspection links. Inspection collection/detail responses are filtered to the caller's active item assignments unless the caller has management-wide visibility. Asset and QR responses expose `is_assigned_inspector`, `can_inspect`, current-item/due data, and all open inspection options. Mutations repeat the permission-plus-item-assignment check and reject completed-item resubmission. Offline mutation queues, device media staging, conflict handling, and Flutter screens are intentionally deferred.
