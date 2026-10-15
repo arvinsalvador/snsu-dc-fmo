@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\RoutineOccurrenceStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -66,5 +67,21 @@ class RoutineTaskOccurrence extends Model
     public function attachments(): MorphMany
     {
         return $this->morphMany(OperationalAttachment::class, 'attachable');
+    }
+
+    /** @param Builder<RoutineTaskOccurrence> $query */
+    public function scopeUnresolvedOverdue(Builder $query): Builder
+    {
+        return $query->where('due_at', '<', now(config('app.timezone')))
+            ->whereNotIn('status', [
+                RoutineOccurrenceStatus::Completed->value,
+                RoutineOccurrenceStatus::CompletedLate->value,
+                RoutineOccurrenceStatus::UnableToComplete->value,
+            ]);
+    }
+
+    public function requiresOverdueAttention(): bool
+    {
+        return $this->due_at->isPast() && ! $this->status->isClosed();
     }
 }

@@ -283,12 +283,117 @@ export function initializeWorkActionGuide(container) {
     show(container.dataset.initialAction || null);
 }
 
+export function initializeRoutineAssignmentModal() {
+    const modal = document.querySelector('[data-assignment-modal]');
+    if (!modal) return;
+
+    const panel = modal.querySelector('[data-assignment-panel]');
+    const form = modal.querySelector('[data-assignment-form]');
+    const title = modal.querySelector('[data-assignment-title]');
+    const meta = modal.querySelector('[data-assignment-meta]');
+    const templateId = modal.querySelector('[data-assignment-template-id]');
+    const note = modal.querySelector('[data-assignment-note]');
+    const search = modal.querySelector('[data-assignment-search]');
+    const error = modal.querySelector('[data-assignment-error]');
+    const empty = modal.querySelector('[data-personnel-empty]');
+    const cards = [...modal.querySelectorAll('[data-personnel-card]')];
+    const buttons = [...document.querySelectorAll('[data-assignment-open]')];
+    let previousFocus = null;
+
+    const selectedIds = button => {
+        try { return JSON.parse(button.dataset.assignmentIds || '[]').map(String); }
+        catch { return []; }
+    };
+    const show = (button, preserveSubmittedValues = false) => {
+        previousFocus = document.activeElement;
+        form.action = button.dataset.action;
+        templateId.value = button.dataset.templateId;
+        title.textContent = `Assign Team — ${button.dataset.title}`;
+        meta.textContent = button.dataset.meta || '';
+        if (!preserveSubmittedValues) {
+            const assigned = selectedIds(button);
+            cards.forEach(card => {
+                const checkbox = card.querySelector('input[type="checkbox"]');
+                if (!checkbox.disabled) checkbox.checked = assigned.includes(checkbox.value);
+            });
+            note.value = button.dataset.note || '';
+            error.classList.add('hidden');
+            error.textContent = '';
+        }
+        search.value = '';
+        cards.forEach(card => card.classList.remove('hidden'));
+        empty.classList.add('hidden');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('overflow-hidden');
+        window.requestAnimationFrame(() => search.focus());
+    };
+    const close = () => {
+        if (form.dataset.saving === 'true') return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.classList.remove('overflow-hidden');
+        previousFocus?.focus();
+    };
+
+    buttons.forEach(button => button.addEventListener('click', () => show(button)));
+    modal.querySelectorAll('[data-assignment-close]').forEach(button => button.addEventListener('click', close));
+    search.addEventListener('input', () => {
+        const query = search.value.trim().toLowerCase();
+        let visible = 0;
+        cards.forEach(card => {
+            const matches = !query || card.dataset.search.includes(query);
+            card.classList.toggle('hidden', !matches);
+            if (matches) visible += 1;
+        });
+        empty.classList.toggle('hidden', visible !== 0);
+    });
+    form.addEventListener('submit', event => {
+        const hasSelection = cards.some(card => {
+            const checkbox = card.querySelector('input[type="checkbox"]');
+            return !checkbox.disabled && checkbox.checked;
+        });
+        if (!hasSelection) {
+            event.preventDefault();
+            error.textContent = 'Select at least one available personnel member.';
+            error.classList.remove('hidden');
+            error.setAttribute('tabindex', '-1');
+            error.focus();
+            return;
+        }
+        form.dataset.saving = 'true';
+    });
+    document.addEventListener('keydown', event => {
+        if (modal.classList.contains('hidden')) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            close();
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const focusable = [...panel.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href]')]
+            .filter(element => !element.closest('.hidden'));
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+
+    const reopenId = modal.dataset.reopenTemplate;
+    if (reopenId && modal.dataset.serverErrors === 'true') {
+        const button = buttons.find(candidate => candidate.dataset.templateId === reopenId);
+        if (button) show(button, true);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initializeCollapsibles();
     document.querySelectorAll('[data-work-order-location]').forEach(initializeLocationSelects);
     document.querySelectorAll('[data-photo-picker]').forEach(initializePhotoPicker);
     document.querySelectorAll('[data-guided-description]').forEach(initializeGuidedDescription);
     document.querySelectorAll('[data-work-action-guide]').forEach(initializeWorkActionGuide);
+    initializeRoutineAssignmentModal();
     initializeEvidenceViewer();
     const drawer = document.querySelector('[data-sidebar]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');

@@ -30,14 +30,14 @@ class GenerateRoutineOccurrences extends Command
 
     private function sendNotices(): void
     {
-        RoutineTaskOccurrence::with(['template', 'assignees.user'])
+        RoutineTaskOccurrence::with(['template.activeAssignees.user'])
             ->whereIn('status', [RoutineOccurrenceStatus::Due->value, RoutineOccurrenceStatus::Overdue->value])
             ->whereDate('expected_date', '<=', now(config('app.timezone'))->toDateString())->chunkById(100, function ($occurrences): void {
                 foreach ($occurrences as $occurrence) {
                     $event = $occurrence->status === RoutineOccurrenceStatus::Overdue ? 'ROUTINE_OVERDUE' : 'ROUTINE_DUE';
-                    foreach ($occurrence->assignees as $personnel) {
+                    foreach ($occurrence->template->activeAssignees as $personnel) {
                         $user = $personnel->user;
-                        if (! $user) {
+                        if (! $user || ! $personnel->isAssignable()) {
                             continue;
                         }
                         $exists = $user->notifications()->where('data->event_key', $event)->where('data->routine_occurrence_id', $occurrence->id)->exists();

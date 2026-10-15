@@ -23,8 +23,10 @@ class RoutineTaskNotice extends Notification
 
         return [
             'event_key' => $this->eventKey, 'routine_occurrence_id' => $this->occurrence->id,
-            'title' => $overdue ? 'Routine task overdue — update required' : 'Routine task due',
-            'message' => $this->occurrence->template->title.' is '.($overdue ? 'overdue and requires an accountable update.' : 'due today.'),
+            'title' => $overdue ? 'Task Overdue — Update Required' : 'Routine task due',
+            'message' => $overdue
+                ? $this->occurrence->template->title.' was due '.$this->occurrence->due_at->timezone(config('app.timezone'))->format('F j, Y').'. Please update its status.'
+                : $this->occurrence->template->title.' is due today.',
             'action_url' => route('routine-tasks.show', $this->occurrence),
         ];
     }

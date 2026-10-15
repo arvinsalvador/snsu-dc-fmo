@@ -13,6 +13,7 @@ use App\Models\InspectionRun;
 use App\Models\RoutineTaskOccurrence;
 use App\Services\GuidedDescriptionService;
 use App\Services\OperationalEvidenceService;
+use App\Services\RoutineTaskAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -20,13 +21,11 @@ use Illuminate\Validation\ValidationException;
 
 class RoutineOperationsController extends Controller
 {
-    public function tasks(Request $request)
+    public function tasks(Request $request, RoutineTaskAccessService $access)
     {
         abort_unless($request->user()->can('routine_tasks.view'), 403);
         $query = RoutineTaskOccurrence::with(['template.campus', 'template.building', 'template.guidedProfile', 'assignees.user', 'inspectionRun'])->orderBy('due_at');
-        if (! $request->user()->can('routine_tasks.view_all')) {
-            $query->whereHas('assignees', fn ($q) => $q->where('user_id', $request->user()->id));
-        }
+        $access->scopeOccurrences($query, $request->user());
 
         return response()->json($query->paginate(min(100, max(1, $request->integer('per_page', 20)))));
     }
@@ -105,13 +104,11 @@ class RoutineOperationsController extends Controller
         return response()->json(['data' => $asset->load(['assetType', 'campus', 'building', 'floor', 'location', 'inspectionItems.run'])]);
     }
 
-    public function inspections(Request $request)
+    public function inspections(Request $request, RoutineTaskAccessService $access)
     {
         abort_unless($request->user()->can('inspections.view'), 403);
         $query = InspectionRun::with(['template.assetType', 'occurrence'])->withCount(['items', 'items as inspected_count' => fn ($q) => $q->where('status', 'INSPECTED')])->latest();
-        if (! $request->user()->can('inspections.view_all')) {
-            $query->whereHas('occurrence.assignees', fn ($q) => $q->where('user_id', $request->user()->id));
-        }
+        $access->scopeInspectionRuns($query, $request->user());
 
         return response()->json($query->paginate(min(100, max(1, $request->integer('per_page', 20)))));
     }
@@ -177,7 +174,7 @@ class RoutineOperationsController extends Controller
     {
         abort_unless($request->user()->can($perform ? 'routine_tasks.perform' : 'routine_tasks.view'), 403);
         if (! $request->user()->can('routine_tasks.view_all')) {
-            abort_unless($task->assignees()->where('user_id', $request->user()->id)->exists(), 403);
+            abort_unless(app(RoutineTaskAccessService::class)->assignedTo($task, $request->user()), 403);
         }
     }
 
@@ -185,7 +182,7 @@ class RoutineOperationsController extends Controller
     {
         abort_unless($request->user()->can($perform ? 'inspections.perform' : 'inspections.view'), 403);
         if (! $request->user()->can('inspections.view_all')) {
-            abort_unless($run->occurrence()->whereHas('assignees', fn ($q) => $q->where('user_id', $request->user()->id))->exists(), 403);
+            abort_unless(app(RoutineTaskAccessService::class)->assignedToInspection($run, $request->user()), 403);
         }
     }
 }

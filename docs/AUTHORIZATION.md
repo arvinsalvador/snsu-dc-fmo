@@ -73,12 +73,12 @@ Notifications are always recipient-scoped through the authenticated user's own r
 
 Routine operations use explicit Spatie permissions and server-side scope checks:
 
-- `routine_tasks.view`, `routine_tasks.perform`: view and update only snapshotted assigned occurrences.
+- `routine_tasks.view`, `routine_tasks.perform`: view and update only occurrences whose template has a current active assignment to the authenticated user's active, approved FMO personnel profile. Occurrence assignee snapshots are audit history and do not grant current access after reassignment.
 - `routine_tasks.view_all`, `routine_tasks.manage`, `routine_tasks.assign`: management visibility, template schedules, and team assignment.
 - `assets.view`, `assets.manage`: registry visibility and maintenance.
 - `inspections.view`, `inspections.perform`: assigned inspection access and item recording.
 - `inspections.view_all`: management inspection oversight.
 - `reports.view_routine_operations`: routine and inspection history reporting.
 
-FMO Staff receive assigned routine/inspection access. FMO Dispatcher receives operational oversight and assignment capabilities. FMO Head and System Administrator receive the complete management set. Protected evidence repeats the occurrence/run scope check at file-serving time.
+FMO Staff receive assigned routine/inspection access. List queries and direct record authorization use the same active-template-assignment rule, including inspection runs and API endpoints. FMO Dispatcher receives operational oversight and assignment capabilities. FMO Head and System Administrator receive the complete management set. Protected evidence repeats the occurrence/run scope check at file-serving time.
 

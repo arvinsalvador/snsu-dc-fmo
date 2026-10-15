@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoutineOccurrenceStatus;
 use App\Enums\WorkOrderStatus;
 use App\Models\FmoPersonnel;
 use App\Models\InspectionRun;
@@ -11,12 +12,13 @@ use App\Models\WorkOrderWorkflowEvent;
 use App\Models\WorkSession;
 use App\Models\WorkUpdate;
 use App\Services\ReportingService;
+use App\Services\RoutineTaskAccessService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request, ReportingService $reports)
+    public function index(Request $request, ReportingService $reports, RoutineTaskAccessService $routineAccess)
     {
         $range = $request->validate(['from' => ['nullable', 'date_format:Y-m-d'], 'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from']]);
         $from = $range['from'] ?? now('Asia/Manila')->startOfMonth()->toDateString();
@@ -42,15 +44,13 @@ class DashboardController extends Controller
         $inspectionSummary = collect();
         if ($user->can('routine_tasks.view') || $user->can('routine_tasks.view_all')) {
             $routineScope = RoutineTaskOccurrence::query();
-            if (! $user->can('routine_tasks.view_all')) {
-                $routineScope->whereHas('assignees', fn ($query) => $query->where('user_id', $user->id));
-            }
+            $routineAccess->scopeOccurrences($routineScope, $user);
+            $overdueCount = (clone $routineScope)->unresolvedOverdue()->count();
             $routineCounts = $routineScope->selectRaw('status, COUNT(*) AS total')->groupBy('status')->pluck('total', 'status');
+            $routineCounts[RoutineOccurrenceStatus::Overdue->value] = $overdueCount;
             $frequencyScope = RoutineTaskOccurrence::query()->join('routine_task_templates', 'routine_task_templates.id', '=', 'routine_task_occurrences.routine_task_template_id')
                 ->whereDate('routine_task_occurrences.expected_date', now(config('app.timezone'))->toDateString());
-            if (! $user->can('routine_tasks.view_all')) {
-                $frequencyScope->whereHas('assignees', fn ($query) => $query->where('user_id', $user->id));
-            }
+            $routineAccess->scopeOccurrences($frequencyScope, $user);
             $routineFrequencyCounts = $frequencyScope->selectRaw('routine_task_templates.frequency, COUNT(*) AS total')->groupBy('routine_task_templates.frequency')->pluck('total', 'routine_task_templates.frequency');
         }
         if ($user->can('inspections.view_all')) {

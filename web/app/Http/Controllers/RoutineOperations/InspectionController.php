@@ -9,6 +9,7 @@ use App\Models\InspectionRun;
 use App\Models\User;
 use App\Notifications\InspectionAttentionNotice;
 use App\Services\OperationalEvidenceService;
+use App\Services\RoutineTaskAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -16,16 +17,14 @@ use Illuminate\Validation\ValidationException;
 
 class InspectionController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, RoutineTaskAccessService $access)
     {
         abort_unless($request->user()->can('inspections.view'), 403);
         $query = InspectionRun::with(['template.assetType', 'occurrence.assignees.user'])->withCount([
             'items', 'items as inspected_count' => fn ($q) => $q->where('status', 'INSPECTED'),
             'items as attention_count' => fn ($q) => $q->whereIn('result', ['NEEDS_ATTENTION', 'DEFECTIVE', 'MISSING', 'OUT_OF_SERVICE', 'NEEDS_REFILL', 'EXPIRED']),
         ])->latest('created_at');
-        if (! $request->user()->can('inspections.view_all')) {
-            $query->whereHas('occurrence.assignees', fn ($q) => $q->where('user_id', $request->user()->id));
-        }
+        $access->scopeInspectionRuns($query, $request->user());
         $runs = $query->paginate(20)->withQueryString();
 
         return view('routine-operations.inspections.index', compact('runs'));
@@ -97,6 +96,6 @@ class InspectionController extends Controller
         if ($request->user()->can('inspections.view_all')) {
             return;
         }
-        abort_unless($run->occurrence()->whereHas('assignees', fn ($q) => $q->where('user_id', $request->user()->id))->exists(), 403);
+        abort_unless(app(RoutineTaskAccessService::class)->assignedToInspection($run, $request->user()), 403);
     }
 }

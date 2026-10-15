@@ -12,11 +12,13 @@ Run `php artisan routine:generate` from Laravel's scheduler. The command default
 
 Occurrences use explicit states: `UPCOMING`, `DUE`, `IN_PROGRESS`, `COMPLETED`, `OVERDUE`, `COMPLETED_LATE`, `PARTIALLY_COMPLETED`, `UNABLE_TO_COMPLETE`, and `WAITING_FOR_SUPPLIES`.
 
-Unresolved work becomes `OVERDUE`; it is never deleted or silently skipped. Staff must record a structured outcome, a readable summary, the authenticated performer, and a timestamp. Partial updates require remaining work. Unable/waiting updates require one of the configured reason codes. `URGENT_WORK` may include an optional Work Order reference. Required evidence is enforced before resolution.
+Unresolved work becomes `OVERDUE`; it is never deleted or silently skipped. The user interface and management counts treat any past-due, non-final occurrence as overdue even when its workflow label is `IN_PROGRESS`, `PARTIALLY_COMPLETED`, or `WAITING_FOR_SUPPLIES`. Staff must record a structured outcome, a readable summary, the authenticated performer, and a timestamp. Partial updates require remaining work. Unable/waiting updates require one of the configured reason codes. `URGENT_WORK` may include an optional Work Order reference. Required evidence is enforced before resolution.
 
 ## Assignments and history
 
-Templates support one or many existing `FmoPersonnel` records. Template assignments are ended with `unassigned_at`, not overwritten. Each generated occurrence snapshots its assigned team, preserving scope and history if the template changes later. Any team member may perform the shared occurrence; the actual performer is stored independently.
+Templates support one or many existing `FmoPersonnel` records. Template assignments are ended with `unassigned_at`, not overwritten. Each generated occurrence snapshots its assigned team for audit history, but current web/API visibility and performance authorization follow the template's active assignments (`unassigned_at IS NULL`). Reassigning a template therefore removes the former staff member's access and immediately grants the replacement access to unresolved current occurrences. The actual performer is stored independently.
+
+The management list loads assignees and their skills eagerly and calculates occurrence and unresolved-overdue totals with aggregate queries. Its centered Assign Team dialog supports personnel search, multi-selection, eligibility feedback, routine workload counts, and a management-only assignment note.
 
 ## Evidence and review
 

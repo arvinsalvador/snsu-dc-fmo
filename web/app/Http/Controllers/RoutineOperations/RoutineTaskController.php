@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\RoutineTaskOccurrence;
 use App\Services\GuidedDescriptionService;
 use App\Services\OperationalEvidenceService;
+use App\Services\RoutineTaskAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -15,27 +16,36 @@ use Illuminate\Validation\ValidationException;
 
 class RoutineTaskController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, RoutineTaskAccessService $access)
     {
         abort_unless($request->user()->can('routine_tasks.view'), 403);
         $query = RoutineTaskOccurrence::with(['template.campus', 'template.building', 'template.location', 'assignees.user', 'inspectionRun'])
-            ->orderByRaw("CASE status WHEN 'OVERDUE' THEN 0 WHEN 'DUE' THEN 1 WHEN 'IN_PROGRESS' THEN 2 WHEN 'PARTIALLY_COMPLETED' THEN 3 ELSE 4 END")
+            ->orderByRaw("CASE WHEN due_at < ? AND status NOT IN ('COMPLETED', 'COMPLETED_LATE', 'UNABLE_TO_COMPLETE') THEN 0 WHEN status = 'DUE' THEN 1 WHEN status = 'UPCOMING' THEN 2 ELSE 3 END", [now(config('app.timezone'))])
             ->orderBy('due_at');
-        if (! $request->user()->can('routine_tasks.view_all')) {
-            $query->whereHas('assignees', fn ($q) => $q->where('user_id', $request->user()->id));
-        }
+        $access->scopeOccurrences($query, $request->user());
+        $summaryQuery = clone $query;
+        $summaryQuery->getQuery()->orders = null;
+        $summaryCounts = [
+            'overdue' => (clone $summaryQuery)->unresolvedOverdue()->count(),
+            'due_today' => (clone $summaryQuery)->whereBetween('due_at', [now(config('app.timezone')), now(config('app.timezone'))->endOfDay()])
+                ->whereNotIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value, RoutineOccurrenceStatus::UnableToComplete->value])->count(),
+            'upcoming' => (clone $summaryQuery)->where('due_at', '>', now(config('app.timezone'))->endOfDay())
+                ->whereNotIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value, RoutineOccurrenceStatus::UnableToComplete->value])->count(),
+        ];
         if ($request->filled('status')) {
-            $query->where('status', $request->string('status'));
+            $request->string('status')->value() === RoutineOccurrenceStatus::Overdue->value
+                ? $query->unresolvedOverdue()
+                : $query->where('status', $request->string('status')->value());
         }
         $occurrences = $query->paginate(20)->withQueryString();
 
-        return view('routine-operations.tasks.index', compact('occurrences'));
+        return view('routine-operations.tasks.index', compact('occurrences', 'summaryCounts'));
     }
 
     public function show(Request $request, RoutineTaskOccurrence $routineTask)
     {
         $this->authorizeOccurrence($request, $routineTask, false);
-        $routineTask->load(['template.guidedProfile', 'template.campus', 'template.building', 'template.location', 'assignees.user', 'attachments', 'referencedWorkOrder', 'inspectionRun']);
+        $routineTask->load(['template.guidedProfile', 'template.campus', 'template.building', 'template.location', 'template.activeAssignees.user', 'assignees.user', 'attachments', 'referencedWorkOrder', 'inspectionRun']);
 
         return view('routine-operations.tasks.show', ['occurrence' => $routineTask]);
     }
@@ -107,6 +117,6 @@ class RoutineTaskController extends Controller
         if ($request->user()->can('routine_tasks.view_all')) {
             return;
         }
-        abort_unless($occurrence->assignees()->where('user_id', $request->user()->id)->exists(), 403);
+        abort_unless(app(RoutineTaskAccessService::class)->assignedTo($occurrence, $request->user()), 403);
     }
 }

@@ -23,10 +23,15 @@ class RoutineTaskTemplateController extends Controller
     public function index(Request $request)
     {
         abort_unless($request->user()->can('routine_tasks.view_all'), 403);
-        $templates = RoutineTaskTemplate::with(['campus', 'building', 'location', 'assetType', 'activeAssignees.user'])
-            ->withCount('occurrences')->latest()->paginate(20)->withQueryString();
+        $templates = RoutineTaskTemplate::with(['campus', 'building', 'location', 'assetType', 'activeAssignees.user', 'activeAssignees.skills'])
+            ->withCount([
+                'occurrences',
+                'occurrences as overdue_occurrences_count' => fn ($query) => $query->unresolvedOverdue(),
+            ])->latest()->paginate(20)->withQueryString();
         $personnel = $request->user()->can('routine_tasks.assign')
-            ? FmoPersonnel::with('user')->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->orderBy('personnel_identifier')->get()->filter->isAssignable()
+            ? FmoPersonnel::with(['user', 'skills'])->withCount([
+                'routineTemplateAssignments as active_routine_tasks_count' => fn ($query) => $query->whereNull('unassigned_at'),
+            ])->orderBy('personnel_identifier')->get()
             : collect();
 
         return view('routine-operations.templates.index', compact('templates', 'personnel'));
@@ -84,17 +89,22 @@ class RoutineTaskTemplateController extends Controller
     {
         abort_unless($request->user()->can('routine_tasks.assign'), 403);
         $data = $request->validate([
+            'assignment_template_id' => ['nullable', Rule::in([$routineTemplate->id])],
             'assignee_ids' => ['required', 'array', 'min:1'],
             'assignee_ids.*' => ['distinct', Rule::exists('fmo_personnel', 'id')->where('personnel_status', 'ACTIVE')->whereNull('archived_at')],
+            'assignment_note' => ['nullable', 'string', 'max:2000'],
         ]);
         foreach (FmoPersonnel::with('user')->whereIn('id', $data['assignee_ids'])->get() as $person) {
             if (! $person->isAssignable()) {
                 throw ValidationException::withMessages(['assignee_ids' => 'Every assigned personnel member must have an active, approved staff profile.']);
             }
         }
-        DB::transaction(fn () => $this->syncAssignees($routineTemplate, $data['assignee_ids'], $request->user()->id));
+        DB::transaction(function () use ($routineTemplate, $data, $request): void {
+            $routineTemplate->update(['assignment_note' => $data['assignment_note'] ?? null]);
+            $this->syncAssignees($routineTemplate, $data['assignee_ids'], $request->user()->id);
+        });
 
-        return back()->with('status', 'Recurring task team assignment updated. Existing occurrence assignments remain unchanged.');
+        return back()->with('status', 'Routine task assignment updated.');
     }
 
     private function validated(Request $request): array

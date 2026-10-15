@@ -17,7 +17,7 @@ class RoutineTaskTemplate extends Model
     protected $fillable = [
         'title', 'description', 'task_type', 'frequency', 'recurrence_config', 'campus_id', 'building_id',
         'floor_id', 'building_location_id', 'exact_placement', 'asset_type_id', 'guided_description_profile_id',
-        'start_date', 'end_date', 'due_time', 'evidence_required', 'requires_review', 'is_active', 'created_by',
+        'start_date', 'end_date', 'due_time', 'evidence_required', 'requires_review', 'assignment_note', 'is_active', 'created_by',
     ];
 
     protected function casts(): array
