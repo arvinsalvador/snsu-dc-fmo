@@ -19,10 +19,23 @@ class RoutineTaskController extends Controller
     public function index(Request $request, RoutineTaskAccessService $access)
     {
         abort_unless($request->user()->can('routine_tasks.view'), 403);
-        $query = RoutineTaskOccurrence::with(['template.campus', 'template.building', 'template.location', 'assignees.user', 'inspectionRun'])
+        $personnel = $access->activePersonnel($request->user());
+        $inspectionItemScope = fn ($query) => $request->user()->can('routine_tasks.view_all')
+            ? $query
+            : $query->whereHas('assignments', fn ($assignment) => $assignment->where('fmo_personnel_id', $personnel?->id)->whereNull('unassigned_at'));
+        $query = RoutineTaskOccurrence::with([
+            'template.campus', 'template.building', 'template.location', 'template.assetType', 'template.activeAssignees.user', 'assignees.user',
+            'inspectionRun' => fn ($run) => $run->withCount([
+                'items as assigned_items_count' => fn ($items) => $inspectionItemScope($items),
+                'items as assigned_inspected_count' => fn ($items) => $inspectionItemScope($items)->where('status', 'INSPECTED'),
+            ]),
+        ])
             ->orderByRaw("CASE WHEN due_at < ? AND status NOT IN ('COMPLETED', 'COMPLETED_LATE', 'UNABLE_TO_COMPLETE') THEN 0 WHEN status = 'DUE' THEN 1 WHEN status = 'UPCOMING' THEN 2 ELSE 3 END", [now(config('app.timezone'))])
             ->orderBy('due_at');
         $access->scopeOccurrences($query, $request->user());
+        if ($request->filled('template')) {
+            $query->where('routine_task_template_id', $request->string('template')->value());
+        }
         $summaryQuery = clone $query;
         $summaryQuery->getQuery()->orders = null;
         $summaryCounts = [
@@ -31,11 +44,19 @@ class RoutineTaskController extends Controller
                 ->whereNotIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value, RoutineOccurrenceStatus::UnableToComplete->value])->count(),
             'upcoming' => (clone $summaryQuery)->where('due_at', '>', now(config('app.timezone'))->endOfDay())
                 ->whereNotIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value, RoutineOccurrenceStatus::UnableToComplete->value])->count(),
+            'completed_today' => (clone $summaryQuery)->whereIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value])
+                ->whereBetween('completed_at', [now(config('app.timezone'))->startOfDay(), now(config('app.timezone'))->endOfDay()])->count(),
         ];
         if ($request->filled('status')) {
             $request->string('status')->value() === RoutineOccurrenceStatus::Overdue->value
                 ? $query->unresolvedOverdue()
                 : $query->where('status', $request->string('status')->value());
+        } elseif (! $request->filled('template') && ! $request->boolean('history')) {
+            $query->where(fn ($current) => $current
+                ->whereNotIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value, RoutineOccurrenceStatus::UnableToComplete->value])
+                ->orWhere(fn ($completed) => $completed
+                    ->whereIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value])
+                    ->whereBetween('completed_at', [now(config('app.timezone'))->startOfDay(), now(config('app.timezone'))->endOfDay()])));
         }
         $occurrences = $query->paginate(20)->withQueryString();
 

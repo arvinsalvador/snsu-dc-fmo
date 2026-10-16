@@ -2,7 +2,7 @@
 @section('title', $asset->asset_code)
 @section('content')
 <x-page-header :title="$asset->asset_code" :description="$asset->assetType->name">
-    <x-slot:action><span class="status-badge {{ $asset->lifecycle_status->value === 'ACTIVE' ? 'status-success' : 'status-warning' }}">{{ str($asset->lifecycle_status->value)->replace('_', ' ')->title() }}</span></x-slot:action>
+    <x-slot:action><x-asset-lifecycle-badge :status="$asset->lifecycle_status" /></x-slot:action>
 </x-page-header>
 
 @if($scopeWarning)<x-alert type="warning" class="mt-6">{{ $scopeWarning }}</x-alert>@endif
@@ -14,7 +14,7 @@
                 <img class="aspect-square w-full rounded-xl border border-slate-200 object-cover" src="{{ route('routine-evidence.show', [$asset->attachments->first(), 'thumbnail']) }}" alt="{{ $asset->asset_code }}">
             @endif
             <dl class="grid gap-4 sm:grid-cols-2">
-                <div><dt class="detail-kicker">Current condition</dt><dd class="mt-1 text-lg font-semibold">{{ str($asset->condition->value)->replace('_', ' ')->title() }}</dd></div>
+                <div><dt class="detail-kicker">Current condition</dt><dd class="mt-1"><x-asset-condition-badge :condition="$asset->condition" /></dd></div>
                 <div><dt class="detail-kicker">Last inspection</dt><dd class="mt-1">{{ $asset->last_inspected_at?->timezone(config('app.timezone'))->format('F j, Y') ?: 'Not inspected yet' }}</dd></div>
                 <div class="sm:col-span-2"><dt class="detail-kicker">Location</dt><dd class="mt-1">{{ collect([$asset->building->name, $asset->floor?->name, $asset->location?->name, $asset->exact_placement])->filter()->join(' · ') }}</dd></div>
             </dl>

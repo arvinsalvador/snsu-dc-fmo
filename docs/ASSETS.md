@@ -18,7 +18,27 @@ Assets store code, type, name/description, brand, model, serial number, installe
 
 Physical condition and operational lifecycle are deliberately separate:
 
-- Condition: `PRISTINE`, `GOOD`, `FAIR`, `NEEDS_REPAIR`, `DAMAGED`, `BROKEN`, `UNUSABLE`.
-- Lifecycle: `ACTIVE`, `UNDER_REPAIR`, `FOR_DISPOSAL_REVIEW`, `APPROVED_FOR_DISPOSAL`, `DISPOSED`, `RETIRED`.
+- **Condition** describes the equipment's physical state: `PRISTINE`, `GOOD`, `FAIR`, `NEEDS_REPAIR`, `DAMAGED`, `BROKEN`, or `UNUSABLE`.
+- **Lifecycle** describes its operational disposition:
+  - `ACTIVE`: available for normal operations and recurring inspection.
+  - `UNDER_REPAIR`: repair was approved and work is underway.
+  - `FOR_DISPOSAL_REVIEW`: disposal was recommended and awaits a decision.
+  - `APPROVED_FOR_DISPOSAL`: disposal was approved, but physical disposal has not yet been recorded.
+  - `DISPOSED`: authorized physical disposal was recorded.
+  - `RETIRED`: administratively withdrawn without using the disposal workflow.
 
-Repair/disposal requests are separate auditable records. Asset lifecycle cannot be casually changed from the edit form; workflow decisions create lifecycle events. Disposed and retired assets remain searchable and historical but are excluded from new recurring inspection runs.
+For example, an asset may be `NEEDS_REPAIR` while still `ACTIVE` before repair approval, or `UNUSABLE` while `FOR_DISPOSAL_REVIEW`. The registry and detail screens use distinct badge families and help text so these concepts are not presented as synonyms.
+
+Repair/disposal requests are separate auditable records. Asset lifecycle cannot be changed from the asset edit form or by supplying a manipulated lifecycle value. The lifecycle service permits only the workflow transitions below and rejects invalid direct changes:
+
+```text
+ACTIVE → UNDER_REPAIR → ACTIVE
+ACTIVE → FOR_DISPOSAL_REVIEW
+UNDER_REPAIR → FOR_DISPOSAL_REVIEW
+FOR_DISPOSAL_REVIEW → ACTIVE
+FOR_DISPOSAL_REVIEW → UNDER_REPAIR
+FOR_DISPOSAL_REVIEW → APPROVED_FOR_DISPOSAL → DISPOSED
+ACTIVE → RETIRED
+```
+
+Repair/disposal reviewers perform approval transitions through their dedicated permissions; only `assets.mark_disposed` can record the final physical disposal. Ordinary staff report condition and request review rather than choosing lifecycle values. Disposed and retired assets remain searchable and historical but are excluded from new recurring inspection runs.

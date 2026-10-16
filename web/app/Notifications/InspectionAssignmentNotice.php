@@ -27,7 +27,7 @@ class InspectionAssignmentNotice extends Notification
         $title = match ($this->eventKey) {
             'INSPECTION_OVERDUE' => 'Inspection Overdue — Update Required',
             'INSPECTION_ASSIGNMENT_UPDATED' => 'Inspection Assignment Updated',
-            default => 'Monthly Inspection Due',
+            default => str($this->run->template->frequency->value)->title().' Inspection Due',
         };
         $message = $this->removed
             ? $this->assetCount.' '.str('asset')->plural($this->assetCount).' removed from your '.$this->run->period_key.' inspection assignment.'

@@ -452,6 +452,7 @@ export function initializeAssetQrModal() {
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     });
+    if (new URLSearchParams(window.location.search).get('print_qr') === '1') open();
 }
 
 export function initializeInspectionTemplateForm(form) {
@@ -548,6 +549,103 @@ export function initializeInspectionTemplateForm(form) {
     update();
 }
 
+export function initializeAssetFilters(form) {
+    const campus = form.querySelector('[data-asset-campus]');
+    const building = form.querySelector('[data-asset-building]');
+    if (!campus || !building) return;
+    const options = [...building.querySelectorAll('option[data-campus]')];
+    const update = () => {
+        const campusId = campus.value;
+        options.forEach(option => {
+            const visible = !campusId || option.dataset.campus === campusId;
+            option.hidden = !visible;
+            option.disabled = !visible;
+            if (!visible && option.selected) building.value = '';
+        });
+    };
+    campus.addEventListener('change', update);
+    update();
+}
+
+export function initializeActionMenus() {
+    const menus = [...document.querySelectorAll('[data-action-menu]')];
+    if (!menus.length) return;
+
+    let active = null;
+
+    const close = (menu, restoreFocus = false) => {
+        if (!menu) return;
+        const trigger = menu.querySelector('[data-action-menu-trigger]');
+        const panel = document.getElementById(trigger?.getAttribute('aria-controls'));
+        panel?.classList.add('hidden');
+        panel?.setAttribute('aria-hidden', 'true');
+        trigger?.setAttribute('aria-expanded', 'false');
+        if (active === menu) active = null;
+        if (restoreFocus) trigger?.focus();
+    };
+
+    const position = (menu, panel) => {
+        const trigger = menu.querySelector('[data-action-menu-trigger]');
+        const rect = trigger.getBoundingClientRect();
+        const gap = 8;
+        const edge = 12;
+        const panelWidth = panel.offsetWidth;
+        const panelHeight = panel.offsetHeight;
+        const alignRight = menu.dataset.actionMenuAlign !== 'left';
+        const preferredLeft = alignRight ? rect.right - panelWidth : rect.left;
+        const left = Math.min(Math.max(edge, preferredLeft), window.innerWidth - panelWidth - edge);
+        const roomBelow = window.innerHeight - rect.bottom - edge;
+        const openAbove = roomBelow < panelHeight + gap && rect.top > roomBelow;
+        const top = openAbove
+            ? Math.max(edge, rect.top - panelHeight - gap)
+            : Math.min(rect.bottom + gap, window.innerHeight - panelHeight - edge);
+
+        panel.style.left = `${left}px`;
+        panel.style.top = `${Math.max(edge, top)}px`;
+    };
+
+    const open = menu => {
+        if (active && active !== menu) close(active);
+        const trigger = menu.querySelector('[data-action-menu-trigger]');
+        const panel = document.getElementById(trigger.getAttribute('aria-controls'));
+        if (!panel) return;
+        if (panel.parentElement !== document.body) document.body.append(panel);
+        panel.classList.remove('hidden');
+        panel.setAttribute('aria-hidden', 'false');
+        trigger.setAttribute('aria-expanded', 'true');
+        active = menu;
+        position(menu, panel);
+        window.requestAnimationFrame(() => panel.querySelector('[role="menuitem"]')?.focus());
+    };
+
+    menus.forEach(menu => {
+        const trigger = menu.querySelector('[data-action-menu-trigger]');
+        const panel = document.getElementById(trigger?.getAttribute('aria-controls'));
+        trigger?.addEventListener('click', event => {
+            event.stopPropagation();
+            if (trigger.getAttribute('aria-expanded') === 'true') close(menu, true);
+            else open(menu);
+        });
+        panel?.addEventListener('click', event => {
+            if (event.target.closest('[role="menuitem"]')) close(menu);
+        });
+    });
+
+    document.addEventListener('click', event => {
+        if (!active) return;
+        const trigger = active.querySelector('[data-action-menu-trigger]');
+        const panel = document.getElementById(trigger?.getAttribute('aria-controls'));
+        if (!active.contains(event.target) && !panel?.contains(event.target)) close(active);
+    });
+    document.addEventListener('keydown', event => {
+        if (!active || event.key !== 'Escape') return;
+        event.preventDefault();
+        close(active, true);
+    });
+    window.addEventListener('resize', () => close(active));
+    window.addEventListener('scroll', () => close(active), true);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initializeCollapsibles();
     document.querySelectorAll('[data-work-order-location]').forEach(initializeLocationSelects);
@@ -557,6 +655,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeRoutineAssignmentModal();
     initializeAssetQrModal();
     document.querySelectorAll('[data-inspection-template-form]').forEach(initializeInspectionTemplateForm);
+    document.querySelectorAll('[data-asset-filters]').forEach(initializeAssetFilters);
+    initializeActionMenus();
     initializeEvidenceViewer();
     const drawer = document.querySelector('[data-sidebar]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');

@@ -26,6 +26,7 @@ class AssetController extends Controller
     {
         abort_unless($request->user()->can('assets.view'), 403);
         $assets = InspectableAsset::with(['assetType', 'campus', 'building', 'floor', 'location'])
+            ->withCount(['actionRequests as pending_actions_count' => fn ($actions) => $actions->where('status', 'PENDING')])
             ->when($request->filled('type'), fn ($q) => $q->where('asset_type_id', $request->string('type')))
             ->when($request->filled('campus'), fn ($q) => $q->where('campus_id', $request->string('campus')))
             ->when($request->filled('building'), fn ($q) => $q->where('building_id', $request->string('building')))
@@ -91,8 +92,12 @@ class AssetController extends Controller
         $maintenancePersonnel = $request->user()->can('assets.assign_maintenance')
             ? FmoPersonnel::with(['user', 'skills'])->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->orderBy('personnel_identifier')->get()
             : collect();
+        $managedInspectionRuns = $request->user()->can('inspections.assign')
+            ? $asset->inspectionItems()->with(['run.template', 'run.occurrence'])->where('status', '!=', 'INSPECTED')
+                ->whereHas('run', fn ($run) => $run->whereIn('status', ['OPEN', 'IN_PROGRESS']))->get()->pluck('run')->unique('id')->values()
+            : collect();
 
-        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction', 'qrSvg', 'assignedInspectionItems', 'repairAction', 'canMaintainAsset', 'maintenancePersonnel'));
+        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction', 'qrSvg', 'assignedInspectionItems', 'repairAction', 'canMaintainAsset', 'maintenancePersonnel', 'managedInspectionRuns'));
     }
 
     public function edit(Request $request, InspectableAsset $asset)
@@ -129,7 +134,6 @@ class AssetController extends Controller
             'brand' => ['nullable', 'string', 'max:255'], 'model' => ['nullable', 'string', 'max:255'], 'serial_number' => ['nullable', 'string', 'max:255'],
             'installed_at' => ['nullable', 'date'], 'inspection_frequency' => ['required', Rule::in(['DAILY', 'WEEKLY', 'MONTHLY'])],
             'condition' => ['required', Rule::in(['PRISTINE', 'GOOD', 'FAIR', 'NEEDS_REPAIR', 'DAMAGED', 'BROKEN', 'UNUSABLE'])],
-            'lifecycle_status' => ['required', Rule::in(['ACTIVE', 'UNDER_REPAIR', 'FOR_DISPOSAL_REVIEW', 'APPROVED_FOR_DISPOSAL', 'DISPOSED', 'RETIRED'])],
             'notes' => ['nullable', 'string', 'max:5000'],
             'asset_photos' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')],
             'asset_photos.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
@@ -150,7 +154,8 @@ class AssetController extends Controller
             throw ValidationException::withMessages($errors);
         }
 
-        $data['status'] = in_array($data['lifecycle_status'], ['ACTIVE', 'UNDER_REPAIR'], true) ? 'ACTIVE' : ($data['lifecycle_status'] === 'RETIRED' ? 'RETIRED' : 'OUT_OF_SERVICE');
+        $data['lifecycle_status'] = $asset?->lifecycle_status?->value ?? 'ACTIVE';
+        $data['status'] = $asset?->status?->value ?? 'ACTIVE';
 
         return $data;
     }

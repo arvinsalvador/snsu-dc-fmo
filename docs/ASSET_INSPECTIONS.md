@@ -16,6 +16,19 @@ The template's default team applies to every included asset unless **Customize a
 
 Managers with `inspections.assign` may reassign all unfinished items in a run or one unfinished asset. Replacement ends the previous assignment rows with actor, time, and reason and creates new rows; it does not rewrite history. Completed items cannot be reassigned. Run-level reassignment skips completed items and synchronizes the occurrence team to the union of current item assignees.
 
+## Occurrence generation and staff visibility
+
+Saving a new active template immediately runs the safe current generation window. Weekly schedules include the beginning of the active week and monthly schedules include the beginning of the active month, so a schedule whose due day already passed produces its current overdue occurrence instead of waiting for a later cron run. The form defaults a new weekly/monthly recurrence to today's weekday/day. A future start date remains future, and an inactive template creates nothing.
+
+One schedule produces one linked `RoutineTaskOccurrence`, one `InspectionRun`, and its asset-specific `InspectionItem` rows. Template personnel are copied to item-assignment snapshots during that transaction. The unique template/period key, unique run/occurrence relation, and unique run/asset item prevent duplicate generation. Due notices use the same idempotent notification service during immediate creation and scheduled generation.
+
+Assigned staff see the same occurrence in two purposeful views:
+
+- **My Routine Tasks** shows the high-level scheduled duty, frequency, due/overdue treatment, and scoped inspected/remaining counts. Continue Inspection opens the linked run.
+- **My Inspections** groups overdue, current, upcoming, and completed runs and provides the asset-oriented workflow.
+
+Both views resolve `User → FmoPersonnel → active InspectionItemAssignment` in server queries. Shared-team assignments mean each assigned person sees the shared assets, while per-asset overrides produce individual counts.
+
 ## Inspection records
 
 `InspectionItem` is the permanent exact-asset record for recurring inspections. It stores inspector personnel/user, timestamp, condition, checklist results, summary, remarks, recommendation, private attachments, and the generated checklist/asset snapshots. A QR scan opens an authorized recurring item; it does not create an unplanned inspection silently. Every future scheduled occurrence creates new item history rather than overwriting an earlier inspection.

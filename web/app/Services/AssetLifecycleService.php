@@ -8,6 +8,7 @@ use App\Models\InspectionItem;
 use App\Models\User;
 use App\Notifications\AssetActionNotice;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AssetLifecycleService
 {
@@ -39,6 +40,9 @@ class AssetLifecycleService
     {
         $fromLifecycle = $asset->lifecycle_status?->value ?? (string) $asset->lifecycle_status;
         $fromCondition = $asset->condition?->value ?? (string) $asset->condition;
+        if ($lifecycle && ! $this->transitionAllowed($fromLifecycle, $lifecycle)) {
+            throw ValidationException::withMessages(['lifecycle_status' => "Lifecycle cannot change directly from {$fromLifecycle} to {$lifecycle}."]);
+        }
         $updates = array_filter(['lifecycle_status' => $lifecycle, 'condition' => $condition], fn ($value) => $value !== null);
         if ($lifecycle) {
             $updates['status'] = match ($lifecycle) {
@@ -75,5 +79,16 @@ class AssetLifecycleService
         if (! $exists) {
             $user->notify(new AssetActionNotice($request, $event));
         }
+    }
+
+    private function transitionAllowed(string $from, string $to): bool
+    {
+        return in_array($to, match ($from) {
+            'ACTIVE' => ['ACTIVE', 'UNDER_REPAIR', 'FOR_DISPOSAL_REVIEW', 'RETIRED'],
+            'UNDER_REPAIR' => ['UNDER_REPAIR', 'ACTIVE', 'FOR_DISPOSAL_REVIEW'],
+            'FOR_DISPOSAL_REVIEW' => ['ACTIVE', 'UNDER_REPAIR', 'APPROVED_FOR_DISPOSAL'],
+            'APPROVED_FOR_DISPOSAL' => ['DISPOSED'],
+            default => [],
+        }, true);
     }
 }

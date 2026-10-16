@@ -8,6 +8,8 @@ Version 1 supports `DAILY`, `WEEKLY`, and `MONTHLY`. Weekly templates store an I
 
 Run `php artisan routine:generate` from Laravel's scheduler. The command defaults to a configurable 62-day look-back and 35-day look-ahead, so missed cron invocations are backfilled. A unique constraint on template plus period key makes generation idempotent. Configure shared hosting to run `php artisan schedule:run` once per minute. Override the windows with `ROUTINE_BACKFILL_DAYS` and `ROUTINE_LOOKAHEAD_DAYS` if necessary.
 
+Creation of a new active template also generates the relevant current window immediately. For monthly schedules this includes the current month even when the configured day has already passed; for weekly schedules it includes the active week. This prevents a newly created current inspection from remaining invisible until the scheduler's next backfill. Future-start and inactive templates are still excluded.
+
 ## Occurrence lifecycle
 
 Occurrences use explicit states: `UPCOMING`, `DUE`, `IN_PROGRESS`, `COMPLETED`, `OVERDUE`, `COMPLETED_LATE`, `PARTIALLY_COMPLETED`, `UNABLE_TO_COMPLETE`, and `WAITING_FOR_SUPPLIES`.
@@ -19,6 +21,8 @@ Unresolved work becomes `OVERDUE`; it is never deleted or silently skipped. The 
 Templates support one or many existing `FmoPersonnel` records. Template assignments are ended with `unassigned_at`, not overwritten. General routine-task access follows the template's current active team. Changing that team therefore updates access to unresolved general-task occurrences while retaining the generated occurrence snapshot for audit history. The actual performer is stored independently.
 
 Inspection templates deliberately use a stricter snapshot model. They can target specific assets, all active assets of a type, or a type within a campus/building/location scope. A default team applies to all generated items, with optional per-asset overrides. Each generated item snapshots its checklist, asset context, and active assignees. Later template edits affect only future runs; managers use the run/item reassignment controls when current unfinished work must change. Reassignment ends old rows and creates new rows with actor, timestamp, and reason. Completed items are immutable.
+
+An inspection schedule has one operational occurrence. Its linked `InspectionRun` is not a duplicate task: **My Routine Tasks** presents the scheduled-duty summary and assigned-scope progress, while **My Inspections** presents the item-level workflow. Both use the same occurrence/run, assignment snapshots, due state, and completion records. Selecting Continue Inspection from the routine list opens that linked run.
 
 The management list loads assignees and their skills eagerly and calculates occurrence and unresolved-overdue totals with aggregate queries. Its centered Assign Team dialog supports personnel search, multi-selection, eligibility feedback, routine workload counts, and a management-only assignment note.
 

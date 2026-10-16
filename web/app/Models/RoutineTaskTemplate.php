@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class RoutineTaskTemplate extends Model
 {
@@ -74,6 +75,13 @@ class RoutineTaskTemplate extends Model
     public function occurrences(): HasMany
     {
         return $this->hasMany(RoutineTaskOccurrence::class);
+    }
+
+    public function currentInspectionRun(): HasOne
+    {
+        return $this->hasOne(InspectionRun::class, 'routine_task_template_id')
+            ->whereIn('status', ['OPEN', 'IN_PROGRESS'])
+            ->latestOfMany();
     }
 
     public function activeAssignees(): BelongsToMany

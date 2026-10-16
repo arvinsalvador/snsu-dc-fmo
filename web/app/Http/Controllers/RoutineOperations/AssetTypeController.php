@@ -4,6 +4,7 @@ namespace App\Http\Controllers\RoutineOperations;
 
 use App\Http\Controllers\Controller;
 use App\Models\AssetType;
+use App\Models\InspectableAsset;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -12,9 +13,22 @@ class AssetTypeController extends Controller
     public function index(Request $request)
     {
         abort_unless($request->user()->can('asset_types.manage'), 403);
-        $types = AssetType::withCount('assets')->orderBy('name')->paginate(25);
+        $types = AssetType::query()->withCount('assets')
+            ->when($request->filled('q'), fn ($query) => $query->where(fn ($search) => $search
+                ->where('name', 'like', '%'.$request->string('q').'%')
+                ->orWhere('code', 'like', '%'.$request->string('q').'%')
+                ->orWhere('description', 'like', '%'.$request->string('q').'%')))
+            ->when($request->string('status')->value() === 'ACTIVE', fn ($query) => $query->where('is_active', true))
+            ->when($request->string('status')->value() === 'INACTIVE', fn ($query) => $query->where('is_active', false))
+            ->when($request->filled('frequency'), fn ($query) => $query->where('default_inspection_frequency', $request->string('frequency')))
+            ->orderBy('name')->paginate(25)->withQueryString();
+        $summary = [
+            'types' => AssetType::count(),
+            'active' => AssetType::where('is_active', true)->count(),
+            'assets' => InspectableAsset::count(),
+        ];
 
-        return view('routine-operations.asset-types.index', compact('types'));
+        return view('routine-operations.asset-types.index', compact('types', 'summary'));
     }
 
     public function create(Request $request)

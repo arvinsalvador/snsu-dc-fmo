@@ -11,9 +11,11 @@ use App\Models\Floor;
 use App\Models\FmoPersonnel;
 use App\Models\GuidedDescriptionProfile;
 use App\Models\InspectableAsset;
+use App\Models\RoutineTaskOccurrence;
 use App\Models\RoutineTaskTemplate;
 use App\Models\RoutineTaskTemplateAssignment;
 use App\Services\InspectionAssignmentService;
+use App\Services\RoutineNoticeService;
 use App\Services\RoutineOccurrenceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,18 +27,49 @@ class RoutineTaskTemplateController extends Controller
     public function index(Request $request)
     {
         abort_unless($request->user()->can('routine_tasks.view_all'), 403);
-        $templates = RoutineTaskTemplate::with(['campus', 'building', 'location', 'assetType', 'activeAssignees.user', 'activeAssignees.skills'])
+        $now = now(config('app.timezone'));
+        $closedStatuses = ['COMPLETED', 'COMPLETED_LATE', 'UNABLE_TO_COMPLETE'];
+        $templates = RoutineTaskTemplate::with(['campus', 'building', 'floor', 'location', 'assetType', 'activeAssignees.user', 'activeAssignees.skills', 'currentInspectionRun'])
             ->withCount([
                 'occurrences',
                 'occurrences as overdue_occurrences_count' => fn ($query) => $query->unresolvedOverdue(),
-            ])->latest()->paginate(20)->withQueryString();
+            ])
+            ->withMin(['occurrences as next_due_at' => fn ($query) => $query
+                ->where('due_at', '>=', $now)->whereNotIn('status', $closedStatuses)], 'due_at')
+            ->when($request->filled('q'), function ($query) use ($request): void {
+                $search = '%'.$request->string('q')->trim().'%';
+                $query->where(fn ($matches) => $matches
+                    ->where('title', 'like', $search)
+                    ->orWhere('exact_placement', 'like', $search)
+                    ->orWhereHas('campus', fn ($campus) => $campus->where('name', 'like', $search))
+                    ->orWhereHas('building', fn ($building) => $building->where('name', 'like', $search))
+                    ->orWhereHas('location', fn ($location) => $location->where('name', 'like', $search))
+                    ->orWhereHas('assetType', fn ($type) => $type->where('name', 'like', $search))
+                    ->orWhereHas('activeAssignees.user', fn ($user) => $user->where('name', 'like', $search)));
+            })
+            ->when(in_array($request->string('type')->value(), ['GENERAL', 'INSPECTION'], true), fn ($query) => $query->where('task_type', $request->string('type')->value()))
+            ->when(in_array($request->string('frequency')->value(), ['DAILY', 'WEEKLY', 'MONTHLY'], true), fn ($query) => $query->where('frequency', $request->string('frequency')->value()))
+            ->when($request->string('status')->value() === 'ACTIVE', fn ($query) => $query->where('is_active', true))
+            ->when($request->string('status')->value() === 'INACTIVE', fn ($query) => $query->where('is_active', false))
+            ->when($request->filled('campus'), fn ($query) => $query->where('campus_id', $request->string('campus')->value()))
+            ->when($request->filled('building'), fn ($query) => $query->where('building_id', $request->string('building')->value()))
+            ->latest()->paginate(20)->withQueryString();
+
+        $summaryCounts = [
+            'active_templates' => RoutineTaskTemplate::where('is_active', true)->count(),
+            'due_today' => RoutineTaskOccurrence::whereBetween('due_at', [$now->copy()->startOfDay(), $now->copy()->endOfDay()])->whereNotIn('status', $closedStatuses)->count(),
+            'overdue' => RoutineTaskOccurrence::unresolvedOverdue()->count(),
+            'inspection_schedules' => RoutineTaskTemplate::where('task_type', 'INSPECTION')->where('is_active', true)->count(),
+        ];
         $personnel = $request->user()->can('routine_tasks.assign')
             ? FmoPersonnel::with(['user', 'skills'])->withCount([
                 'routineTemplateAssignments as active_routine_tasks_count' => fn ($query) => $query->whereNull('unassigned_at'),
             ])->orderBy('personnel_identifier')->get()
             : collect();
+        $campuses = Campus::where('is_active', true)->orderBy('name')->get();
+        $buildings = Building::where('is_active', true)->orderBy('name')->get();
 
-        return view('routine-operations.templates.index', compact('templates', 'personnel'));
+        return view('routine-operations.templates.index', compact('templates', 'personnel', 'summaryCounts', 'campuses', 'buildings'));
     }
 
     public function create(Request $request)
@@ -46,7 +79,7 @@ class RoutineTaskTemplateController extends Controller
         return view('routine-operations.templates.form', $this->formData(new RoutineTaskTemplate));
     }
 
-    public function store(Request $request, RoutineOccurrenceService $occurrences, InspectionAssignmentService $inspectionAssignments)
+    public function store(Request $request, RoutineOccurrenceService $occurrences, InspectionAssignmentService $inspectionAssignments, RoutineNoticeService $notices)
     {
         abort_unless($request->user()->can('routine_tasks.manage'), 403);
         $data = $this->validated($request);
@@ -55,7 +88,7 @@ class RoutineTaskTemplateController extends Controller
             $this->syncAssignees($template, $data['assignee_ids'], $request->user()->id);
             $this->syncInspectionScope($template, $data, $request, $inspectionAssignments);
         });
-        $occurrences->generate(now(config('app.timezone'))->toImmutable()->startOfDay(), now(config('app.timezone'))->toImmutable()->addDays(7));
+        $this->generateCurrentWindow($template, $occurrences, $notices);
 
         return redirect()->route('routine-templates.index')->with('status', 'Recurring task template created.');
     }
@@ -68,7 +101,7 @@ class RoutineTaskTemplateController extends Controller
         return view('routine-operations.templates.form', $this->formData($routineTemplate));
     }
 
-    public function update(Request $request, RoutineTaskTemplate $routineTemplate, InspectionAssignmentService $inspectionAssignments)
+    public function update(Request $request, RoutineTaskTemplate $routineTemplate, InspectionAssignmentService $inspectionAssignments, RoutineOccurrenceService $occurrences, RoutineNoticeService $notices)
     {
         abort_unless($request->user()->can('routine_tasks.manage'), 403);
         $data = $this->validated($request);
@@ -77,6 +110,7 @@ class RoutineTaskTemplateController extends Controller
             $this->syncAssignees($routineTemplate, $data['assignee_ids'], $request->user()->id);
             $this->syncInspectionScope($routineTemplate, $data, $request, $inspectionAssignments);
         });
+        $this->generateCurrentWindow($routineTemplate->fresh(), $occurrences, $notices);
 
         return redirect()->route('routine-templates.index')->with('status', 'Recurring task template updated.');
     }
@@ -155,6 +189,9 @@ class RoutineTaskTemplateController extends Controller
         $this->validateAssignablePersonnel(collect($data['assignee_ids'])->merge(collect($data['asset_assignees'] ?? [])->flatten())->unique()->all());
         if ($data['task_type'] === 'INSPECTION') {
             $allowedAssets = $this->inspectionAssetQuery($data)->pluck('id');
+            if ($allowedAssets->isEmpty()) {
+                throw ValidationException::withMessages(['asset_type_id' => 'No active assets match this inspection scope.']);
+            }
             if (($data['inspection_asset_scope'] ?? null) === 'SPECIFIC' && $allowedAssets->count() !== count(array_unique($data['selected_asset_ids'] ?? []))) {
                 throw ValidationException::withMessages(['selected_asset_ids' => 'Every selected asset must be active and match the selected asset type.']);
             }
@@ -242,5 +279,20 @@ class RoutineTaskTemplateController extends Controller
                 throw ValidationException::withMessages(['assignee_ids' => 'Every assigned inspector must have an active, approved FMO personnel profile.']);
             }
         }
+    }
+
+    private function generateCurrentWindow(RoutineTaskTemplate $template, RoutineOccurrenceService $occurrences, RoutineNoticeService $notices): void
+    {
+        if (! $template->is_active) {
+            return;
+        }
+        $today = now(config('app.timezone'))->toImmutable()->startOfDay();
+        $from = match ($template->frequency->value) {
+            'MONTHLY' => $today->startOfMonth(),
+            'WEEKLY' => $today->startOfWeek(),
+            default => $today,
+        };
+        $occurrences->generate($from, $today->addDays(7));
+        $notices->sendDueNotices();
     }
 }
