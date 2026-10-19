@@ -6,10 +6,12 @@ use App\Enums\AccountStatus;
 use App\Enums\EmploymentType;
 use App\Enums\PersonnelStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\PersonnelRequest;
 use App\Models\FmoPersonnel;
 use App\Models\Skill;
 use App\Models\User;
 use App\Services\PersonnelAccessService;
+use App\Services\PersonnelSkillService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,16 +53,14 @@ class PersonnelController extends Controller
         return view('personnel.form', $this->formData());
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(PersonnelRequest $request, PersonnelSkillService $skills): RedirectResponse
     {
         abort_unless($request->user()->can('personnel.create'), 403);
-        $data = $this->validated($request);
-        $user = User::findOrFail($data['user_id']);
-        abort_unless($user->status === AccountStatus::Approved && ! $user->personnelProfile()->exists(), 422);
+        $data = $request->validated();
 
-        $personnel = DB::transaction(function () use ($data): FmoPersonnel {
+        $personnel = DB::transaction(function () use ($data, $skills): FmoPersonnel {
             $personnel = FmoPersonnel::create($this->personnelFields($data));
-            $this->syncSkills($personnel, $data);
+            $skills->sync($personnel, $data['skill_ids'], $data['primary_skill_id']);
             app(PersonnelAccessService::class)->provision($personnel->load('user'));
 
             return $personnel;
@@ -83,13 +83,13 @@ class PersonnelController extends Controller
         return view('personnel.form', $this->formData($personnel));
     }
 
-    public function update(Request $request, FmoPersonnel $personnel): RedirectResponse
+    public function update(PersonnelRequest $request, FmoPersonnel $personnel, PersonnelSkillService $skills): RedirectResponse
     {
         abort_unless($request->user()->can('personnel.update'), 403);
-        $data = $this->validated($request, false);
-        DB::transaction(function () use ($personnel, $data): void {
+        $data = $request->validated();
+        DB::transaction(function () use ($personnel, $data, $skills): void {
             $personnel->update($this->personnelFields($data, false));
-            $this->syncSkills($personnel, $data);
+            $skills->sync($personnel, $data['skill_ids'], $data['primary_skill_id']);
             app(PersonnelAccessService::class)->provision($personnel->load('user'));
         });
 
@@ -135,23 +135,6 @@ class PersonnelController extends Controller
         ];
     }
 
-    private function validated(Request $request, bool $creating = true): array
-    {
-        return $request->validate(array_filter([
-            'user_id' => $creating ? ['required', 'integer', Rule::exists('users', 'id')] : null,
-            'personnel_identifier' => ['nullable', 'string', 'max:100', Rule::unique('fmo_personnel', 'personnel_identifier')->ignore($request->route('personnel')?->id)],
-            'designation' => ['nullable', 'string', 'max:255'],
-            'employment_type' => ['nullable', Rule::enum(EmploymentType::class)],
-            'start_date' => ['nullable', 'date'],
-            'contact_number' => ['nullable', 'string', 'max:50'],
-            'personnel_status' => ['required', Rule::enum(PersonnelStatus::class)],
-            'notes' => ['nullable', 'string', 'max:5000'],
-            'skill_ids' => ['array'],
-            'skill_ids.*' => ['integer', Rule::exists('skills', 'id')],
-            'primary_skill_id' => ['nullable', 'integer', Rule::exists('skills', 'id')],
-        ]));
-    }
-
     private function personnelFields(array $data, bool $creating = true): array
     {
         $fields = collect($data)->only(['personnel_identifier', 'designation', 'employment_type', 'start_date', 'contact_number', 'personnel_status', 'notes'])->all();
@@ -160,17 +143,5 @@ class PersonnelController extends Controller
         }
 
         return $fields;
-    }
-
-    private function syncSkills(FmoPersonnel $personnel, array $data): void
-    {
-        $skills = array_map('intval', $data['skill_ids'] ?? []);
-        $primarySkillId = $data['primary_skill_id'] ?? null;
-        abort_if($primarySkillId && ! in_array((int) $primarySkillId, $skills, true), 422);
-        $sync = [];
-        foreach ($skills as $skillId) {
-            $sync[$skillId] = ['is_primary' => $skillId === (int) $primarySkillId];
-        }
-        $personnel->skills()->sync($sync);
     }
 }

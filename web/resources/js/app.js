@@ -1,5 +1,6 @@
 import { initializeLocationSelects } from './work-order-location.js';
 import { initializeCollapsibles } from './collapsible.js';
+import { initializePersonnelSkills } from './personnel-skills.js';
 
 export function initializePhotoPicker(container) {
     const preview = container.querySelector('[data-photo-preview]');
@@ -656,6 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeAssetQrModal();
     document.querySelectorAll('[data-inspection-template-form]').forEach(initializeInspectionTemplateForm);
     document.querySelectorAll('[data-asset-filters]').forEach(initializeAssetFilters);
+    document.querySelectorAll('[data-personnel-skills]').forEach(initializePersonnelSkills);
     initializeActionMenus();
     initializeEvidenceViewer();
     const drawer = document.querySelector('[data-sidebar]');

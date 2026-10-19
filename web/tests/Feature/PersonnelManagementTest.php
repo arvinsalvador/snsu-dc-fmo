@@ -7,9 +7,12 @@ use App\Enums\PersonnelStatus;
 use App\Models\FmoPersonnel;
 use App\Models\Skill;
 use App\Models\User;
+use App\Services\PersonnelSkillService;
 use Database\Seeders\AuthorizationSeeder;
 use Database\Seeders\SkillSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 class PersonnelManagementTest extends TestCase
@@ -102,9 +105,11 @@ class PersonnelManagementTest extends TestCase
         $this->actingAs($requester)->post('/personnel', $payload)->assertForbidden();
         $head = $this->user('FMO Head');
         $pending = User::factory()->create(['status' => 'PENDING']);
-        $this->actingAs($head)->post('/personnel', ['user_id' => $pending->id, 'personnel_status' => 'ACTIVE'])->assertStatus(422);
+        $this->actingAs($head)->from('/personnel/create')->post('/personnel', ['user_id' => $pending->id, 'personnel_status' => 'ACTIVE'])
+            ->assertRedirect('/personnel/create')->assertSessionHasErrors('user_id');
         $this->actingAs($head)->post('/personnel', $payload)->assertRedirect();
-        $this->actingAs($head)->post('/personnel', $payload)->assertStatus(422);
+        $this->actingAs($head)->from('/personnel/create')->post('/personnel', $payload)
+            ->assertRedirect('/personnel/create')->assertSessionHasErrors('user_id');
     }
 
     public function test_status_archive_reactivate_and_delete_keep_user_account(): void
@@ -127,7 +132,7 @@ class PersonnelManagementTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $staffUser->id]);
     }
 
-    public function test_skills_are_managed_safely_and_primary_must_be_assigned(): void
+    public function test_skills_are_managed_safely_and_primary_is_automatically_assigned(): void
     {
         $head = $this->user('FMO Head');
         $this->actingAs($head)->post('/skills', ['name' => 'Roofing', 'description' => 'Roof repairs', 'is_active' => true])->assertRedirect();
@@ -139,7 +144,123 @@ class PersonnelManagementTest extends TestCase
         $this->actingAs($head)->delete('/skills/'.Skill::first()->id)->assertStatus(409);
         $this->actingAs($head)->put('/personnel/'.$personnel->id, [
             'personnel_status' => 'ACTIVE', 'skill_ids' => [], 'primary_skill_id' => Skill::first()->id,
-        ])->assertStatus(422);
+        ])->assertRedirect();
+        $this->assertCount(1, $personnel->fresh()->skills);
+        $this->assertTrue((bool) $personnel->fresh()->skills->first()->pivot->is_primary);
+    }
+
+    public function test_three_personnel_can_be_created_sequentially_with_different_skill_combinations(): void
+    {
+        $head = $this->user('FMO Head');
+        $electrical = Skill::where('name', 'Electrical')->firstOrFail();
+        $general = Skill::where('name', 'General Maintenance')->firstOrFail();
+        $carpentry = Skill::where('name', 'Carpentry / Woodworking')->firstOrFail();
+        $masonry = Skill::where('name', 'Masonry')->firstOrFail();
+        $painting = Skill::where('name', 'Painting')->firstOrFail();
+        $airConditioning = Skill::where('name', 'Air Conditioning')->firstOrFail();
+        $staff = [$this->user(), $this->user(), $this->user()];
+        $combinations = [
+            [[$electrical->id, $general->id], $electrical->id],
+            [[$carpentry->id, $masonry->id, $painting->id], $carpentry->id],
+            [[$airConditioning->id], $airConditioning->id],
+        ];
+
+        foreach ($staff as $index => $candidate) {
+            $this->actingAs($head)->post('/personnel', [
+                'user_id' => $candidate->id, 'personnel_identifier' => 'SEQ-00'.($index + 1),
+                'personnel_status' => 'ACTIVE', 'skill_ids' => $combinations[$index][0],
+                'primary_skill_id' => $combinations[$index][1],
+            ])->assertRedirect()->assertSessionHasNoErrors();
+        }
+
+        foreach ($staff as $index => $candidate) {
+            $personnel = FmoPersonnel::where('user_id', $candidate->id)->with('skills')->firstOrFail();
+            $this->assertEqualsCanonicalizing($combinations[$index][0], $personnel->skills->modelKeys());
+            $this->assertSame($combinations[$index][1], $personnel->skills->firstWhere('pivot.is_primary', true)?->id);
+            $this->assertSame(1, $personnel->skills->where('pivot.is_primary', true)->count());
+        }
+    }
+
+    public function test_raw_post_normalizes_missing_primary_and_duplicate_skill_ids(): void
+    {
+        $head = $this->user('FMO Head');
+        $candidate = $this->user();
+        $carpentry = Skill::where('name', 'Carpentry / Woodworking')->firstOrFail();
+        $masonry = Skill::where('name', 'Masonry')->firstOrFail();
+
+        $this->actingAs($head)->post('/personnel', [
+            'user_id' => $candidate->id, 'personnel_status' => 'ACTIVE',
+            'skill_ids' => [$masonry->id, $masonry->id], 'primary_skill_id' => $carpentry->id,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $personnel = FmoPersonnel::where('user_id', $candidate->id)->with('skills')->firstOrFail();
+        $this->assertEqualsCanonicalizing([$masonry->id, $carpentry->id], $personnel->skills->modelKeys());
+        $this->assertSame($carpentry->id, $personnel->skills->firstWhere('pivot.is_primary', true)?->id);
+        $this->assertDatabaseCount('fmo_personnel_skill', 2);
+    }
+
+    public function test_invalid_primary_returns_form_errors_without_creating_personnel(): void
+    {
+        $head = $this->user('FMO Head');
+        $candidate = $this->user();
+        $inactive = Skill::create(['name' => 'Inactive test skill', 'is_active' => false]);
+
+        $this->actingAs($head)->from('/personnel/create')->post('/personnel', [
+            'user_id' => $candidate->id, 'personnel_status' => 'ACTIVE',
+            'skill_ids' => [], 'primary_skill_id' => 999999,
+        ])->assertRedirect('/personnel/create')->assertSessionHasErrors('primary_skill_id');
+
+        $this->assertDatabaseMissing('fmo_personnel', ['user_id' => $candidate->id]);
+
+        $this->actingAs($head)->from('/personnel/create')->post('/personnel', [
+            'user_id' => $candidate->id, 'personnel_status' => 'ACTIVE',
+            'skill_ids' => [], 'primary_skill_id' => $inactive->id,
+        ])->assertRedirect('/personnel/create')->assertSessionHasErrors('primary_skill_id');
+        $this->assertDatabaseMissing('fmo_personnel', ['user_id' => $candidate->id]);
+    }
+
+    public function test_edit_normalizes_a_new_primary_and_allows_no_primary(): void
+    {
+        $head = $this->user('FMO Head');
+        $personnel = $this->createPersonnel($this->user());
+        $carpentry = Skill::where('name', 'Carpentry / Woodworking')->firstOrFail();
+        $masonry = Skill::where('name', 'Masonry')->firstOrFail();
+
+        $this->actingAs($head)->put('/personnel/'.$personnel->id, [
+            'personnel_status' => 'ACTIVE', 'skill_ids' => [$masonry->id], 'primary_skill_id' => $carpentry->id,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $personnel->refresh()->load('skills');
+        $this->assertEqualsCanonicalizing([$masonry->id, $carpentry->id], $personnel->skills->modelKeys());
+        $this->assertSame($carpentry->id, $personnel->skills->firstWhere('pivot.is_primary', true)?->id);
+
+        $this->actingAs($head)->put('/personnel/'.$personnel->id, [
+            'personnel_status' => 'ACTIVE', 'skill_ids' => [$masonry->id], 'primary_skill_id' => null,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertNull($personnel->fresh()->skills->firstWhere('pivot.is_primary', true));
+    }
+
+    public function test_personnel_creation_rolls_back_when_skill_sync_fails(): void
+    {
+        $head = $this->user('FMO Head');
+        $candidate = $this->user();
+        $skill = Skill::firstOrFail();
+        $this->mock(PersonnelSkillService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('sync')->once()->andThrow(new RuntimeException('Forced skill sync failure.'));
+        });
+
+        $this->withoutExceptionHandling();
+        try {
+            $this->actingAs($head)->post('/personnel', [
+                'user_id' => $candidate->id, 'personnel_status' => 'ACTIVE',
+                'skill_ids' => [$skill->id], 'primary_skill_id' => $skill->id,
+            ]);
+            $this->fail('Expected the forced skill synchronization failure.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Forced skill sync failure.', $exception->getMessage());
+        }
+
+        $this->assertDatabaseMissing('fmo_personnel', ['user_id' => $candidate->id]);
+        $this->assertFalse($candidate->fresh()->hasRole('FMO Staff'));
     }
 
     public function test_delegated_personnel_permissions_and_api_resources_are_secure(): void
