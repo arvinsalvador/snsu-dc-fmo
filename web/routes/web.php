@@ -30,6 +30,7 @@ use App\Http\Controllers\WorkOrders\WorkOrderCategoryController;
 use App\Http\Controllers\WorkOrders\WorkOrderController;
 use App\Http\Controllers\WorkOrders\WorkOrderExecutionController;
 use App\Http\Controllers\WorkOrders\WorkOrderWorkflowController;
+use App\Http\Controllers\WorkOrders\PreferredPersonnelController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -101,6 +102,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/work-orders/location-options/buildings', [LocationController::class, 'buildings'])->name('work-orders.location-buildings');
         Route::get('/work-orders/location-options/floors', [LocationController::class, 'floors'])->name('work-orders.location-floors');
         Route::get('/work-orders/location-options/areas', [LocationController::class, 'locations'])->name('work-orders.location-areas');
+        Route::get('/work-order-categories/{workOrderCategory}/eligible-preferred-personnel', [PreferredPersonnelController::class, 'index'])->name('work-order-categories.eligible-preferred-personnel');
         Route::post('/work-orders', [WorkOrderController::class, 'store'])->name('work-orders.store');
         Route::post('/work-orders/direct', [WorkOrderController::class, 'storeDirect'])->name('work-orders.direct');
         Route::get('/work-orders/assignment-queue', [WorkOrderAssignmentController::class, 'queue'])->name('work-orders.assignment-queue');

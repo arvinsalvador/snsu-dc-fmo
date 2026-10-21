@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Enums\WorkOrderStatus;
 use App\Models\Building;
 use App\Models\Campus;
+use App\Models\FmoPersonnel;
+use App\Models\Skill;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderCategory;
@@ -150,6 +152,43 @@ class WorkOrderResubmissionTest extends TestCase
             'to_status' => WorkOrderStatus::ForScreening->value,
             'requester_message' => 'I confirmed that the affected location is Room 12.',
         ]);
+    }
+
+    public function test_existing_multiple_preferences_are_preselected_and_preserved_on_resubmit(): void
+    {
+        $requester = $this->user();
+        $reviewer = $this->user('FMO Dispatcher');
+        $fields = $this->fields();
+        $category = WorkOrderCategory::findOrFail($fields['work_order_category_id']);
+        $electrical = Skill::create(['name' => 'Electrical', 'is_active' => true]);
+        $category->relevantSkills()->attach($electrical);
+        $preferred = collect(['Resubmit Electrician A', 'Resubmit Electrician B'])->map(function (string $name) use ($electrical): FmoPersonnel {
+            $user = User::factory()->create(['name' => $name, 'status' => 'APPROVED']);
+            $personnel = FmoPersonnel::create(['user_id' => $user->id, 'personnel_status' => 'ACTIVE']);
+            $personnel->skills()->attach($electrical, ['is_primary' => true]);
+
+            return $personnel;
+        });
+        $preferenceIds = $preferred->pluck('id')->all();
+        $order = $this->needsInformation($requester, $reviewer, initial: [
+            'preferred_fmo_personnel_ids' => $preferenceIds,
+        ]);
+
+        $edit = $this->actingAs($requester)->get("/work-orders/{$order->id}/edit");
+        $edit->assertOk();
+        foreach ($preferenceIds as $personnelId) {
+            $edit->assertSee($personnelId);
+        }
+
+        $this->post("/work-orders/{$order->id}/workflow/resubmit", $this->fields([
+            'requester_message' => 'The requested information is now complete.',
+            'preferred_fmo_personnel_ids' => $preferenceIds,
+        ]))->assertRedirect(route('work-orders.show', $order));
+
+        $this->assertEqualsCanonicalizing(
+            $preferenceIds,
+            $order->fresh()->preferredPersonnel()->pluck('fmo_personnel.id')->all(),
+        );
     }
 
     public function test_multiple_images_use_the_normalized_private_media_pipeline(): void

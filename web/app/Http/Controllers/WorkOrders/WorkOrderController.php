@@ -16,6 +16,7 @@ use App\Services\EvidenceMediaService;
 use App\Services\GuidedDescriptionService;
 use App\Services\StoredFileTransaction;
 use App\Services\WorkOrderAssignmentService;
+use App\Services\WorkOrderPreferenceService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -80,8 +81,10 @@ class WorkOrderController extends Controller
     private function createOrder(Request $request, WorkOrderWorkflowService $workflow, bool $direct)
     {
         $data = $this->validated($request);
-        $order = app(StoredFileTransaction::class)->run(function () use ($request, $data, $workflow, $direct): WorkOrder {
+        $preferenceIds = $this->pullPreferenceIds($data);
+        $order = app(StoredFileTransaction::class)->run(function () use ($request, $data, $preferenceIds, $workflow, $direct): WorkOrder {
             $order = WorkOrder::create([...$data, 'requester_id' => $request->user()->id, 'status' => $direct ? WorkOrderStatus::Approved : WorkOrderStatus::Submitted, 'submitted_at' => now(), 'work_order_number' => $this->number(), 'decided_by' => $direct ? $request->user()->id : null, 'decided_at' => $direct ? now() : null]);
+            app(WorkOrderPreferenceService::class)->sync($order, $preferenceIds);
             $this->uploads($request, $order);
             $workflow->recordCreation($order, $request->user(), $direct);
 
@@ -102,7 +105,7 @@ class WorkOrderController extends Controller
                 ->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->filter->isAssignable();
         }
 
-        $workOrder->load('requester.requesterProfile', 'category.guidedProfile', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier');
+        $workOrder->load('requester.requesterProfile', 'category.guidedProfile', 'category.relevantSkills', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier');
 
         return view('work-orders.show', [
             'order' => $workOrder,
@@ -119,7 +122,7 @@ class WorkOrderController extends Controller
             || ($workOrder->status === WorkOrderStatus::NeedsInformation && $request->user()->can('work_orders.resubmit_own'))
         ), 403);
 
-        $workOrder->load('attachments.uploader');
+        $workOrder->load('attachments.uploader', 'preferredPersonnel.user', 'preferredPersonnel.skills');
 
         return view('work-orders.form', [
             ...$this->formData(),
@@ -133,7 +136,10 @@ class WorkOrderController extends Controller
         app(StoredFileTransaction::class)->run(function () use ($request, $workOrder): void {
             $locked = WorkOrder::whereKey($workOrder->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->requester_id === $request->user()->id && $locked->status === WorkOrderStatus::Submitted && $request->user()->can('work_orders.update_own_submitted'), 403);
-            $locked->update($this->validated($request));
+            $data = $this->validated($request);
+            $preferenceIds = $this->pullPreferenceIds($data);
+            $locked->update($data);
+            app(WorkOrderPreferenceService::class)->sync($locked, $preferenceIds);
             $this->uploads($request, $locked);
         });
 
@@ -207,7 +213,25 @@ class WorkOrderController extends Controller
 
     public function validated(Request $request): array
     {
-        $data = $request->validate(['work_order_category_id' => ['required', Rule::exists('work_order_categories', 'id')->where('is_active', true)], 'campus_id' => ['required', Rule::exists('campuses', 'id')->where('is_active', true)], 'building_id' => ['required', Rule::exists('buildings', 'id')->where('is_active', true)], 'floor_id' => ['nullable', Rule::exists('floors', 'id')->where('is_active', true)], 'building_location_id' => ['nullable', Rule::exists('building_locations', 'id')->where('is_active', true)], 'subject' => ['required', 'string', 'max:255'], 'description' => ['required', 'string', 'max:5000'], 'urgency' => ['required', Rule::in(['NORMAL', 'URGENT'])], 'preferred_fmo_personnel_id' => ['nullable', Rule::exists('fmo_personnel', 'id')], 'attachments' => ['array', 'max:'.config('work_orders.attachments.max_count')], 'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,mp4', 'max:'.config('work_orders.attachments.max_size_kb')]]);
+        if (! $request->has('preferred_fmo_personnel_ids') && $request->filled('preferred_fmo_personnel_id')) {
+            $request->merge(['preferred_fmo_personnel_ids' => [$request->input('preferred_fmo_personnel_id')]]);
+        }
+        $data = $request->validate([
+            'work_order_category_id' => ['required', Rule::exists('work_order_categories', 'id')->where('is_active', true)],
+            'campus_id' => ['required', Rule::exists('campuses', 'id')->where('is_active', true)],
+            'building_id' => ['required', Rule::exists('buildings', 'id')->where('is_active', true)],
+            'floor_id' => ['nullable', Rule::exists('floors', 'id')->where('is_active', true)],
+            'building_location_id' => ['nullable', Rule::exists('building_locations', 'id')->where('is_active', true)],
+            'subject' => ['required', 'string', 'max:255'],
+            'description' => ['required', 'string', 'max:5000'],
+            'urgency' => ['required', Rule::in(['NORMAL', 'URGENT'])],
+            'preferred_fmo_personnel_ids' => ['nullable', 'array', 'max:'.config('work_orders.preferences.max_personnel')],
+            'preferred_fmo_personnel_ids.*' => ['required', 'ulid', 'distinct', Rule::exists('fmo_personnel', 'id')],
+            'attachments' => ['array', 'max:'.config('work_orders.attachments.max_count')],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,mp4', 'max:'.config('work_orders.attachments.max_size_kb')],
+        ], [
+            'preferred_fmo_personnel_ids.max' => 'You may select up to '.config('work_orders.preferences.max_personnel').' preferred personnel.',
+        ]);
         $errors = [];
         if (! Building::whereKey($data['building_id'])->where('campus_id', $data['campus_id'])->where('is_active', true)->whereHas('campus', fn ($query) => $query->where('is_active', true))->exists()) {
             $errors['building_id'] = 'The selected building does not belong to the selected campus.';
@@ -227,9 +251,6 @@ class WorkOrderController extends Controller
             })->exists()) {
             $errors['building_location_id'] = 'The selected location does not belong to the selected building and floor.';
         }
-        if (($data['preferred_fmo_personnel_id'] ?? null) && ! FmoPersonnel::with('user')->findOrFail($data['preferred_fmo_personnel_id'])->isAssignable()) {
-            $errors['preferred_fmo_personnel_id'] = 'The selected personnel member is not currently available.';
-        }
         $existing = $request->route('workOrder')?->attachments()->where('purpose', 'REQUEST_INITIAL')->count() ?? 0;
         if ($existing + count($request->file('attachments', [])) > config('work_orders.attachments.max_count')) {
             $errors['attachments'] = 'The Work Order has reached its initial attachment limit.';
@@ -238,7 +259,22 @@ class WorkOrderController extends Controller
             throw ValidationException::withMessages($errors);
         }
 
+        $category = WorkOrderCategory::with('relevantSkills')->findOrFail($data['work_order_category_id']);
+        $data['preferred_fmo_personnel_ids'] = app(WorkOrderPreferenceService::class)
+            ->validateSelection($category, $data['preferred_fmo_personnel_ids'] ?? []);
+
         return collect($data)->except('attachments')->all();
+    }
+
+    /** @param array<string, mixed> $data
+     * @return array<int, string>
+     */
+    public function pullPreferenceIds(array &$data): array
+    {
+        $ids = $data['preferred_fmo_personnel_ids'] ?? [];
+        unset($data['preferred_fmo_personnel_ids']);
+
+        return $ids;
     }
 
     public function number(): string
@@ -263,12 +299,11 @@ class WorkOrderController extends Controller
     public function formData(): array
     {
         return [
-            'categories' => WorkOrderCategory::where('is_active', true)->orderBy('display_order')->get(),
+            'categories' => WorkOrderCategory::with('relevantSkills')->where('is_active', true)->orderBy('display_order')->get(),
             'campuses' => Campus::where('is_active', true)->orderBy('name')->get(),
             'buildings' => Building::where('is_active', true)->whereHas('campus', fn ($query) => $query->where('is_active', true))->with('campus')->orderBy('name')->get(),
             'floors' => Floor::where('is_active', true)->whereHas('building', fn ($query) => $query->where('is_active', true)->whereHas('campus', fn ($campus) => $campus->where('is_active', true)))->orderBy('display_order')->orderBy('name')->get(),
             'locations' => BuildingLocation::where('is_active', true)->whereHas('building', fn ($query) => $query->where('is_active', true)->whereHas('campus', fn ($campus) => $campus->where('is_active', true)))->where(fn ($query) => $query->whereNull('floor_id')->orWhereHas('floor', fn ($floor) => $floor->where('is_active', true)))->orderBy('name')->get(),
-            'personnel' => FmoPersonnel::with('user', 'skills')->where('personnel_status', 'ACTIVE')->get()->filter->isAssignable(),
         ];
     }
 }

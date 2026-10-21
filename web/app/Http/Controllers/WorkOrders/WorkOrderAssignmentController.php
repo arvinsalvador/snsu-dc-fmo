@@ -14,7 +14,7 @@ class WorkOrderAssignmentController extends Controller
     public function queue(Request $request)
     {
         abort_unless($request->user()->can('work_orders.assign') || $request->user()->can('work_orders.assign_direct'), 403);
-        $orders = WorkOrder::with('requester', 'category', 'building', 'location', 'preferredPersonnel.user')
+        $orders = WorkOrder::with('requester', 'category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills')
             ->where('status', 'APPROVED')->whereDoesntHave('activeAssignments')
             ->when(! $request->user()->can('work_orders.assign'), fn ($query) => $query->where('requester_id', $request->user()->id)->whereHas('workflowEvents', fn ($events) => $events->where('action', 'DIRECT_AUTHORIZATION')->where('actor_id', $request->user()->id)))
             ->when($request->filled('search'), fn ($query) => $query->where('work_order_number', 'like', '%'.$request->string('search')->trim()->value().'%'))

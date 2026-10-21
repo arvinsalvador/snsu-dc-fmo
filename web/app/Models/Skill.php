@@ -19,4 +19,10 @@ class Skill extends Model
         return $this->belongsToMany(FmoPersonnel::class, 'fmo_personnel_skill')
             ->withPivot('is_primary')->withTimestamps();
     }
+
+    public function workOrderCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(WorkOrderCategory::class, 'work_order_category_skill')
+            ->withTimestamps();
+    }
 }

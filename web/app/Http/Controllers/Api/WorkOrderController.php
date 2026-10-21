@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Services\StoredFileTransaction;
+use App\Services\WorkOrderPreferenceService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
 
@@ -15,7 +16,7 @@ class WorkOrderController extends Controller
     public function index(Request $request)
     {
         abort_unless($request->user()->can('work_orders.view_own') || $request->user()->can('work_orders.view_all'), 403);
-        $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
+        $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
             ->when(! $request->user()->can('work_orders.view_all'), fn ($q) => $q->where('requester_id', $request->user()->id))
             ->latest('submitted_at')->paginate(50);
 
@@ -26,13 +27,13 @@ class WorkOrderController extends Controller
     {
         app(\App\Http\Controllers\WorkOrders\WorkOrderController::class)->authorizeWorkOrder($request, $workOrder);
 
-        return response()->json(['data' => $this->data($workOrder->load('category', 'building', 'location', 'preferredPersonnel.user', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates'))]);
+        return response()->json(['data' => $this->data($workOrder->load('category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates'))]);
     }
 
     public function assigned(Request $request)
     {
         abort_unless($request->user()->can('work_orders.view_assigned'), 403);
-        $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
+        $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
             ->activelyAssignedTo($request->user())
             ->latest('submitted_at')->paginate(50);
 
@@ -56,15 +57,17 @@ class WorkOrderController extends Controller
     private function createOrder(Request $request, \App\Http\Controllers\WorkOrders\WorkOrderController $requests, WorkOrderWorkflowService $workflow, bool $direct)
     {
         $data = $requests->validated($request);
-        $order = app(StoredFileTransaction::class)->run(function () use ($request, $requests, $data, $workflow, $direct): WorkOrder {
+        $preferenceIds = $requests->pullPreferenceIds($data);
+        $order = app(StoredFileTransaction::class)->run(function () use ($request, $requests, $data, $preferenceIds, $workflow, $direct): WorkOrder {
             $order = WorkOrder::create([...$data, 'requester_id' => $request->user()->id, 'status' => $direct ? WorkOrderStatus::Approved : WorkOrderStatus::Submitted, 'submitted_at' => now(), 'work_order_number' => $requests->number(), 'decided_by' => $direct ? $request->user()->id : null, 'decided_at' => $direct ? now() : null]);
+            app(WorkOrderPreferenceService::class)->sync($order, $preferenceIds);
             $requests->uploads($request, $order);
             $workflow->recordCreation($order, $request->user(), $direct);
 
             return $order;
         });
 
-        return response()->json(['data' => $this->data($order->load('category', 'building', 'location', 'preferredPersonnel.user'))], 201);
+        return response()->json(['data' => $this->data($order->load('category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills'))], 201);
     }
 
     public function update(Request $request, WorkOrder $workOrder, \App\Http\Controllers\WorkOrders\WorkOrderController $requests)
@@ -72,11 +75,14 @@ class WorkOrderController extends Controller
         app(StoredFileTransaction::class)->run(function () use ($request, $workOrder, $requests): void {
             $locked = WorkOrder::whereKey($workOrder->id)->lockForUpdate()->firstOrFail();
             abort_unless($locked->requester_id === $request->user()->id && $locked->status === WorkOrderStatus::Submitted && $request->user()->can('work_orders.update_own_submitted'), 403);
-            $locked->update($requests->validated($request));
+            $data = $requests->validated($request);
+            $preferenceIds = $requests->pullPreferenceIds($data);
+            $locked->update($data);
+            app(WorkOrderPreferenceService::class)->sync($locked, $preferenceIds);
             $requests->uploads($request, $locked);
         });
 
-        return response()->json(['data' => $this->data($workOrder->fresh()->load('category', 'building', 'location', 'preferredPersonnel.user'))]);
+        return response()->json(['data' => $this->data($workOrder->fresh()->load('category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills'))]);
     }
 
     public function attachment(Request $request, WorkOrder $workOrder, WorkOrderAttachment $attachment, \App\Http\Controllers\WorkOrders\WorkOrderController $requests)
@@ -95,6 +101,6 @@ class WorkOrderController extends Controller
         $privateActions = ['RECOMMEND_APPROVAL', 'RECOMMEND_DISAPPROVAL', 'RETURN_TO_SCREENING', 'ASSIGNEE_ADDED', 'ASSIGNEE_REMOVED', 'ASSESSMENT_EXCEPTION', 'ASSESSMENT_HOLD_MATERIALS', 'ASSESSMENT_REFER_EXTERNAL', 'ASSESSMENT_BEYOND_SCOPE'];
         $events = $order->workflowEvents->when(! $management, fn ($events) => $events->filter(fn ($event) => ! in_array($event->action, $privateActions, true)));
 
-        return ['id' => $order->id, 'number' => $order->work_order_number, 'category' => $order->category->name, 'building' => $order->building->name, 'location' => $order->location?->name, 'subject' => $order->subject, 'description' => $order->description, 'status' => $order->status->value, 'urgency' => $order->urgency, 'preferred_personnel' => $order->preferredPersonnel?->user?->name, 'assignees' => $order->activeAssignments->map(fn ($assignment) => ['id' => $assignment->id, 'personnel_id' => $assignment->fmo_personnel_id, 'name' => $assignment->personnel->user->name]), 'submitted_at' => $order->submitted_at, 'completed_at' => $order->verified_at, 'work_performed_summary' => $order->status === WorkOrderStatus::Completed ? $order->work_performed_summary : null, 'progress' => $order->updates->whereNotNull('requester_summary')->sortBy('recorded_at')->map(fn ($update) => ['type' => $update->type->value, 'summary' => $update->requester_summary, 'at' => $update->recorded_at])->values(), 'attachments' => $order->attachments->where('purpose', 'REQUEST_INITIAL')->map(fn ($attachment) => ['id' => $attachment->id, 'filename' => $attachment->original_filename, 'mime_type' => $attachment->mime_type, 'size' => $attachment->file_size])->values(), 'history' => $events->values()->map(fn ($event) => ['action' => $event->action, 'from_status' => $event->from_status, 'to_status' => $event->to_status, 'requester_message' => $event->requester_message, 'internal_note' => $management ? $event->internal_note : null, 'created_at' => $event->created_at])];
+        return ['id' => $order->id, 'number' => $order->work_order_number, 'category' => $order->category->name, 'building' => $order->building->name, 'location' => $order->location?->name, 'subject' => $order->subject, 'description' => $order->description, 'status' => $order->status->value, 'urgency' => $order->urgency, 'preferred_personnel' => $order->preferredPersonnel->map(fn ($personnel) => ['id' => $personnel->id, 'name' => $personnel->user->name, 'primary_skill' => $personnel->orderedSkills()->first(fn ($skill) => $skill->pivot->is_primary)?->name, 'skills' => $personnel->orderedSkills()->pluck('name')->values()])->values(), 'assignees' => $order->activeAssignments->map(fn ($assignment) => ['id' => $assignment->id, 'personnel_id' => $assignment->fmo_personnel_id, 'name' => $assignment->personnel->user->name]), 'submitted_at' => $order->submitted_at, 'completed_at' => $order->verified_at, 'work_performed_summary' => $order->status === WorkOrderStatus::Completed ? $order->work_performed_summary : null, 'progress' => $order->updates->whereNotNull('requester_summary')->sortBy('recorded_at')->map(fn ($update) => ['type' => $update->type->value, 'summary' => $update->requester_summary, 'at' => $update->recorded_at])->values(), 'attachments' => $order->attachments->where('purpose', 'REQUEST_INITIAL')->map(fn ($attachment) => ['id' => $attachment->id, 'filename' => $attachment->original_filename, 'mime_type' => $attachment->mime_type, 'size' => $attachment->file_size])->values(), 'history' => $events->values()->map(fn ($event) => ['action' => $event->action, 'from_status' => $event->from_status, 'to_status' => $event->to_status, 'requester_message' => $event->requester_message, 'internal_note' => $management ? $event->internal_note : null, 'created_at' => $event->created_at])];
     }
 }

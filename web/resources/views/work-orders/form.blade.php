@@ -86,9 +86,74 @@
             </div>
         </section>
 
-        <section class="form-section">
-            <h2>4. Personnel Preference</h2><p>Optional. You may indicate a preferred FMO personnel member. This does not guarantee assignment.</p>
-            <label>Preferred FMO Personnel<select name="preferred_fmo_personnel_id"><option value="">No preference</option>@foreach ($personnel as $person)<option value="{{ $person->id }}" @selected(old('preferred_fmo_personnel_id', $order->preferred_fmo_personnel_id ?? null) == $person->id)>{{ $person->user->name }} — {{ $person->designation }}</option>@endforeach</select></label>
+        @php
+            $initialPreferredPersonnel = collect(old('preferred_fmo_personnel_ids', isset($order) ? $order->preferredPersonnel->modelKeys() : []))->map(fn ($id) => (string) $id)->values();
+        @endphp
+        <section
+            class="form-section"
+            x-data="preferredPersonnelSelector({{ Illuminate\Support\Js::from([
+                'categoryId' => old('work_order_category_id', $order->work_order_category_id ?? ''),
+                'selected' => $initialPreferredPersonnel,
+                'maxSelections' => config('work_orders.preferences.max_personnel'),
+                'lookupUrl' => route('work-order-categories.eligible-preferred-personnel', '__CATEGORY__'),
+            ]) }})"
+            @keydown.escape.window="open = false"
+        >
+            <div class="flex flex-wrap items-start justify-between gap-3"><div><h2>4. Personnel Preference</h2><p>Optional. Available personnel are matched using every assigned skill related to the selected Work Type.</p></div><span class="status-badge status-open">Advisory only</span></div>
+            <div class="relative mt-5" @click.outside="open = false">
+                <span id="preferred-personnel-label" class="block text-sm font-medium text-slate-700">Preferred FMO Personnel <span class="text-slate-500">(optional)</span></span>
+                <template x-for="id in selected" :key="id"><input type="hidden" name="preferred_fmo_personnel_ids[]" :value="id"></template>
+                <div class="mt-1 flex min-h-12 w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 shadow-xs transition focus-within:border-blue-600 focus-within:ring-3 focus-within:ring-blue-100 @error('preferred_fmo_personnel_ids') border-rose-500 @enderror">
+                    <div class="flex min-w-0 flex-1 flex-wrap gap-2">
+                        <template x-for="person in selectedPeople" :key="person.id">
+                            <span class="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-900">
+                                <span class="truncate" x-text="person.name"></span>
+                                <button class="grid size-6 shrink-0 place-items-center rounded-full hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500" type="button" @click.stop="remove(person.id)" :aria-label="`Remove ${person.name}`">×</button>
+                            </span>
+                        </template>
+                        <span class="self-center text-sm text-slate-500" x-show="!categoryId">Select a Work Type first</span>
+                        <span class="self-center text-sm text-slate-500" x-show="categoryId && loading">Loading matching FMO personnel...</span>
+                        <span class="self-center text-sm text-slate-500" x-show="!loading && lookupState === 'ready' && selectedPeople.length === 0" x-text="availabilitySummary"></span>
+                        <span class="self-center text-sm text-amber-700" x-show="!loading && lookupState === 'unmapped'">No skill mapping configured</span>
+                        <span class="self-center text-sm text-slate-500" x-show="!loading && lookupState === 'no_matches'">No matching FMO personnel available</span>
+                        <span class="self-center text-sm text-rose-700" x-show="!loading && lookupState === 'error'">Unable to load personnel</span>
+                    </div>
+                    <button class="grid size-9 shrink-0 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50" type="button" @click="open = !open" :disabled="!categoryId || loading || lookupState !== 'ready'" :aria-expanded="open.toString()" aria-controls="preferred-personnel-options" aria-labelledby="preferred-personnel-label"><span aria-hidden="true">⌄</span></button>
+                </div>
+
+                <div id="preferred-personnel-options" x-cloak x-show="open" x-transition class="absolute z-30 mt-2 max-h-[min(32rem,70vh)] w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl" role="listbox" aria-multiselectable="true">
+                    <div class="sticky top-0 z-10 border-b border-slate-100 bg-white p-3">
+                        <label class="sr-only" for="preferred-personnel-search">Search personnel or skill</label>
+                        <input id="preferred-personnel-search" class="!mt-0" type="search" x-model.debounce.150ms="search" placeholder="Search personnel or skill...">
+                    </div>
+                    <div class="space-y-2 p-3">
+                        <template x-for="person in filteredOptions" :key="person.id">
+                            <label class="flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500" :class="{ 'border-blue-600 bg-blue-50': isSelected(person.id), 'cursor-not-allowed bg-slate-50 opacity-60': maxReached && !isSelected(person.id) }" role="option" :aria-selected="isSelected(person.id).toString()" :aria-disabled="(maxReached && !isSelected(person.id)).toString()">
+                                <input class="mt-1 shrink-0" type="checkbox" :checked="isSelected(person.id)" @change="toggle(person.id)" @keydown.enter.prevent="toggle(person.id)" :disabled="maxReached && !isSelected(person.id)">
+                                <span class="min-w-0 flex-1">
+                                    <span class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-950" x-text="person.name"></span><span class="rounded-full bg-blue-100 px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-blue-800" x-show="isSelected(person.id)">Selected</span></span>
+                                    <span class="mt-0.5 block text-xs text-slate-500" x-show="person.designation" x-text="person.designation"></span>
+                                    <span class="mt-2 block text-sm text-emerald-800" x-show="primaryMatches(person)"><span class="font-semibold">Primary &amp; matched skill:</span> <span x-text="person.primary_skill"></span></span>
+                                    <span class="mt-1 block text-sm text-emerald-800" x-show="primaryMatches(person) && otherMatchingSkills(person).length"><span class="font-semibold">Also matched:</span> <span x-text="otherMatchingSkills(person).join(', ')"></span></span>
+                                    <span class="mt-2 block text-sm text-emerald-800" x-show="!primaryMatches(person)"><span class="font-semibold" x-text="person.matching_skills.length === 1 ? 'Matched skill:' : 'Matched skills:'"></span> <span x-text="person.matching_skills.join(', ')"></span></span>
+                                    <span class="mt-1 block text-sm text-slate-700" x-show="person.primary_skill && !primaryMatches(person)"><span class="font-semibold">Primary:</span> <span x-text="person.primary_skill"></span></span>
+                                    <span class="mt-1 block break-words text-xs text-slate-500" x-show="person.additional_skills.length"><span class="font-semibold text-slate-600">Also:</span> <span x-text="person.additional_skills.join(' • ')"></span><span x-show="person.additional_skill_count" x-text="` +${person.additional_skill_count} more`"></span></span>
+                                </span>
+                            </label>
+                        </template>
+                        <p class="rounded-lg bg-slate-50 p-4 text-sm text-slate-600" x-show="lookupState === 'ready' && search && filteredOptions.length === 0">No personnel match your search.</p>
+                    </div>
+                </div>
+                <p id="preferred-personnel-help" class="help-text"><span x-show="!categoryId">Available personnel will be shown based on skills related to the selected Work Type. </span>Selections are suggestions only. Final assignment is made by FMO. You may select up to {{ config('work_orders.preferences.max_personnel') }} preferred personnel.</p>
+                <p class="mt-2 text-sm font-medium text-blue-800" x-show="selectionSummary" x-text="selectionSummary" aria-live="polite"></p>
+                <p class="mt-2 text-sm text-blue-800" x-show="loading" aria-live="polite">Loading matching FMO personnel...</p>
+                <div class="mt-2 rounded-lg bg-amber-50 p-4 text-sm text-amber-900" x-show="!loading && lookupState === 'unmapped'" role="status"><p>No personnel skill mapping is configured for this Work Type.</p><p class="mt-1">You may continue without selecting a preference.</p></div>
+                <div class="mt-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-600" x-show="!loading && lookupState === 'no_matches'" role="status"><p>No matching FMO personnel are currently available.</p><p class="mt-1">You may continue without selecting a preference.</p></div>
+                <p class="mt-2 text-sm text-amber-700" x-show="removedMessage" x-text="removedMessage" aria-live="polite"></p>
+                <p class="mt-2 text-sm text-rose-700" x-show="errorMessage" x-text="errorMessage" aria-live="assertive"></p>
+                @error('preferred_fmo_personnel_ids')<p id="preferred-personnel-error" class="field-error">{{ $message }}</p>@enderror
+                @error('preferred_fmo_personnel_ids.*')<p class="field-error">{{ $message }}</p>@enderror
+            </div>
         </section>
 
         <section class="form-section">

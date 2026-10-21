@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\EmploymentType;
 use App\Enums\PersonnelStatus;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -42,6 +43,36 @@ class FmoPersonnel extends Model
             ->withPivot('is_primary')->withTimestamps();
     }
 
+    /** @return Collection<int, Skill> */
+    public function orderedSkills(): Collection
+    {
+        $this->loadMissing('skills');
+
+        return $this->skills
+            ->sortBy(fn (Skill $skill): array => [
+                $skill->pivot->is_primary ? 0 : 1,
+                mb_strtolower($skill->name),
+            ])
+            ->values();
+    }
+
+    public function skillSummary(int $limit = 3, bool $identifyPrimary = false): string
+    {
+        $skills = $this->orderedSkills();
+        if ($skills->isEmpty()) {
+            return 'Skills not yet configured';
+        }
+
+        $summary = $skills->take($limit)
+            ->map(fn (Skill $skill): string => $identifyPrimary && $skill->pivot->is_primary
+                ? 'Primary: '.$skill->name
+                : $skill->name)
+            ->join(' • ');
+        $remaining = $skills->count() - min($limit, $skills->count());
+
+        return $remaining > 0 ? $summary.' • +'.$remaining.' more' : $summary;
+    }
+
     public function isAssignable(): bool
     {
         return $this->personnel_status === PersonnelStatus::Active
@@ -52,6 +83,12 @@ class FmoPersonnel extends Model
     public function workOrderAssignments(): HasMany
     {
         return $this->hasMany(WorkOrderAssignment::class);
+    }
+
+    public function preferredWorkOrders(): BelongsToMany
+    {
+        return $this->belongsToMany(WorkOrder::class, 'work_order_personnel_preferences')
+            ->withTimestamps();
     }
 
     public function routineTemplateAssignments(): HasMany

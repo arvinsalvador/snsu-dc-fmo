@@ -5,6 +5,7 @@ namespace App\Http\Controllers\WorkOrders;
 use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
 use App\Services\StoredFileTransaction;
+use App\Services\WorkOrderPreferenceService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -57,13 +58,16 @@ class WorkOrderWorkflowController extends Controller
         }
 
         $mutation = function () use ($request, $workOrder, $action, $workflow, $requests, $notes): WorkOrder {
+            $preferenceIds = [];
             if ($action === 'resubmit') {
                 abort_unless($workOrder->requester_id === $request->user()->id && $request->user()->can('work_orders.resubmit_own'), 403);
                 $data = $requests->validated($request);
+                $preferenceIds = $requests->pullPreferenceIds($data);
             }
             $updated = $workflow->transition($workOrder, $request->user(), $action, $notes['internal_note'] ?? null, $notes['requester_message'] ?? null);
             if ($action === 'resubmit') {
                 $updated->update($data);
+                app(WorkOrderPreferenceService::class)->sync($updated, $preferenceIds);
                 $requests->uploads($request, $updated);
             }
 

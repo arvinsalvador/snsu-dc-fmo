@@ -74,7 +74,7 @@ class ReportsController extends Controller
         abort_unless($reports->scope($request->user())->whereKey($workOrder->id)->exists(), 403);
         $management = $reports->canManage($request->user());
         $order = $workOrder->load('requester', 'category', 'campus', 'building', 'floor', 'location',
-            'preferredPersonnel.user', 'decisionMaker', 'completionSubmitter', 'verifier', 'assignments.personnel.user', 'activeAssignments.personnel.user',
+            'preferredPersonnel.user', 'preferredPersonnel.skills', 'decisionMaker', 'completionSubmitter', 'verifier', 'assignments.personnel.user', 'activeAssignments.personnel.user',
             'assessments.personnel.user', 'sessions.personnel.user', 'workflowEvents.actor', 'attachments');
 
         return view('reports.print', compact('order', 'management'));

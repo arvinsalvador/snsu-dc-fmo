@@ -7,13 +7,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WorkOrder extends Model
 {
     use HasUlids;
 
-    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'subject', 'description', 'urgency', 'preferred_fmo_personnel_id', 'status', 'submitted_at', 'recommendation', 'decided_by', 'decided_at', 'information_context', 'completion_summary', 'work_performed_summary', 'non_photo_reason', 'completion_submitted_by', 'completion_submitted_at', 'verified_by', 'verified_at', 'verification_note', 'execution_cycle'];
+    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'subject', 'description', 'urgency', 'status', 'submitted_at', 'recommendation', 'decided_by', 'decided_at', 'information_context', 'completion_summary', 'work_performed_summary', 'non_photo_reason', 'completion_submitted_by', 'completion_submitted_at', 'verified_by', 'verified_at', 'verification_note', 'execution_cycle'];
 
     protected function casts(): array
     {
@@ -50,9 +51,10 @@ class WorkOrder extends Model
         return $this->belongsTo(BuildingLocation::class, 'building_location_id');
     }
 
-    public function preferredPersonnel(): BelongsTo
+    public function preferredPersonnel(): BelongsToMany
     {
-        return $this->belongsTo(FmoPersonnel::class, 'preferred_fmo_personnel_id');
+        return $this->belongsToMany(FmoPersonnel::class, 'work_order_personnel_preferences')
+            ->withTimestamps();
     }
 
     public function attachments(): HasMany

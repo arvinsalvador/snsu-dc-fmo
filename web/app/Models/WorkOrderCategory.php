@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WorkOrderCategory extends Model
@@ -23,5 +24,11 @@ class WorkOrderCategory extends Model
     public function guidedProfile(): BelongsTo
     {
         return $this->belongsTo(GuidedDescriptionProfile::class, 'guided_description_profile_id');
+    }
+
+    public function relevantSkills(): BelongsToMany
+    {
+        return $this->belongsToMany(Skill::class, 'work_order_category_skill')
+            ->withTimestamps();
     }
 }

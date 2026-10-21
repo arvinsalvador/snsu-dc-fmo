@@ -101,7 +101,7 @@ class AssignedPersonnelAccessTest extends TestCase
         $one = $this->order($requester, 'WO-2026-000001');
         $two = $this->order($requester, 'WO-2026-000002');
         $shared = $this->order($requester, 'WO-2026-000003');
-        $one->update(['preferred_fmo_personnel_id' => $pc->id]);
+        $one->preferredPersonnel()->attach($pc);
         $assignments = app(WorkOrderAssignmentService::class);
         $assignments->add($one, $head, [$pa->id]);
         $assignments->add($two, $head, [$pb->id]);

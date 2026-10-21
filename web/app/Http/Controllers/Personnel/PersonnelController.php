@@ -115,7 +115,7 @@ class PersonnelController extends Controller
     {
         abort_unless($request->user()->can('personnel.delete'), 403);
         abort_if($personnel->workOrderAssignments()->exists()
-            || DB::table('work_orders')->where('preferred_fmo_personnel_id', $personnel->id)->exists()
+            || DB::table('work_order_personnel_preferences')->where('fmo_personnel_id', $personnel->id)->exists()
             || DB::table('work_order_assessments')->where('fmo_personnel_id', $personnel->id)->exists()
             || DB::table('work_sessions')->where('fmo_personnel_id', $personnel->id)->exists()
             || DB::table('work_updates')->where('fmo_personnel_id', $personnel->id)->exists(), 409, 'Personnel with Work Order history cannot be deleted. Archive the profile instead.');

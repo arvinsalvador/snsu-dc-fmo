@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'preferences' => [
+        'max_personnel' => (int) env('WORK_ORDER_MAX_PREFERRED_PERSONNEL', 3),
+    ],
     'attachments' => [
         'max_count' => (int) env('WORK_ORDER_ATTACHMENT_MAX_COUNT', 3),
         'max_size_kb' => (int) env('WORK_ORDER_ATTACHMENT_MAX_SIZE_KB', 10240),

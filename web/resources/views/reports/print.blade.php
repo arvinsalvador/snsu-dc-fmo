@@ -21,7 +21,7 @@ h1{font-size:1.5rem;margin-bottom:.2rem}h2{font-size:1.05rem;border-bottom:1px s
 <div><b>Office / room / area:</b> {{ $order->location?->name ?? $order->floor?->name ?? 'Not specified' }}</div>
 </div>
 <p><b>Subject:</b> {{ $order->subject }}</p><p><b>Description:</b> {{ $order->description }}</p>
-@if ($management && $order->preferredPersonnel)<p><b>Preferred personnel:</b> {{ $order->preferredPersonnel->user->name }} (requester preference)</p>@endif
+@if ($management && $order->preferredPersonnel->isNotEmpty())<p><b>Preferred personnel:</b> {{ $order->preferredPersonnel->pluck('user.name')->join(', ') }} (requester preferences only)</p>@endif
 <h2>Decision and assignment</h2>
 <p><b>Decision:</b> {{ $order->decided_at ? ($order->decisionMaker?->name ?? 'Authorized reviewer').' · '.$order->decided_at->timezone('Asia/Manila')->format('Y-m-d H:i') : 'Pending' }}</p>
 <p><b>Assigned personnel:</b> {{ ($management ? $order->assignments : $order->activeAssignments)->pluck('personnel.user.name')->filter()->unique()->join(', ') ?: 'None' }}</p>

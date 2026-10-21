@@ -1,6 +1,8 @@
+import Alpine from 'alpinejs';
 import { initializeLocationSelects } from './work-order-location.js';
 import { initializeCollapsibles } from './collapsible.js';
 import { initializePersonnelSkills } from './personnel-skills.js';
+import { preferredPersonnelSelector } from './preferred-personnel.js';
 
 export function initializePhotoPicker(container) {
     const preview = container.querySelector('[data-photo-preview]');
@@ -646,6 +648,10 @@ export function initializeActionMenus() {
     window.addEventListener('resize', () => close(active));
     window.addEventListener('scroll', () => close(active), true);
 }
+
+window.Alpine = Alpine;
+Alpine.data('preferredPersonnelSelector', preferredPersonnelSelector);
+Alpine.start();
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeCollapsibles();

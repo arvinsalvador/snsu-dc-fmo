@@ -2,15 +2,39 @@
     <details id="assignment-tools" data-collapsible class="section-card scroll-mt-24">
         <x-collapsible-summary icon="assignment" class="-mx-2 text-lg text-slate-900">Manage Assignment</x-collapsible-summary>
         <p class="mt-3 text-sm text-slate-600">Requester preference is advisory. Select active personnel based on skills, availability and current workload.</p>
+        @if ($order->preferredPersonnel->isNotEmpty())
+            <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-amber-800">Requester preferred</p>
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                    @foreach ($order->preferredPersonnel as $preferred)
+                        <div><p class="text-sm font-semibold text-slate-900">{{ $preferred->user->name }}</p><p class="text-xs text-slate-600">{{ $preferred->skillSummary(3, true) }}</p></div>
+                    @endforeach
+                </div>
+                <p class="mt-3 text-xs text-amber-800">These suggestions do not restrict the personnel management may assign.</p>
+            </div>
+        @endif
         <form method="POST" action="{{ route('work-orders.assignments.store', $order) }}" class="mt-5 space-y-4">
             @csrf
-            <fieldset><legend class="text-sm font-semibold text-slate-800">Available personnel</legend><div class="mt-3 grid gap-3 md:grid-cols-2">
-                @forelse ($assignablePersonnel as $person)
-                    <label class="relative flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-400 has-checked:border-blue-600 has-checked:bg-blue-50">
-                        <input class="mt-1" type="checkbox" name="personnel_ids[]" value="{{ $person->id }}">
-                        <x-avatar :name="$person->user->name" />
-                        <span class="min-w-0 flex-1"><span class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-900">{{ $person->user->name }}</span>@if ($order->preferred_fmo_personnel_id === $person->id)<span class="status-badge status-open">Requester preference</span>@endif</span><span class="mt-1 block text-sm text-slate-600">{{ $person->designation ?: 'FMO Personnel' }}</span><span class="mt-2 block text-xs text-slate-500">{{ $person->skills->pluck('name')->join(', ') ?: 'No skills recorded' }} · {{ $person->active_workload_count }} active {{ \Illuminate\Support\Str::plural('assignment', $person->active_workload_count) }}</span></span>
-                    </label>
+            @php
+                $relevantSkillIds = $order->category->relevantSkills->modelKeys();
+                $matchingPersonnel = $assignablePersonnel->filter(fn ($person) => $person->skills->whereIn('id', $relevantSkillIds)->isNotEmpty());
+                $otherPersonnel = $assignablePersonnel->reject(fn ($person) => $matchingPersonnel->contains('id', $person->id));
+                $personnelGroups = collect([
+                    ['label' => 'Matching skills', 'people' => $matchingPersonnel],
+                    ['label' => 'Other eligible personnel', 'people' => $otherPersonnel],
+                ]);
+            @endphp
+            <fieldset><legend class="text-sm font-semibold text-slate-800">Available personnel</legend><div class="mt-3 space-y-5">
+                @forelse ($personnelGroups->filter(fn ($group) => $group['people']->isNotEmpty()) as $group)
+                    <div><p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $group['label'] }}</p><div class="grid gap-3 md:grid-cols-2">
+                        @foreach ($group['people'] as $person)
+                            <label class="relative flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-400 has-checked:border-blue-600 has-checked:bg-blue-50">
+                                <input class="mt-1" type="checkbox" name="personnel_ids[]" value="{{ $person->id }}">
+                                <x-avatar :name="$person->user->name" />
+                                <span class="min-w-0 flex-1"><span class="flex flex-wrap items-center gap-2"><span class="font-semibold text-slate-900">{{ $person->user->name }}</span>@if ($order->preferredPersonnel->contains('id', $person->id))<span class="status-badge status-open">Requester preference</span>@endif</span><span class="mt-1 block text-sm text-slate-600">{{ $person->designation ?: 'FMO Personnel' }}</span><span class="mt-2 block text-xs text-slate-500">{{ $person->skills->pluck('name')->join(', ') ?: 'No skills recorded' }} · {{ $person->active_workload_count }} active {{ \Illuminate\Support\Str::plural('assignment', $person->active_workload_count) }}</span></span>
+                            </label>
+                        @endforeach
+                    </div></div>
                 @empty
                     <x-empty-state title="No assignable personnel" description="Review personnel availability before attempting assignment." icon="users" />
                 @endforelse
