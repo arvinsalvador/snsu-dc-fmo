@@ -9,6 +9,7 @@ use App\Models\Campus;
 use App\Models\FmoPersonnel;
 use App\Models\InspectableAsset;
 use App\Models\RoutineTaskTemplate;
+use App\Models\RoutineTaskTemplateAssignment;
 use App\Models\User;
 use App\Services\AssetLifecycleService;
 use App\Services\RoutineOccurrenceService;
@@ -115,7 +116,7 @@ class AssetInspectionStabilizationTest extends TestCase
         $asset = $this->asset('WF-TEST-001', 'Registrar wall fan');
         $response = $this->actingAs($this->head)->post(route('routine-templates.store'), [
             'title' => 'Monthly Wall Fan Inspection', 'task_type' => 'INSPECTION', 'frequency' => 'MONTHLY',
-            'month_day' => 1, 'start_date' => '2026-10-01', 'due_time' => '08:00',
+            'month_day' => 1, 'start_date' => '2026-10-16', 'due_time' => '08:00',
             'asset_type_id' => $this->fanType->id, 'inspection_asset_scope' => 'SPECIFIC',
             'selected_asset_ids' => [$asset->id], 'assignee_ids' => [$this->personA->id], 'is_active' => '1',
         ]);
@@ -125,6 +126,7 @@ class AssetInspectionStabilizationTest extends TestCase
         $run = $occurrence->inspectionRun;
         $item = $run->items->firstOrFail();
         $this->assertSame('2026-10', $occurrence->period_key);
+        $this->assertSame('2026-10-16', $occurrence->expected_date->toDateString());
         $this->assertSame($asset->id, $item->inspectable_asset_id);
         $this->assertEqualsCanonicalizing([$this->personA->id], $item->activeAssignees->modelKeys());
 
@@ -155,6 +157,35 @@ class AssetInspectionStabilizationTest extends TestCase
 
         $this->assertSame(0, $future->occurrences()->count());
         $this->assertSame(0, $inactive->occurrences()->count());
+    }
+
+    public function test_empty_inspection_scope_warns_once_and_recovers_when_an_asset_becomes_active(): void
+    {
+        $asset = $this->asset('WF-TEST-001', 'Registrar wall fan', [
+            'status' => 'OUT_OF_SERVICE', 'condition' => 'UNUSABLE', 'lifecycle_status' => 'FOR_DISPOSAL_REVIEW',
+        ]);
+        $template = $this->template('Monthly Wall Fan Inspection', '2026-10-16', true);
+        RoutineTaskTemplateAssignment::create([
+            'routine_task_template_id' => $template->id, 'fmo_personnel_id' => $this->personA->id,
+            'assigned_by' => $this->head->id, 'assigned_at' => now(), 'active_marker' => 1,
+        ]);
+        $from = CarbonImmutable::parse('2026-10-01', 'Asia/Manila');
+        $to = CarbonImmutable::parse('2026-10-16', 'Asia/Manila');
+
+        app(RoutineOccurrenceService::class)->generate($from, $to);
+        app(RoutineOccurrenceService::class)->generate($from, $to);
+
+        $this->assertSame(0, $template->occurrences()->count());
+        $notices = $this->head->notifications()->where('data->event_key', 'INSPECTION_NO_ACTIVE_ASSETS')->get();
+        $this->assertCount(1, $notices);
+        $this->assertSame($template->id, $notices->first()->data['routine_task_template_id']);
+
+        $asset->update(['status' => 'ACTIVE', 'condition' => 'GOOD', 'lifecycle_status' => 'ACTIVE']);
+        app(RoutineOccurrenceService::class)->generate($from, $to);
+        $occurrence = $template->occurrences()->with('inspectionRun.items.activeAssignees')->firstOrFail();
+        $this->assertSame('2026-10-16', $occurrence->expected_date->toDateString());
+        $this->assertSame($asset->id, $occurrence->inspectionRun->items->firstOrFail()->inspectable_asset_id);
+        $this->assertEqualsCanonicalizing([$this->personA->id], $occurrence->inspectionRun->items->first()->activeAssignees->modelKeys());
     }
 
     private function user(string $role): User

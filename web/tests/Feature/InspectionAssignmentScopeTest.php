@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AssetActionRequest;
 use App\Models\AssetType;
 use App\Models\Building;
 use App\Models\Campus;
@@ -16,7 +17,9 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\AuthorizationSeeder;
 use Database\Seeders\RoutineOperationsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class InspectionAssignmentScopeTest extends TestCase
@@ -160,13 +163,38 @@ class InspectionAssignmentScopeTest extends TestCase
         $this->assertCount(0, $this->staffB->notifications);
 
         $checklist = collect($item->checklist_snapshot)->mapWithKeys(fn ($check) => [$check['code'] => 'YES'])->all();
-        $payload = ['result' => 'GOOD', 'checklist' => $checklist];
+        $payload = ['result' => 'GOOD', 'checklist' => $checklist, 'recommended_action' => 'NONE'];
         $this->actingAs($this->staffB)->post(route('inspections.items.record', [$run, $item]), $payload)->assertRedirect();
         $this->assertSame($this->personB->id, $item->fresh()->inspector_personnel_id);
         $this->actingAs($this->staffB)->post(route('inspections.items.record', [$run, $item]), $payload)->assertForbidden();
         $this->actingAs($this->head)->from(route('inspections.show', $run))->post(route('inspections.assignments.item', [$run, $item]), ['assignee_ids' => [$this->personA->id]])
             ->assertRedirect(route('inspections.show', $run))->assertSessionHasErrors('assignee_ids');
         $this->assertSame($this->personB->id, $item->fresh()->inspector_personnel_id);
+    }
+
+    public function test_my_inspections_completion_can_open_a_repair_review_with_evidence(): void
+    {
+        Storage::fake('local');
+        $template = $this->template([$this->personA->id]);
+        $run = $this->generate($template, '2026-10-16');
+        $item = $run->items()->where('inspectable_asset_id', $this->assets[0]->id)->firstOrFail();
+        $checklist = collect($item->checklist_snapshot)->mapWithKeys(fn ($check) => [$check['code'] => 'YES'])->all();
+
+        $this->actingAs($this->staffA)->post(route('inspections.items.record', [$run, $item]), [
+            'result' => 'DEFECTIVE',
+            'checklist' => $checklist,
+            'recommended_action' => 'REPAIR_REVIEW',
+            'remarks' => 'Pressure loss requires workshop assessment.',
+            'evidence' => [UploadedFile::fake()->image('defect.jpg', 1200, 900)],
+        ])->assertRedirect(route('inspections.show', $run));
+
+        $request = AssetActionRequest::where('inspection_item_id', $item->id)->firstOrFail();
+        $this->assertSame('REPAIR', $request->type);
+        $this->assertSame('PENDING', $request->status);
+        $this->assertSame('NEEDS_REPAIR', $this->assets[0]->fresh()->condition->value);
+        $this->assertSame('ACTIVE', $this->assets[0]->fresh()->lifecycle_status->value);
+        $this->assertSame('REPAIR_REVIEW', $item->fresh()->recommended_action);
+        $this->assertCount(1, $item->fresh()->attachments);
     }
 
     public function test_due_notifications_are_summarized_per_run_and_api_returns_only_assigned_items(): void

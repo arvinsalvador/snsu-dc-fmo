@@ -153,6 +153,44 @@ class AssetLifecycleTest extends TestCase
         $this->assertGreaterThanOrEqual(7, $asset->lifecycleEvents()->count());
     }
 
+    public function test_not_repairable_atomically_opens_the_authoritative_disposal_review(): void
+    {
+        $asset = $this->asset();
+        $this->actingAs($this->staff)->post(route('assets.actions.request', $asset), [
+            'type' => 'REPAIR', 'problem_description' => 'Motor windings are burned.',
+        ])->assertRedirect();
+        $repair = AssetActionRequest::where('type', 'REPAIR')->firstOrFail();
+
+        $this->actingAs($this->head)->post(route('assets.actions.review', $repair), [
+            'decision' => 'NOT_REPAIRABLE', 'reason' => 'Repair cost exceeds replacement cost.',
+        ])->assertRedirect();
+
+        $disposal = AssetActionRequest::where('type', 'DISPOSAL')->where('status', 'PENDING')->firstOrFail();
+        $this->assertSame('REVIEWED', $repair->fresh()->status);
+        $this->assertNull($repair->fresh()->active_marker);
+        $this->assertSame(1, $disposal->active_marker);
+        $this->assertSame(1, $asset->actionRequests()->where('status', 'PENDING')->count());
+        $this->assertSame('FOR_DISPOSAL_REVIEW', $asset->fresh()->lifecycle_status->value);
+        $this->assertSame('UNUSABLE', $asset->fresh()->condition->value);
+        $this->actingAs($this->head)->get(route('assets.show', $asset))->assertOk()
+            ->assertSee('DISPOSAL review required')->assertDontSee('REPAIR review required')
+            ->assertSee('Current condition')->assertSee('Lifecycle')->assertSee('Reported by')->assertSee('Reported date');
+
+        $this->actingAs($this->staff)->post(route('assets.actions.request', $asset), [
+            'type' => 'REPAIR', 'problem_description' => 'Open another repair review.',
+        ])->assertSessionHasErrors('type');
+        $this->actingAs($this->head)->post(route('assets.actions.review', $repair), [
+            'decision' => 'APPROVE_REPAIR',
+        ])->assertSessionHasErrors('decision');
+
+        $this->actingAs($this->head)->post(route('assets.actions.review', $disposal), [
+            'decision' => 'SEND_FOR_REPAIR', 'reason' => 'A specialist repair is still viable.',
+        ])->assertRedirect();
+        $this->assertSame('UNDER_REPAIR', $asset->fresh()->lifecycle_status->value);
+        $this->assertSame('NEEDS_REPAIR', $asset->fresh()->condition->value);
+        $this->assertSame(0, $asset->actionRequests()->where('status', 'PENDING')->count());
+    }
+
     public function test_asset_types_are_managed_without_deleting_existing_assets(): void
     {
         $this->actingAs($this->head)->post('/asset-types', ['name' => 'Water Pump', 'code' => 'WP', 'description' => 'Campus water pump',

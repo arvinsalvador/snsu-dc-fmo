@@ -71,14 +71,14 @@ class AssetInspectionController extends Controller
             }
             $asset->update(['condition' => $data['condition'], 'last_inspected_at' => now()]);
             $lifecycle->event($asset, $request->user(), 'ASSET_INSPECTED', $data['summary']);
+            if ($data['recommended_action'] !== 'NONE') {
+                $type = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'REPAIR' : 'DISPOSAL';
+                $lifecycle->request($asset->fresh(), $request->user(), $type, $data['summary'], $item);
+            }
             if ($item->run) {
                 $this->updateRunProgress($item);
             }
         });
-        if ($data['recommended_action'] !== 'NONE') {
-            $type = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'REPAIR' : 'DISPOSAL';
-            $lifecycle->request($asset->fresh(), $request->user(), $type, $data['summary'], $item);
-        }
 
         if ($request->expectsJson()) {
             return response()->json(['data' => $item->fresh(['attachments']), 'asset' => $asset->fresh()], 201);

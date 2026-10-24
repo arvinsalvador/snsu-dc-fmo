@@ -9,6 +9,7 @@ use App\Models\InspectionItem;
 use App\Models\InspectionRun;
 use App\Models\User;
 use App\Notifications\InspectionAttentionNotice;
+use App\Services\AssetLifecycleService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
 use Illuminate\Http\Request;
@@ -51,7 +52,7 @@ class InspectionController extends Controller
         return view('routine-operations.inspections.show', compact('inspection', 'performableItemIds', 'personnel'));
     }
 
-    public function record(Request $request, InspectionRun $inspection, InspectionItem $item, OperationalEvidenceService $evidence)
+    public function record(Request $request, InspectionRun $inspection, InspectionItem $item, OperationalEvidenceService $evidence, AssetLifecycleService $lifecycle)
     {
         abort_unless($item->inspection_run_id === $inspection->id, 404);
         abort_unless(app(RoutineTaskAccessService::class)->canPerformInspectionItem($item, $request->user()), 403);
@@ -61,6 +62,7 @@ class InspectionController extends Controller
         $options = $item->asset->assetType->result_options;
         $data = $request->validate([
             'result' => ['required', Rule::in($options)], 'checklist' => ['required', 'array'], 'checklist.*' => ['required', Rule::in(['YES', 'NO', 'NOT_APPLICABLE'])],
+            'recommended_action' => ['required', Rule::in(['NONE', 'REPAIR_REVIEW', 'DISPOSAL_REVIEW'])],
             'remarks' => ['nullable', 'string', 'max:5000'], 'evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
         ]);
         $checklist = $item->checklist_snapshot ?: $item->asset->assetType->checklist;
@@ -71,11 +73,15 @@ class InspectionController extends Controller
         if ($inspection->template->evidence_required && $item->attachments->isEmpty() && empty($data['evidence'])) {
             throw ValidationException::withMessages(['evidence' => 'Photo evidence is required for this inspection.']);
         }
-        if (in_array($data['result'], ['DEFECTIVE', 'OUT_OF_SERVICE', 'MISSING'], true) && $item->attachments->isEmpty() && empty($data['evidence'])) {
+        if ((in_array($data['result'], ['NEEDS_REPAIR', 'DAMAGED', 'BROKEN', 'UNUSABLE', 'DEFECTIVE', 'OUT_OF_SERVICE', 'MISSING'], true) || $data['recommended_action'] !== 'NONE') && $item->attachments->isEmpty() && empty($data['evidence'])) {
             throw ValidationException::withMessages(['evidence' => 'Photo evidence is required for a damaged or non-serviceable asset.']);
         }
+        if ($data['recommended_action'] !== 'NONE') {
+            $permission = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'assets.request_repair' : 'assets.request_disposal';
+            abort_unless($request->user()->can($permission), 403);
+        }
         $personnel = $request->user()->personnelProfile;
-        DB::transaction(function () use ($item, $inspection, $data, $request, $personnel, $evidence): void {
+        DB::transaction(function () use ($item, $inspection, $data, $request, $personnel, $evidence, $lifecycle): void {
             $lockedItem = InspectionItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
             abort_if($lockedItem->status === 'INSPECTED', 422, 'This inspection item is already complete.');
             $failedLabels = collect($item->checklist_snapshot ?: $item->asset->assetType->checklist)->filter(fn ($check) => ($data['checklist'][$check['code']] ?? null) === 'NO')->pluck('label');
@@ -84,13 +90,20 @@ class InspectionController extends Controller
                 $summary .= ' Needs attention: '.$failedLabels->join(', ', ', and ').'.';
             }
             $condition = match ($data['result']) {
-                'GOOD' => 'GOOD', 'NEEDS_ATTENTION' => 'FAIR', 'MISSING' => 'UNUSABLE', default => 'NEEDS_REPAIR'
+                'GOOD' => 'GOOD', 'NEEDS_ATTENTION' => 'FAIR', 'NEEDS_REPAIR' => 'NEEDS_REPAIR', 'DAMAGED' => 'DAMAGED',
+                'BROKEN' => 'BROKEN', 'MISSING', 'OUT_OF_SERVICE', 'RECOMMEND_DISPOSAL', 'UNUSABLE' => 'UNUSABLE', default => 'NEEDS_REPAIR'
             };
             $lockedItem->update(['status' => 'INSPECTED', 'inspector_personnel_id' => $personnel?->id, 'inspector_user_id' => $request->user()->id,
-                'inspected_at' => now(), 'result' => $data['result'], 'condition' => $condition, 'checklist_results' => $data['checklist'], 'generated_summary' => $summary, 'remarks' => $data['remarks'] ?? null]);
+                'inspected_at' => now(), 'result' => $data['result'], 'condition' => $condition, 'recommended_action' => $data['recommended_action'],
+                'checklist_results' => $data['checklist'], 'generated_summary' => $summary, 'remarks' => $data['remarks'] ?? null]);
             $item->asset->update(['condition' => $condition, 'last_inspected_at' => now()]);
+            $lifecycle->event($item->asset, $request->user(), 'ASSET_INSPECTED', $summary);
             if (! empty($data['evidence'])) {
                 $evidence->attach($lockedItem, $data['evidence'], $request->user()->id, 'INSPECTION_EVIDENCE');
+            }
+            if ($data['recommended_action'] !== 'NONE') {
+                $type = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'REPAIR' : 'DISPOSAL';
+                $lifecycle->request($item->asset->fresh(), $request->user(), $type, $summary, $lockedItem);
             }
             if ($inspection->items()->where('status', '!=', 'INSPECTED')->doesntExist()) {
                 $inspection->update(['status' => 'COMPLETED', 'started_at' => $inspection->started_at ?? now(), 'completed_at' => now()]);

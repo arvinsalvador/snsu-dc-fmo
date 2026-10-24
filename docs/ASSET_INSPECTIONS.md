@@ -18,9 +18,11 @@ Managers with `inspections.assign` may reassign all unfinished items in a run or
 
 ## Occurrence generation and staff visibility
 
-Saving a new active template immediately runs the safe current generation window. Weekly schedules include the beginning of the active week and monthly schedules include the beginning of the active month, so a schedule whose due day already passed produces its current overdue occurrence instead of waiting for a later cron run. The form defaults a new weekly/monthly recurrence to today's weekday/day. A future start date remains future, and an inactive template creates nothing.
+Saving a new active template immediately runs the safe current generation window. Weekly schedules include the beginning of the active week and monthly schedules include the beginning of the active month. When a new template starts after its configured weekday or month day has already passed, the start date becomes that first partial period's anchor; the normal recurrence anchor resumes in later periods. This produces the current occurrence immediately without backdating it before the template existed. A future start date remains future, and an inactive template creates nothing.
 
 One schedule produces one linked `RoutineTaskOccurrence`, one `InspectionRun`, and its asset-specific `InspectionItem` rows. Template personnel are copied to item-assignment snapshots during that transaction. The unique template/period key, unique run/occurrence relation, and unique run/asset item prevent duplicate generation. Due notices use the same idempotent notification service during immediate creation and scheduled generation.
+
+Only assets whose lifecycle is `ACTIVE` are eligible. If no active asset matches, generation deliberately creates neither an empty occurrence nor an empty run. Users with management visibility receive one deduplicated `INSPECTION_NO_ACTIVE_ASSETS` notice per template and period. The template remains active and the scheduled generator retries safely; once a matching asset becomes active, the same period is generated without recreating the template. Existing occurrences missing their run or newly eligible item snapshots are also repaired idempotently.
 
 Assigned staff see the same occurrence in two purposeful views:
 
@@ -35,7 +37,7 @@ Both views resolve `User → FmoPersonnel → active InspectionItemAssignment` i
 
 Condition choices use staff-facing explanations for pristine, good, needs attention, needs repair, broken, and disposal recommendation. Each checklist comes from the selected Asset Type rather than a hard-coded Blade form. Asset and optional placement photos use camera capture or file choice. Evidence is mandatory for repair, damaged/broken/unusable, and disposal recommendations.
 
-Completing an inspection updates `last_inspected_at` and current condition. For a recurring run it also updates item progress; the occurrence completes only after every snapshotted asset item is inspected.
+Completing an inspection updates `last_inspected_at` and current condition. A good result leaves the lifecycle active. **Submit for repair review** creates an auditable repair request, while **Recommend for disposal** creates a disposal request and moves the asset to `FOR_DISPOSAL_REVIEW`; both require the corresponding permission and current photo evidence. The run page, QR-driven asset form, and API use the same lifecycle service, validation, and evidence rules. For a recurring run, completion also updates item progress; the occurrence completes only after every snapshotted asset item is inspected.
 
 The inspection list and run page are server-scoped. Ordinary staff receive only items actively assigned to their personnel profile, including counts and overdue totals. Management with `inspections.view_all` can see all items, current assignees, assignment history, team progress, and who completed each asset. The performer is stored independently from assignment history. A completed item rejects duplicate submissions.
 

@@ -71,14 +71,15 @@ class AssetController extends Controller
         return redirect()->route('assets.show', $asset)->with('status', 'Inspectable asset added.');
     }
 
-    public function show(Request $request, InspectableAsset $asset, AssetQrCodeService $qr, RoutineTaskAccessService $access, AssetMaintenanceAssignmentService $maintenanceAssignments)
+    public function show(Request $request, InspectableAsset $asset, AssetQrCodeService $qr, RoutineTaskAccessService $access, AssetMaintenanceAssignmentService $maintenanceAssignments, AssetLifecycleService $lifecycle)
     {
         abort_unless($request->user()->can('assets.view'), 403);
         $asset->load(['assetType', 'campus', 'building', 'floor', 'location', 'attachments.uploader',
             'actionRequests.requester', 'actionRequests.reviewer', 'actionRequests.attachments', 'actionRequests.activeAssignees.user',
             'maintenanceRecords.recorder', 'maintenanceRecords.attachments', 'lifecycleEvents.actor']);
         $history = $asset->inspectionItems()->with(['run.template', 'inspector.user', 'attachments'])->where('status', 'INSPECTED')->latest('inspected_at')->paginate(15);
-        $pendingAction = $asset->actionRequests->where('status', 'PENDING')->sortByDesc('requested_at')->first();
+        $pendingAction = $lifecycle->activePendingRequest($asset);
+        $pendingAction?->loadMissing(['requester', 'attachments']);
         $qrSvg = $qr->svg($asset);
         $assignedInspectionItems = collect();
         if ($request->user()->can('assets.inspect') && $request->user()->can('inspections.perform')) {

@@ -10,9 +10,19 @@ Staff with `assets.request_repair` may submit a repair review from an inspection
 - Partially repaired → condition `NEEDS_REPAIR`, lifecycle remains `UNDER_REPAIR`.
 - Not repairable → condition `UNUSABLE`, disposal review is opened.
 
+The **Not Repairable** decision is atomic: it closes the repair request, transitions the asset to `FOR_DISPOSAL_REVIEW`, and creates the authoritative pending disposal request in one database transaction. The same rule applies when a repair worker records a not-repairable result. A failure cannot leave a reviewed repair action without its required disposal review.
+
 ## Disposal
 
 Staff with `assets.request_disposal` may recommend disposal but cannot approve or finalize it. `assets.approve_disposal` permits approval, rejection, return for information, or redirection to repair. Approval moves the asset only to `APPROVED_FOR_DISPOSAL`. A separate `assets.mark_disposed` action records the physical disposal date, responsible authenticated user, remarks, optional evidence, and finally moves it to `DISPOSED`.
+
+Only one action request may be active for an asset. Opening a disposal review supersedes any conflicting pending repair review without deleting it. Replaying an already-processed request returns a friendly stale-review validation message. A data migration repairs legacy `FOR_DISPOSAL_REVIEW` assets by superseding conflicting repair rows and creating the missing disposal review from the prior not-repairable decision. It also adds a lifecycle event explaining the repair.
+
+Review outcomes are:
+
+- Repair review: approve repair, mark not repairable, return for information, or reject.
+- Disposal review: approve disposal, send for repair instead, return for information, or reject.
+- Physical disposal remains a separate final action after approval.
 
 ## Notifications and permissions
 

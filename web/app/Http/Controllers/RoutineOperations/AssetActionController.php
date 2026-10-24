@@ -35,27 +35,31 @@ class AssetActionController extends Controller
 
     public function review(Request $request, AssetActionRequest $assetAction, AssetLifecycleService $lifecycle)
     {
-        $assetAction->load('asset', 'requester');
+        $assetAction->load('asset', 'requester', 'inspection');
         abort_unless($request->user()->can($assetAction->type === 'REPAIR' ? 'assets.review_repair' : 'assets.approve_disposal'), 403);
-        abort_unless($assetAction->status === 'PENDING', 422);
+        $lifecycle->assertCurrentReview($assetAction);
         $allowed = $assetAction->type === 'REPAIR'
             ? ['APPROVE_REPAIR', 'NOT_REPAIRABLE', 'RETURN', 'REJECT']
             : ['APPROVE_DISPOSAL', 'SEND_FOR_REPAIR', 'RETURN', 'REJECT'];
         $data = $request->validate(['decision' => ['required', Rule::in($allowed)], 'reason' => ['nullable', 'required_if:decision,NOT_REPAIRABLE,RETURN,REJECT', 'string', 'max:5000']]);
         DB::transaction(function () use ($assetAction, $data, $request, $lifecycle): void {
-            $assetAction->update(['status' => in_array($data['decision'], ['RETURN'], true) ? 'RETURNED' : 'REVIEWED', 'reviewed_by' => $request->user()->id,
+            InspectableAsset::query()->whereKey($assetAction->inspectable_asset_id)->lockForUpdate()->firstOrFail();
+            $lockedAction = AssetActionRequest::query()->whereKey($assetAction->id)->lockForUpdate()->firstOrFail();
+            $lockedAction->load('asset', 'inspection');
+            $lifecycle->assertCurrentReview($lockedAction);
+            $lockedAction->update(['status' => in_array($data['decision'], ['RETURN'], true) ? 'RETURNED' : 'REVIEWED', 'reviewed_by' => $request->user()->id,
                 'reviewed_at' => now(), 'decision' => $data['decision'], 'decision_reason' => $data['reason'] ?? null]);
             match ($data['decision']) {
-                'APPROVE_REPAIR', 'SEND_FOR_REPAIR' => $lifecycle->transition($assetAction->asset, $request->user(), 'REPAIR_APPROVED', 'UNDER_REPAIR', 'NEEDS_REPAIR', $data['reason'] ?? null, $assetAction),
-                'NOT_REPAIRABLE' => $lifecycle->transition($assetAction->asset, $request->user(), 'NOT_REPAIRABLE', 'FOR_DISPOSAL_REVIEW', 'UNUSABLE', $data['reason'], $assetAction),
-                'APPROVE_DISPOSAL' => $lifecycle->transition($assetAction->asset, $request->user(), 'DISPOSAL_APPROVED', 'APPROVED_FOR_DISPOSAL', null, $data['reason'] ?? null, $assetAction),
-                'REJECT' => $lifecycle->transition($assetAction->asset, $request->user(), 'REQUEST_REJECTED', 'ACTIVE', null, $data['reason'], $assetAction),
-                default => $lifecycle->event($assetAction->asset, $request->user(), 'REQUEST_RETURNED', $data['reason'], $assetAction),
+                'APPROVE_REPAIR', 'SEND_FOR_REPAIR' => $lifecycle->transition($lockedAction->asset, $request->user(), 'REPAIR_APPROVED', 'UNDER_REPAIR', 'NEEDS_REPAIR', $data['reason'] ?? null, $lockedAction),
+                'NOT_REPAIRABLE' => $lifecycle->transition($lockedAction->asset, $request->user(), 'NOT_REPAIRABLE', 'FOR_DISPOSAL_REVIEW', 'UNUSABLE', $data['reason'], $lockedAction),
+                'APPROVE_DISPOSAL' => $lifecycle->transition($lockedAction->asset, $request->user(), 'DISPOSAL_APPROVED', 'APPROVED_FOR_DISPOSAL', null, $data['reason'] ?? null, $lockedAction),
+                'REJECT' => $lifecycle->transition($lockedAction->asset, $request->user(), 'REQUEST_REJECTED', 'ACTIVE', null, $data['reason'], $lockedAction),
+                default => $lifecycle->event($lockedAction->asset, $request->user(), 'REQUEST_RETURNED', $data['reason'], $lockedAction),
             };
+            if ($data['decision'] === 'NOT_REPAIRABLE') {
+                $lifecycle->request($lockedAction->asset->fresh(), $request->user(), 'DISPOSAL', $data['reason'], $lockedAction->inspection);
+            }
         });
-        if ($data['decision'] === 'NOT_REPAIRABLE') {
-            $lifecycle->request($assetAction->asset->fresh(), $request->user(), 'DISPOSAL', $data['reason'], $assetAction->inspection);
-        }
         $event = match ($data['decision']) {
             'APPROVE_REPAIR', 'SEND_FOR_REPAIR' => 'ASSET_REPAIR_APPROVED', 'APPROVE_DISPOSAL' => 'ASSET_DISPOSAL_APPROVED', 'RETURN' => 'ASSET_REQUEST_RETURNED', default => 'ASSET_REQUEST_UPDATED'
         };
@@ -86,10 +90,10 @@ class AssetActionController extends Controller
                 'PARTIALLY_REPAIRED' => $lifecycle->transition($asset, $request->user(), 'REPAIR_PARTIAL', 'UNDER_REPAIR', 'NEEDS_REPAIR', $data['work_performed'], $action),
                 default => $lifecycle->transition($asset, $request->user(), 'REPAIR_FAILED', 'FOR_DISPOSAL_REVIEW', 'UNUSABLE', $data['remarks'] ?? $data['work_performed'], $action),
             };
+            if ($data['result'] === 'NOT_REPAIRABLE') {
+                $lifecycle->request($asset->fresh(), $request->user(), 'DISPOSAL', $data['remarks'] ?? $data['work_performed']);
+            }
         });
-        if ($data['result'] === 'NOT_REPAIRABLE') {
-            $lifecycle->request($asset->fresh(), $request->user(), 'DISPOSAL', $data['remarks'] ?? $data['work_performed']);
-        }
 
         if ($request->expectsJson()) {
             return response()->json(['data' => $record->fresh(['attachments']), 'asset' => $asset->fresh()], 201);

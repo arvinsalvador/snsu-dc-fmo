@@ -134,7 +134,7 @@ class RoutineOperationsTest extends TestCase
         $checklist = collect($type->checklist)->mapWithKeys(fn ($check) => [$check['code'] => 'YES'])->all();
         foreach ($run->items()->get() as $index => $item) {
             $result = $index === 0 ? 'NEEDS_ATTENTION' : 'GOOD';
-            $this->actingAs($this->staff)->post("/inspections/{$run->id}/items/{$item->id}", ['result' => $result, 'checklist' => $checklist])->assertRedirect();
+            $this->actingAs($this->staff)->post("/inspections/{$run->id}/items/{$item->id}", ['result' => $result, 'checklist' => $checklist, 'recommended_action' => 'NONE'])->assertRedirect();
             $this->assertSame($index + 1, $run->items()->where('status', 'INSPECTED')->count());
             if ($index === 0) {
                 $this->assertSame('INSPECTION_ATTENTION', $this->head->notifications()->firstOrFail()->data['event_key']);

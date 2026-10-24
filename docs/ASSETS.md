@@ -29,7 +29,9 @@ Physical condition and operational lifecycle are deliberately separate:
 
 For example, an asset may be `NEEDS_REPAIR` while still `ACTIVE` before repair approval, or `UNUSABLE` while `FOR_DISPOSAL_REVIEW`. The registry and detail screens use distinct badge families and help text so these concepts are not presented as synonyms.
 
-Repair/disposal requests are separate auditable records. Asset lifecycle cannot be changed from the asset edit form or by supplying a manipulated lifecycle value. The lifecycle service permits only the workflow transitions below and rejects invalid direct changes:
+Repair/disposal requests are separate auditable records. Exactly one request can be active for an asset: a nullable active marker plus a database unique constraint enforces this invariant, while completed, returned, rejected, and superseded requests remain available in history. The active review shown on the detail page is selected from the current lifecycle (`REPAIR` while active, `DISPOSAL` while awaiting disposal review), never merely from the newest pending row.
+
+Asset lifecycle cannot be changed from the asset edit form or by supplying a manipulated lifecycle value. The lifecycle service permits only the workflow transitions below and rejects invalid direct changes with a refresh-safe workflow message:
 
 ```text
 ACTIVE → UNDER_REPAIR → ACTIVE
@@ -42,3 +44,5 @@ ACTIVE → RETIRED
 ```
 
 Repair/disposal reviewers perform approval transitions through their dedicated permissions; only `assets.mark_disposed` can record the final physical disposal. Ordinary staff report condition and request review rather than choosing lifecycle values. Disposed and retired assets remain searchable and historical but are excluded from new recurring inspection runs.
+
+The asset detail review panel always labels current condition, lifecycle, reporter, report date, and problem description. When an asset is already `FOR_DISPOSAL_REVIEW`, the problem form does not offer a second repair request; the disposal reviewer can explicitly send it back for repair.

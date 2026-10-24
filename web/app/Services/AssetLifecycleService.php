@@ -12,23 +12,77 @@ use Illuminate\Validation\ValidationException;
 
 class AssetLifecycleService
 {
+    public function activePendingRequest(InspectableAsset $asset): ?AssetActionRequest
+    {
+        $type = match ($asset->lifecycle_status?->value ?? (string) $asset->lifecycle_status) {
+            'FOR_DISPOSAL_REVIEW' => 'DISPOSAL',
+            'ACTIVE' => 'REPAIR',
+            default => null,
+        };
+
+        return $type
+            ? $asset->actionRequests()->where('status', 'PENDING')->where('type', $type)->latest('requested_at')->first()
+            : null;
+    }
+
+    public function assertCurrentReview(AssetActionRequest $request): void
+    {
+        $current = $this->activePendingRequest($request->asset);
+        if ($request->status !== 'PENDING' || ! $current || ! $current->is($request)) {
+            throw ValidationException::withMessages([
+                'decision' => 'This review has already been processed or superseded. Refresh the asset page to see the current review.',
+            ]);
+        }
+    }
+
     public function request(InspectableAsset $asset, User $user, string $type, string $description, ?InspectionItem $inspection = null): AssetActionRequest
     {
-        $existing = $asset->actionRequests()->where('type', $type)->where('status', 'PENDING')->first();
-        if ($existing) {
-            return $existing;
-        }
-
         return DB::transaction(function () use ($asset, $user, $type, $description, $inspection): AssetActionRequest {
-            $request = $asset->actionRequests()->create([
+            /** @var InspectableAsset $lockedAsset */
+            $lockedAsset = InspectableAsset::query()->lockForUpdate()->findOrFail($asset->id);
+            $lifecycle = $lockedAsset->lifecycle_status?->value ?? (string) $lockedAsset->lifecycle_status;
+            $pending = $lockedAsset->actionRequests()->where('status', 'PENDING')->lockForUpdate()->latest('requested_at')->get();
+
+            if ($type === 'REPAIR' && $lifecycle !== 'ACTIVE') {
+                throw ValidationException::withMessages([
+                    'type' => $lifecycle === 'FOR_DISPOSAL_REVIEW'
+                        ? 'This asset is awaiting disposal review. Use the current disposal decision to send it back for repair.'
+                        : 'A repair review can only be opened while the asset is active. Refresh the page to see its current lifecycle action.',
+                ]);
+            }
+            if ($type === 'DISPOSAL' && ! in_array($lifecycle, ['ACTIVE', 'UNDER_REPAIR', 'FOR_DISPOSAL_REVIEW'], true)) {
+                throw ValidationException::withMessages([
+                    'type' => 'A disposal review cannot be opened from the asset’s current lifecycle. Refresh the page to see the available action.',
+                ]);
+            }
+
+            if ($existing = $pending->firstWhere('type', $type)) {
+                return $existing;
+            }
+
+            if ($type === 'DISPOSAL') {
+                $pending->each(fn (AssetActionRequest $pendingRequest) => $pendingRequest->update([
+                    'status' => 'SUPERSEDED',
+                    'reviewed_by' => $user->id,
+                    'reviewed_at' => now(),
+                    'decision' => 'SUPERSEDED',
+                    'decision_reason' => 'Replaced by the active disposal review.',
+                ]));
+            } elseif ($pending->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'type' => 'This asset already has an active review. Complete or return that review before opening another one.',
+                ]);
+            }
+
+            $request = $lockedAsset->actionRequests()->create([
                 'inspection_item_id' => $inspection?->id, 'type' => $type, 'status' => 'PENDING',
                 'requested_by' => $user->id, 'requested_at' => now(), 'problem_description' => $description,
                 'recommended_action' => $type === 'REPAIR' ? 'Assess and repair the asset.' : 'Review the asset for disposal.',
             ]);
             if ($type === 'DISPOSAL') {
-                $this->transition($asset, $user, 'DISPOSAL_REQUESTED', 'FOR_DISPOSAL_REVIEW', null, $description, $request);
+                $this->transition($lockedAsset, $user, 'DISPOSAL_REQUESTED', 'FOR_DISPOSAL_REVIEW', null, $description, $request);
             } else {
-                $this->event($asset, $user, 'REPAIR_REQUESTED', $description, $request);
+                $this->event($lockedAsset, $user, 'REPAIR_REQUESTED', $description, $request);
             }
             $this->notifyReviewers($request, $type === 'REPAIR' ? 'ASSET_REPAIR_REQUESTED' : 'ASSET_DISPOSAL_REQUESTED');
 
@@ -40,8 +94,10 @@ class AssetLifecycleService
     {
         $fromLifecycle = $asset->lifecycle_status?->value ?? (string) $asset->lifecycle_status;
         $fromCondition = $asset->condition?->value ?? (string) $asset->condition;
-        if ($lifecycle && ! $this->transitionAllowed($fromLifecycle, $lifecycle)) {
-            throw ValidationException::withMessages(['lifecycle_status' => "Lifecycle cannot change directly from {$fromLifecycle} to {$lifecycle}."]);
+        if ($lifecycle && $lifecycle !== $fromLifecycle && ! $this->transitionAllowed($fromLifecycle, $lifecycle)) {
+            throw ValidationException::withMessages([
+                'lifecycle_status' => 'This asset’s lifecycle has changed. Refresh the page and use the review or action that is currently available.',
+            ]);
         }
         $updates = array_filter(['lifecycle_status' => $lifecycle, 'condition' => $condition], fn ($value) => $value !== null);
         if ($lifecycle) {

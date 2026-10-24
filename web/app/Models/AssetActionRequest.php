@@ -13,8 +13,15 @@ class AssetActionRequest extends Model
 {
     use HasUlids;
 
-    protected $fillable = ['inspectable_asset_id', 'inspection_item_id', 'type', 'status', 'requested_by', 'requested_at',
+    protected $fillable = ['inspectable_asset_id', 'inspection_item_id', 'type', 'status', 'active_marker', 'requested_by', 'requested_at',
         'problem_description', 'recommended_action', 'reviewed_by', 'reviewed_at', 'decision', 'decision_reason'];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $request): void {
+            $request->active_marker = $request->status === 'PENDING' ? 1 : null;
+        });
+    }
 
     protected function casts(): array
     {
