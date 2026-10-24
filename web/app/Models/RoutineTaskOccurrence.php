@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\RoutineOccurrenceStatus;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
@@ -14,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 class RoutineTaskOccurrence extends Model
 {
     use HasUlids;
+
+    protected $appends = ['available_at', 'is_startable', 'is_actionable'];
 
     protected $fillable = [
         'routine_task_template_id', 'period_key', 'expected_date', 'due_at', 'status', 'started_at', 'completed_at',
@@ -83,5 +87,45 @@ class RoutineTaskOccurrence extends Model
     public function requiresOverdueAttention(): bool
     {
         return $this->due_at->isPast() && ! $this->status->isClosed();
+    }
+
+    public function availableAt(): CarbonImmutable
+    {
+        $timezone = config('app.timezone', 'Asia/Manila');
+
+        return CarbonImmutable::parse($this->expected_date->format('Y-m-d').' 00:00:00', $timezone);
+    }
+
+    public function isAvailable(?CarbonInterface $at = null): bool
+    {
+        $at ??= now(config('app.timezone', 'Asia/Manila'));
+
+        return $at->copy()->setTimezone(config('app.timezone', 'Asia/Manila'))->greaterThanOrEqualTo($this->availableAt());
+    }
+
+    public function isStartable(?CarbonInterface $at = null): bool
+    {
+        return $this->isAvailable($at)
+            && in_array($this->status, [RoutineOccurrenceStatus::Upcoming, RoutineOccurrenceStatus::Due, RoutineOccurrenceStatus::Overdue], true);
+    }
+
+    public function isActionable(?CarbonInterface $at = null): bool
+    {
+        return $this->isAvailable($at) && ! $this->status->isClosed();
+    }
+
+    public function getAvailableAtAttribute(): string
+    {
+        return $this->availableAt()->toIso8601String();
+    }
+
+    public function getIsStartableAttribute(): bool
+    {
+        return $this->isStartable();
+    }
+
+    public function getIsActionableAttribute(): bool
+    {
+        return $this->isActionable();
     }
 }

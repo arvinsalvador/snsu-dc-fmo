@@ -3,7 +3,7 @@
 @section('content')
 <x-breadcrumbs :items="['Routine Tasks' => route('routine-tasks.index'), $occurrence->template->title]" />
 <x-page-header :title="$occurrence->template->title" description="A dated routine occurrence with its own accountability and history.">
-    <x-slot:action><span class="status-badge status-active">{{ $occurrence->template->frequency->value }}</span><span class="status-badge {{ $occurrence->requiresOverdueAttention() ? 'status-danger' : 'status-neutral' }}">{{ $occurrence->requiresOverdueAttention() ? 'Overdue' : str($occurrence->status->value)->replace('_', ' ')->title() }}</span></x-slot:action>
+    <x-slot:action><span class="status-badge status-active">{{ $occurrence->template->frequency->value }}</span><span class="status-badge {{ $occurrence->requiresOverdueAttention() ? 'status-danger' : 'status-neutral' }}">{{ $occurrence->requiresOverdueAttention() ? 'Overdue' : (!$occurrence->isAvailable() ? 'Upcoming' : ($occurrence->status === \App\Enums\RoutineOccurrenceStatus::Upcoming ? 'Available' : str($occurrence->status->value)->replace('_', ' ')->title())) }}</span></x-slot:action>
 </x-page-header>
 <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
 <section class="section-card">
@@ -12,10 +12,13 @@
 </section>
 <aside class="section-card"><h2 class="text-lg">Requirements</h2><ul class="mt-4 space-y-3 text-sm text-slate-600"><li>{{ $occurrence->template->evidence_required ? 'Photo evidence is required.' : 'Photo evidence is optional.' }}</li><li>{{ $occurrence->template->requires_review ? 'Management review is configured.' : 'No formal verification is required.' }}</li><li>Every update records the authenticated performer and time.</li></ul></aside>
 </div>
-@if(in_array($occurrence->status, [\App\Enums\RoutineOccurrenceStatus::Upcoming, \App\Enums\RoutineOccurrenceStatus::Due, \App\Enums\RoutineOccurrenceStatus::Overdue]))
+@if(!$occurrence->isAvailable())
+<div class="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950" role="status"><p class="font-bold">This task is not available yet.</p><p class="mt-1">It will become available on {{ $occurrence->availableAt()->format('F j, Y') }}. You can review the details now, but execution controls remain locked.</p></div>
+@endif
+@if($occurrence->template->task_type !== \App\Enums\RoutineTaskType::Inspection && $occurrence->isStartable())
 <form method="POST" action="{{ route('routine-tasks.start', $occurrence) }}" class="mt-6">@csrf<button class="btn btn-primary" type="submit"><x-icon name="play" />Start task</button></form>
 @endif
-@if(!in_array($occurrence->status, [\App\Enums\RoutineOccurrenceStatus::Completed, \App\Enums\RoutineOccurrenceStatus::CompletedLate, \App\Enums\RoutineOccurrenceStatus::UnableToComplete]))
+@if($occurrence->template->task_type !== \App\Enums\RoutineTaskType::Inspection && $occurrence->isActionable())
 <section class="section-card mt-6"><h2 class="text-lg">Update this task</h2>@if($occurrence->requiresOverdueAttention())<div class="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-950" role="alert"><p class="font-bold">Overdue — update required</p><p class="mt-1">This task was due {{ $occurrence->due_at->timezone(config('app.timezone'))->format('F j, Y · g:i A') }}. Record what happened and provide the required details.</p></div>@endif
 <form method="POST" enctype="multipart/form-data" action="{{ route('routine-tasks.resolve', $occurrence) }}" class="mt-5 space-y-5">@csrf
     <fieldset><legend class="text-sm font-semibold">What happened?</legend><div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">@foreach(['COMPLETED'=>'Completed','COMPLETED_LATE'=>'Completed late','PARTIALLY_COMPLETED'=>'Partially completed','UNABLE_TO_COMPLETE'=>'Unable to complete','WAITING_FOR_SUPPLIES'=>'Waiting for supplies'] as $value=>$label)<label class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 has-checked:border-blue-600 has-checked:bg-blue-50"><input type="radio" name="resolution" value="{{ $value }}" required @checked(old('resolution')===$value)><span class="text-sm font-medium">{{ $label }}</span></label>@endforeach</div></fieldset>
@@ -26,7 +29,7 @@
     <x-photo-picker id="routine-task-evidence" title="Task evidence" help="Take a current photo or choose photos. Evidence remains private to authorized personnel." />
     <button class="btn btn-primary" type="submit"><x-icon name="check-circle" />Save accountable update</button>
 </form></section>
-@else
+@elseif($occurrence->status->isClosed())
 <section class="section-card mt-6"><h2 class="text-lg">Recorded outcome</h2><p class="mt-3 leading-7 text-slate-700">{{ $occurrence->generated_summary }}</p>@if($occurrence->additional_remarks)<p class="mt-3 text-sm text-slate-600">{{ $occurrence->additional_remarks }}</p>@endif<p class="mt-4 text-xs text-slate-500">Recorded by {{ $occurrence->performedBy?->name }} · {{ $occurrence->completed_at?->timezone(config('app.timezone'))->format('M j, Y · g:i A') }}</p></section>
 @endif
 @if($occurrence->attachments->isNotEmpty())<section class="section-card mt-6"><h2 class="text-lg">Evidence</h2><div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">@foreach($occurrence->attachments as $file)<a href="{{ route('routine-evidence.show', [$file, 'original']) }}" target="_blank" class="overflow-hidden rounded-lg border border-slate-200">@if(str_starts_with($file->mime_type,'image/'))<img class="aspect-square w-full object-cover" src="{{ route('routine-evidence.show', [$file, 'thumbnail']) }}" alt="{{ $file->original_filename }}">@else<div class="grid aspect-square place-items-center text-sm">View file</div>@endif</a>@endforeach</div></section>@endif

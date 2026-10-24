@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\FmoInquiryController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\MobileSyncController;
 use App\Http\Controllers\Api\NotificationsController;
@@ -9,10 +10,12 @@ use App\Http\Controllers\Api\RoutineOperationsController;
 use App\Http\Controllers\Api\WorkOrderAssessmentController;
 use App\Http\Controllers\Api\WorkOrderAssignmentController;
 use App\Http\Controllers\Api\WorkOrderCategoryController;
+use App\Http\Controllers\Api\WorkOrderCommunicationController;
 use App\Http\Controllers\Api\WorkOrderController;
 use App\Http\Controllers\Api\WorkOrderExecutionController;
 use App\Http\Controllers\Api\WorkOrderWorkflowController;
 use App\Http\Controllers\Auth\ApiAuthController;
+use App\Http\Controllers\CommunicationAttachmentController;
 use App\Http\Controllers\RoutineOperations\AssetActionController;
 use App\Http\Controllers\RoutineOperations\AssetInspectionController;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +26,8 @@ Route::prefix('v1')->group(function (): void {
     Route::middleware(['auth:sanctum', 'api.token', 'approved'])->group(function (): void {
         Route::get('/me', [ApiAuthController::class, 'me']);
         Route::get('/notifications', [NotificationsController::class, 'index']);
+        Route::get('/communication-attachments/{attachment}/{variant?}', [CommunicationAttachmentController::class, 'show'])
+            ->whereIn('variant', ['original', 'thumbnail'])->name('api.communication-attachments.show');
         Route::post('/notifications/read-all', [NotificationsController::class, 'readAll']);
         Route::post('/notifications/{notification}/read', [NotificationsController::class, 'read']);
         Route::post('/auth/logout', [ApiAuthController::class, 'logout']);
@@ -67,6 +72,10 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/work-orders/{workOrder}/assessment/acknowledge', [WorkOrderAssessmentController::class, 'acknowledge']);
         Route::post('/work-orders/{workOrder}/assessments', [WorkOrderAssessmentController::class, 'store']);
         Route::post('/work-orders/{workOrder}/assessment/resolve/{decision}', [WorkOrderAssessmentController::class, 'resolve']);
+        Route::get('/work-orders/{workOrder}/messages', [WorkOrderCommunicationController::class, 'messages']);
+        Route::post('/work-orders/{workOrder}/messages', [WorkOrderCommunicationController::class, 'storeMessage'])->middleware('throttle:20,1');
+        Route::get('/work-orders/{workOrder}/internal-notes', [WorkOrderCommunicationController::class, 'internalNotes']);
+        Route::post('/work-orders/{workOrder}/internal-notes', [WorkOrderCommunicationController::class, 'storeInternalNote'])->middleware('throttle:20,1');
         Route::get('/work-orders/{workOrder}/sessions', [WorkOrderExecutionController::class, 'sessions']);
         Route::post('/work-orders/{workOrder}/start-work', [WorkOrderExecutionController::class, 'start']);
         Route::post('/work-orders/{workOrder}/sessions/{session}/updates', [WorkOrderExecutionController::class, 'update']);
@@ -80,5 +89,10 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/work-orders/{workOrder}', [WorkOrderController::class, 'update']);
         Route::get('/work-orders/{workOrder}/attachments/{attachment}', [WorkOrderController::class, 'attachment']);
         Route::get('/work-orders/{workOrder}/attachments/{attachment}/thumbnail', [WorkOrderController::class, 'attachmentThumbnail']);
+        Route::get('/fmo-inquiries', [FmoInquiryController::class, 'index']);
+        Route::post('/fmo-inquiries', [FmoInquiryController::class, 'store'])->middleware('throttle:10,1');
+        Route::get('/fmo-inquiries/{thread}', [FmoInquiryController::class, 'show']);
+        Route::post('/fmo-inquiries/{thread}/messages', [FmoInquiryController::class, 'reply'])->middleware('throttle:20,1');
+        Route::post('/fmo-inquiries/{thread}/close', [FmoInquiryController::class, 'close']);
     });
 });

@@ -280,6 +280,80 @@ class RoutineOperationsTest extends TestCase
         $this->assertSame(0, $overdueTemplate->occurrences()->unresolvedOverdue()->count());
     }
 
+    public function test_future_daily_and_weekly_tasks_are_visible_but_server_locked_until_manila_availability(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-24 23:59:59', 'Asia/Manila'));
+        $daily = $this->template('Tomorrow daily task', 'DAILY', '2026-10-25', [], ['end_date' => '2026-10-25']);
+        $weekly = $this->template('Future weekly task', 'WEEKLY', '2026-10-30', ['weekday' => 5], ['end_date' => '2026-10-30']);
+        app(RoutineOccurrenceService::class)->generate(CarbonImmutable::parse('2026-10-25'), CarbonImmutable::parse('2026-10-30'));
+        $occurrence = $daily->occurrences()->firstOrFail();
+
+        $this->actingAs($this->staff)->get(route('routine-tasks.index'))->assertOk()
+            ->assertSee('Tomorrow daily task')->assertSee('Future weekly task')->assertSee('Upcoming')
+            ->assertSee('Available Oct 25, 2026')->assertSee('View Details')->assertDontSee('Start Task');
+        $this->actingAs($this->staff)->get(route('routine-tasks.show', $occurrence))->assertOk()
+            ->assertSee('This task is not available yet.')->assertDontSee('Start task')->assertDontSee('Update this task');
+        $this->actingAs($this->staff)->post(route('routine-tasks.start', $occurrence))->assertSessionHasErrors('task');
+        $this->actingAs($this->staff)->post(route('routine-tasks.resolve', $occurrence), [
+            'resolution' => 'COMPLETED', 'generated_summary' => 'Forged early completion.',
+        ])->assertSessionHasErrors('task');
+        $this->assertSame(RoutineOccurrenceStatus::Upcoming, $occurrence->fresh()->status);
+        $this->assertNull($occurrence->started_at);
+
+        app('auth')->forgetGuards();
+        $token = $this->staff->createToken('availability-test')->plainTextToken;
+        $this->withToken($token)->getJson('/api/v1/routine-tasks/'.$occurrence->id)->assertOk()
+            ->assertJsonPath('data.available_at', '2026-10-25T00:00:00+08:00')
+            ->assertJsonPath('data.is_startable', false);
+        $this->withToken($token)->postJson('/api/v1/routine-tasks/'.$occurrence->id.'/start')->assertUnprocessable()->assertJsonValidationErrors('task');
+        $this->withToken($token)->postJson('/api/v1/routine-tasks/'.$occurrence->id.'/resolve', [
+            'resolution' => 'COMPLETED', 'generated_summary' => 'Forged API completion.',
+        ])->assertUnprocessable()->assertJsonValidationErrors('task');
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-25 00:00:00', 'Asia/Manila'));
+        $this->assertTrue($occurrence->fresh()->isStartable());
+        $this->actingAs($this->staff)->get(route('routine-tasks.show', $occurrence))->assertOk()->assertSee('Start task');
+        $this->actingAs($this->staff)->post(route('routine-tasks.start', $occurrence))->assertRedirect();
+        $this->assertSame(RoutineOccurrenceStatus::InProgress, $occurrence->fresh()->status);
+    }
+
+    public function test_future_monthly_inspection_is_read_only_in_lists_qr_web_and_api(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-24 12:00:00', 'Asia/Manila'));
+        $type = AssetType::where('code', 'FE')->firstOrFail();
+        $asset = InspectableAsset::create([
+            'asset_code' => 'FE-FUTURE-001', 'asset_type_id' => $type->id, 'name' => 'Future Fire Extinguisher',
+            'campus_id' => $this->campus->id, 'building_id' => $this->building->id, 'inspection_frequency' => 'MONTHLY',
+            'status' => 'ACTIVE', 'condition' => 'GOOD', 'lifecycle_status' => 'ACTIVE',
+        ]);
+        $template = $this->template('November Fire Extinguisher Inspection', 'MONTHLY', '2026-11-01', ['day' => 1], [
+            'task_type' => 'INSPECTION', 'asset_type_id' => $type->id, 'inspection_asset_scope' => 'ALL_TYPE', 'end_date' => '2026-11-01',
+        ]);
+        app(RoutineOccurrenceService::class)->generate(CarbonImmutable::parse('2026-11-01'), CarbonImmutable::parse('2026-11-01'));
+        $run = $template->occurrences()->with('inspectionRun.items')->firstOrFail()->inspectionRun;
+        $item = $run->items->firstOrFail();
+
+        $this->actingAs($this->staff)->get(route('routine-tasks.index'))->assertOk()
+            ->assertSee('November Fire Extinguisher Inspection')->assertSee('View Inspection')->assertDontSee('Start Inspection');
+        $this->actingAs($this->staff)->get(route('inspections.index'))->assertOk()
+            ->assertSee('Upcoming')->assertSee('Available Nov 1, 2026')->assertSee('View Inspection')->assertDontSee('Start Inspection');
+        $this->actingAs($this->staff)->get(route('inspections.show', $run))->assertOk()
+            ->assertSee('Upcoming inspection')->assertSee('This inspection cannot be started yet.')->assertDontSee('Save Item Inspection');
+        $this->actingAs($this->staff)->get(route('assets.scan', $asset->qr_token))->assertOk()
+            ->assertSee('Upcoming inspection')->assertSee('Available Nov 1, 2026')->assertSee('This inspection cannot be started yet.')->assertDontSee('Start Inspection');
+        $this->actingAs($this->staff)->get(route('assets.inspect', [$asset, 'item' => $item->id]))->assertSessionHasErrors('task');
+        $this->actingAs($this->staff)->post(route('inspections.items.record', [$run, $item]), [])->assertSessionHasErrors('task');
+        $this->assertSame('NOT_INSPECTED', $item->fresh()->status);
+
+        app('auth')->forgetGuards();
+        $token = $this->staff->createToken('future-inspection')->plainTextToken;
+        $this->withToken($token)->getJson('/api/v1/inspectable-assets/scan/'.$asset->qr_token)->assertOk()
+            ->assertJsonPath('data.available_inspections.0.is_startable', false)
+            ->assertJsonPath('data.available_inspections.0.can_inspect', false);
+        $this->withToken($token)->postJson("/api/v1/inspection-runs/{$run->id}/items/{$item->id}", [])->assertUnprocessable()->assertJsonValidationErrors('task');
+        $this->assertSame('NOT_INSPECTED', $item->fresh()->status);
+    }
+
     public function test_assign_team_modal_exposes_safe_staff_context_and_validates_team(): void
     {
         $skill = Skill::create(['name' => 'Electrical', 'is_active' => true]);

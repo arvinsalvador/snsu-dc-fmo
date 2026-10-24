@@ -31,6 +31,12 @@ Assigned staff see the same occurrence in two purposeful views:
 
 Both views resolve `User → FmoPersonnel → active InspectionItemAssignment` in server queries. Shared-team assignments mean each assigned person sees the shared assets, while per-asset overrides produce individual counts.
 
+### Inspection start availability
+
+Upcoming inspection runs remain visible in My Routine Tasks and My Inspections for planning, but they are read-only until their occurrence's `expected_date` begins in `Asia/Manila`. **Upcoming = visible but not actionable.** Upcoming cards show the availability date and **View Inspection** instead of Start/Continue Inspection. The run page shows assets and assignments but no item submission forms.
+
+The same rule applies to QR access. An assigned inspector scanning an upcoming item sees the schedule, period, and availability date with “This inspection cannot be started yet”; no Start Inspection control is rendered. An unassigned user still receives only the existing safe overview. Web and API submission routes independently enforce occurrence availability in addition to permissions, active personnel assignment, and unfinished item status. Asset/QR API responses expose `available_at`, `is_startable`, and the authoritative assignment-aware `can_inspect` value.
+
 ## Inspection records
 
 `InspectionItem` is the permanent exact-asset record for recurring inspections. It stores inspector personnel/user, timestamp, condition, checklist results, summary, remarks, recommendation, private attachments, and the generated checklist/asset snapshots. A QR scan opens an authorized recurring item; it does not create an unplanned inspection silently. Every future scheduled occurrence creates new item history rather than overwriting an earlier inspection.

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Services\StoredFileTransaction;
+use App\Services\WorkOrderMessageReadService;
 use App\Services\WorkOrderPreferenceService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class WorkOrderController extends Controller
         $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
             ->when(! $request->user()->can('work_orders.view_all'), fn ($q) => $q->where('requester_id', $request->user()->id))
             ->latest('submitted_at')->paginate(50);
+        $this->attachUnreadCounts($request, $orders->getCollection());
 
         return response()->json(['data' => $orders->getCollection()->map(fn ($order) => $this->data($order)), 'current_page' => $orders->currentPage(), 'last_page' => $orders->lastPage()]);
     }
@@ -27,7 +29,12 @@ class WorkOrderController extends Controller
     {
         app(\App\Http\Controllers\WorkOrders\WorkOrderController::class)->authorizeWorkOrder($request, $workOrder);
 
-        return response()->json(['data' => $this->data($workOrder->load('category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates'))]);
+        $workOrder->load('category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates');
+        if ($request->user()->can('work_orders.messages.view')) {
+            $workOrder->setAttribute('unread_messages_count', app(WorkOrderMessageReadService::class)->unreadCount($request->user(), $workOrder));
+        }
+
+        return response()->json(['data' => $this->data($workOrder)]);
     }
 
     public function assigned(Request $request)
@@ -36,6 +43,7 @@ class WorkOrderController extends Controller
         $orders = WorkOrder::with('category', 'building', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'activeAssignments.personnel.user', 'workflowEvents', 'attachments', 'updates')
             ->activelyAssignedTo($request->user())
             ->latest('submitted_at')->paginate(50);
+        $this->attachUnreadCounts($request, $orders->getCollection());
 
         return response()->json(['data' => $orders->getCollection()->map(fn ($order) => $this->data($order)), 'current_page' => $orders->currentPage(), 'last_page' => $orders->lastPage()]);
     }
@@ -101,6 +109,15 @@ class WorkOrderController extends Controller
         $privateActions = ['RECOMMEND_APPROVAL', 'RECOMMEND_DISAPPROVAL', 'RETURN_TO_SCREENING', 'ASSIGNEE_ADDED', 'ASSIGNEE_REMOVED', 'ASSESSMENT_EXCEPTION', 'ASSESSMENT_HOLD_MATERIALS', 'ASSESSMENT_REFER_EXTERNAL', 'ASSESSMENT_BEYOND_SCOPE'];
         $events = $order->workflowEvents->when(! $management, fn ($events) => $events->filter(fn ($event) => ! in_array($event->action, $privateActions, true)));
 
-        return ['id' => $order->id, 'number' => $order->work_order_number, 'category' => $order->category->name, 'building' => $order->building->name, 'location' => $order->location?->name, 'subject' => $order->subject, 'description' => $order->description, 'status' => $order->status->value, 'urgency' => $order->urgency, 'preferred_personnel' => $order->preferredPersonnel->map(fn ($personnel) => ['id' => $personnel->id, 'name' => $personnel->user->name, 'primary_skill' => $personnel->orderedSkills()->first(fn ($skill) => $skill->pivot->is_primary)?->name, 'skills' => $personnel->orderedSkills()->pluck('name')->values()])->values(), 'assignees' => $order->activeAssignments->map(fn ($assignment) => ['id' => $assignment->id, 'personnel_id' => $assignment->fmo_personnel_id, 'name' => $assignment->personnel->user->name]), 'submitted_at' => $order->submitted_at, 'completed_at' => $order->verified_at, 'work_performed_summary' => $order->status === WorkOrderStatus::Completed ? $order->work_performed_summary : null, 'progress' => $order->updates->whereNotNull('requester_summary')->sortBy('recorded_at')->map(fn ($update) => ['type' => $update->type->value, 'summary' => $update->requester_summary, 'at' => $update->recorded_at])->values(), 'attachments' => $order->attachments->where('purpose', 'REQUEST_INITIAL')->map(fn ($attachment) => ['id' => $attachment->id, 'filename' => $attachment->original_filename, 'mime_type' => $attachment->mime_type, 'size' => $attachment->file_size])->values(), 'history' => $events->values()->map(fn ($event) => ['action' => $event->action, 'from_status' => $event->from_status, 'to_status' => $event->to_status, 'requester_message' => $event->requester_message, 'internal_note' => $management ? $event->internal_note : null, 'created_at' => $event->created_at])];
+        return ['id' => $order->id, 'number' => $order->work_order_number, 'category' => $order->category->name, 'building' => $order->building->name, 'location' => $order->location?->name, 'subject' => $order->subject, 'description' => $order->description, 'status' => $order->status->value, 'urgency' => $order->urgency, 'unread_messages_count' => (int) ($order->unread_messages_count ?? 0), 'preferred_personnel' => $order->preferredPersonnel->map(fn ($personnel) => ['id' => $personnel->id, 'name' => $personnel->user->name, 'primary_skill' => $personnel->orderedSkills()->first(fn ($skill) => $skill->pivot->is_primary)?->name, 'skills' => $personnel->orderedSkills()->pluck('name')->values()])->values(), 'assignees' => $order->activeAssignments->map(fn ($assignment) => ['id' => $assignment->id, 'personnel_id' => $assignment->fmo_personnel_id, 'name' => $assignment->personnel->user->name]), 'submitted_at' => $order->submitted_at, 'completed_at' => $order->verified_at, 'work_performed_summary' => $order->status === WorkOrderStatus::Completed ? $order->work_performed_summary : null, 'progress' => $order->updates->whereNotNull('requester_summary')->sortBy('recorded_at')->map(fn ($update) => ['type' => $update->type->value, 'summary' => $update->requester_summary, 'at' => $update->recorded_at])->values(), 'attachments' => $order->attachments->where('purpose', 'REQUEST_INITIAL')->map(fn ($attachment) => ['id' => $attachment->id, 'filename' => $attachment->original_filename, 'mime_type' => $attachment->mime_type, 'size' => $attachment->file_size])->values(), 'history' => $events->values()->map(fn ($event) => ['action' => $event->action, 'from_status' => $event->from_status, 'to_status' => $event->to_status, 'requester_message' => $event->requester_message, 'internal_note' => $management ? $event->internal_note : null, 'created_at' => $event->created_at])];
+    }
+
+    private function attachUnreadCounts(Request $request, $orders): void
+    {
+        if (! $request->user()->can('work_orders.messages.view')) {
+            return;
+        }
+        $counts = app(WorkOrderMessageReadService::class)->unreadCounts($request->user(), $orders);
+        $orders->each(fn (WorkOrder $order) => $order->setAttribute('unread_messages_count', $counts->get($order->id, 0)));
     }
 }

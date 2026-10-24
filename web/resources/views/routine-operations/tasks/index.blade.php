@@ -25,8 +25,8 @@
     $today = now($timezone)->toDateString();
     $taskSections = collect([
         'Overdue — Update Required' => $occurrences->getCollection()->filter->requiresOverdueAttention(),
-        'Due Today' => $occurrences->getCollection()->filter(fn($task) => !$task->requiresOverdueAttention() && !$task->status->isClosed() && $task->due_at->timezone($timezone)->toDateString() === $today),
-        'Upcoming' => $occurrences->getCollection()->filter(fn($task) => !$task->requiresOverdueAttention() && !$task->status->isClosed() && $task->due_at->timezone($timezone)->toDateString() > $today),
+        'Due Today / Available' => $occurrences->getCollection()->filter(fn($task) => !$task->requiresOverdueAttention() && !$task->status->isClosed() && $task->isAvailable()),
+        'Upcoming' => $occurrences->getCollection()->filter(fn($task) => !$task->status->isClosed() && !$task->isAvailable()),
         'Completed Today' => $occurrences->getCollection()->filter(fn($task) => in_array($task->status->value, ['COMPLETED','COMPLETED_LATE'], true) && $task->completed_at?->timezone($timezone)->toDateString() === $today),
     ]);
     $groupedTaskIds = $taskSections->flatten()->pluck('id');
@@ -47,14 +47,15 @@
                 $overdueDays = $overdue ? max(1, (int) $task->due_at->timezone($timezone)->startOfDay()->diffInDays(now($timezone)->startOfDay())) : 0;
                 $isInspection = $task->template->task_type === \App\Enums\RoutineTaskType::Inspection;
                 $isClosed = $task->status->isClosed();
+                $isAvailable = $task->isAvailable();
                 $destination = $task->inspectionRun ? route('inspections.show', $task->inspectionRun) : route('routine-tasks.show', $task);
-                $actionLabel = $isInspection && !$isClosed ? 'Continue Inspection' : ($isClosed ? 'View Completed Task' : ($overdue ? 'Update Overdue Task' : (in_array($task->status->value, ['IN_PROGRESS','PARTIALLY_COMPLETED','WAITING_FOR_SUPPLIES'], true) ? 'Continue Task' : 'Start Task')));
+                $actionLabel = !$isAvailable ? ($isInspection ? 'View Inspection' : 'View Details') : ($isClosed ? ($isInspection ? 'View Inspection' : 'View Completed Task') : ($isInspection ? ($overdue || $task->inspectionRun?->status !== 'OPEN' || ($task->inspectionRun?->assigned_inspected_count ?? 0) > 0 ? 'Continue Inspection' : 'Start Inspection') : ($overdue ? 'Update Task' : (in_array($task->status->value, ['IN_PROGRESS','PARTIALLY_COMPLETED','WAITING_FOR_SUPPLIES'], true) ? 'Continue Task' : 'Start Task'))));
                 $teamNames = $task->template->activeAssignees->pluck('user.name')->filter()->values();
                 $otherTeamNames = $teamNames->reject(fn($name) => $name === auth()->user()->name)->values();
             @endphp
             <article class="flex h-full flex-col rounded-xl border {{ $overdue ? 'border-rose-300 bg-rose-50/70' : 'border-slate-200 bg-white' }} p-5 shadow-sm sm:p-6">
                 <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><span class="status-badge status-active">{{ $task->template->frequency->value }}{{ $isInspection ? ' INSPECTION' : '' }}</span><span class="status-badge {{ $overdue ? 'status-danger' : ($isClosed ? 'status-success' : 'status-neutral') }}">{{ $overdue ? 'Overdue' : str($task->status->value)->replace('_', ' ')->title() }}</span></div><h3 class="mt-3 text-lg font-semibold text-slate-950">{{ $task->template->title }}</h3><p class="mt-1 text-sm text-slate-500">{{ $task->period_key }}</p></div>
+                    <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><span class="status-badge status-active">{{ $task->template->frequency->value }}{{ $isInspection ? ' INSPECTION' : '' }}</span><span class="status-badge {{ $overdue ? 'status-danger' : ($isClosed ? 'status-success' : 'status-neutral') }}">{{ $overdue ? 'Overdue' : (!$isAvailable ? 'Upcoming' : ($task->status === \App\Enums\RoutineOccurrenceStatus::Upcoming ? 'Available' : str($task->status->value)->replace('_', ' ')->title())) }}</span></div><h3 class="mt-3 text-lg font-semibold text-slate-950">{{ $task->template->title }}</h3><p class="mt-1 text-sm text-slate-500">{{ $task->period_key }}</p></div>
                     <div class="text-left sm:text-right"><p class="text-xs font-bold uppercase tracking-wider text-slate-500">Due</p><p class="mt-1 text-sm font-semibold {{ $overdue ? 'text-rose-900' : 'text-slate-800' }}">{{ $task->due_at->timezone($timezone)->isToday() ? 'Today · '.$task->due_at->timezone($timezone)->format('g:i A') : $task->due_at->timezone($timezone)->format('M j, Y · g:i A') }}</p>@if($overdue)<p class="mt-1 text-sm font-bold text-rose-700">{{ $overdueDays }} {{ Str::plural('day', $overdueDays) }} overdue</p>@endif</div>
                 </div>
 
@@ -74,7 +75,9 @@
                     @if($task->status === \App\Enums\RoutineOccurrenceStatus::PartiallyCompleted && $task->remaining_work)<p class="mt-3 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-950">Remaining: {{ $task->remaining_work }}</p>@endif
                 @endif
 
-                <a class="btn {{ $overdue ? 'btn-danger' : 'btn-primary' }} mt-5 w-full" href="{{ $destination }}" @if($overdue && !$isInspection) aria-label="Update Task" @endif>{{ $actionLabel }}</a>
+                @if(!$isAvailable)<p class="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">Available {{ $task->availableAt()->format('M j, Y') }}</p>@endif
+
+                <a class="btn {{ !$isAvailable || $isClosed ? 'btn-secondary' : ($overdue ? 'btn-danger' : 'btn-primary') }} mt-5 w-full" href="{{ $destination }}" @if($overdue && !$isInspection) aria-label="Update Task" @endif>{{ $actionLabel }}</a>
             </article>
         @endforeach
         </div>

@@ -12,10 +12,14 @@ use App\Models\FmoPersonnel;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Models\WorkOrderCategory;
+use App\Services\CommunicationAuthorizationService;
+use App\Services\CommunicationService;
 use App\Services\EvidenceMediaService;
 use App\Services\GuidedDescriptionService;
 use App\Services\StoredFileTransaction;
+use App\Services\WorkOrderAccessService;
 use App\Services\WorkOrderAssignmentService;
+use App\Services\WorkOrderMessageReadService;
 use App\Services\WorkOrderPreferenceService;
 use App\Services\WorkOrderWorkflowService;
 use Illuminate\Http\Request;
@@ -54,7 +58,13 @@ class WorkOrderController extends Controller
             $orders->where('status', $request->string('status')->value());
         }
 
-        return view('work-orders.index', ['orders' => $orders->paginate(20)->withQueryString(), 'all' => $all]);
+        $page = $orders->paginate(20)->withQueryString();
+        if ($request->user()->can('work_orders.messages.view')) {
+            $unread = app(WorkOrderMessageReadService::class)->unreadCounts($request->user(), $page->getCollection());
+            $page->getCollection()->each(fn (WorkOrder $order) => $order->setAttribute('unread_messages_count', $unread->get($order->id, 0)));
+        }
+
+        return view('work-orders.index', ['orders' => $page, 'all' => $all]);
     }
 
     public function create(Request $request)
@@ -107,11 +117,35 @@ class WorkOrderController extends Controller
 
         $workOrder->load('requester.requesterProfile', 'category.guidedProfile', 'category.relevantSkills', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier');
 
+        $authorization = app(CommunicationAuthorizationService::class);
+        $communications = app(CommunicationService::class);
+        $reads = app(WorkOrderMessageReadService::class);
+        $canViewMessages = $authorization->canViewMessages($request->user(), $workOrder);
+        $canViewInternalNotes = $authorization->canViewInternalNotes($request->user(), $workOrder);
+        $communicationTab = $request->string('communication')->value() === 'notes' ? 'notes' : 'messages';
+        if ($communicationTab === 'notes' && ! $canViewInternalNotes) {
+            abort(403);
+        }
+        $messageUnreadCount = $canViewMessages ? $reads->unreadCount($request->user(), $workOrder) : 0;
+        $messages = $canViewMessages && $communicationTab === 'messages' ? $communications->messages($workOrder) : null;
+        $internalNotes = $canViewInternalNotes && $communicationTab === 'notes' ? $communications->internalNotes($workOrder) : null;
+        if ($canViewMessages && $communicationTab === 'messages') {
+            $reads->markRead($request->user(), $workOrder);
+        }
+
         return view('work-orders.show', [
             'order' => $workOrder,
             'assignablePersonnel' => $assignablePersonnel,
             'guidedProfile' => app(GuidedDescriptionService::class)->profileForCategory($workOrder->category),
             'clarification' => $workOrder->status === WorkOrderStatus::NeedsInformation ? $workOrder->latestClarificationRequest() : null,
+            'communicationTab' => $communicationTab,
+            'messages' => $messages,
+            'internalNotes' => $internalNotes,
+            'messageUnreadCount' => $messageUnreadCount,
+            'canViewMessages' => $canViewMessages,
+            'canSendMessage' => $authorization->canSendMessage($request->user(), $workOrder),
+            'canViewInternalNotes' => $canViewInternalNotes,
+            'canCreateInternalNote' => $authorization->canCreateInternalNote($request->user(), $workOrder),
         ]);
     }
 
@@ -202,13 +236,7 @@ class WorkOrderController extends Controller
 
     public function canViewWorkOrder(Request $request, WorkOrder $workOrder): bool
     {
-        return $workOrder->requester_id === $request->user()->id
-            || $request->user()->can('work_orders.view_all')
-            || $request->user()->can('work_orders.view_execution')
-            || ($request->user()->can('work_orders.view_assigned') && app(WorkOrderAssignmentService::class)->assignedTo($workOrder, $request->user()))
-            || (app(WorkOrderAssignmentService::class)->mayManage($workOrder, $request->user()) && in_array($workOrder->status, [WorkOrderStatus::Approved, WorkOrderStatus::Assigned, WorkOrderStatus::ForAssessment, WorkOrderStatus::AssessmentReview, WorkOrderStatus::ReadyForWork], true))
-            || ($request->user()->can('work_orders.screen') && in_array($workOrder->status, [WorkOrderStatus::Submitted, WorkOrderStatus::ForScreening, WorkOrderStatus::NeedsInformation, WorkOrderStatus::ForApproval], true))
-            || ($request->user()->can('work_orders.approve') && $workOrder->status === WorkOrderStatus::ForApproval);
+        return app(WorkOrderAccessService::class)->canView($request->user(), $workOrder);
     }
 
     public function validated(Request $request): array

@@ -105,10 +105,18 @@ class RoutineTaskAccessService
 
     public function canPerformInspectionItem(InspectionItem $item, User $user): bool
     {
+        $item->loadMissing('run.occurrence');
+
+        return $this->isInspectionPerformer($item, $user)
+            && $item->status !== 'INSPECTED'
+            && $item->run->occurrence->isActionable();
+    }
+
+    public function isInspectionPerformer(InspectionItem $item, User $user): bool
+    {
         return $user->can('assets.inspect')
             && $user->can('inspections.perform')
-            && $this->assignedToInspectionItem($item, $user)
-            && $item->status !== 'INSPECTED';
+            && $this->assignedToInspectionItem($item, $user);
     }
 
     public function activePersonnel(User $user): ?FmoPersonnel

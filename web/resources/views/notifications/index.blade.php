@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Notifications')
 @section('content')
-    <x-page-header title="Notifications" description="Review Work Order activity, assignments, and actions that need your attention.">
+    <x-page-header title="Notifications" description="Review Work Order activity, messages, FMO inquiries, assignments, and actions that need your attention.">
         @if ($unreadCount > 0)
             <x-slot:action>
                 <form method="POST" action="{{ route('notifications.read-all') }}">

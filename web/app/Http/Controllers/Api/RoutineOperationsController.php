@@ -17,6 +17,7 @@ use App\Services\AssetLifecycleService;
 use App\Services\GuidedDescriptionService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
+use App\Services\RoutineTaskAvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -40,18 +41,19 @@ class RoutineOperationsController extends Controller
         return response()->json(['data' => $routineTask->load(['template.guidedProfile', 'template.campus', 'template.building', 'assignees.user', 'attachments', 'inspectionRun.items.asset'])]);
     }
 
-    public function start(Request $request, RoutineTaskOccurrence $routineTask)
+    public function start(Request $request, RoutineTaskOccurrence $routineTask, RoutineTaskAvailabilityService $availability)
     {
         $this->authorizeTask($request, $routineTask, true);
-        abort_unless(in_array($routineTask->status, [RoutineOccurrenceStatus::Due, RoutineOccurrenceStatus::Upcoming, RoutineOccurrenceStatus::Overdue], true), 422);
+        $availability->ensureStartable($routineTask);
         $routineTask->update(['status' => RoutineOccurrenceStatus::InProgress, 'started_at' => $routineTask->started_at ?? now()]);
 
         return response()->json(['data' => $routineTask->fresh()]);
     }
 
-    public function resolve(Request $request, RoutineTaskOccurrence $routineTask, GuidedDescriptionService $guided, OperationalEvidenceService $evidence)
+    public function resolve(Request $request, RoutineTaskOccurrence $routineTask, GuidedDescriptionService $guided, OperationalEvidenceService $evidence, RoutineTaskAvailabilityService $availability)
     {
         $this->authorizeTask($request, $routineTask, true);
+        $availability->ensureActionable($routineTask);
         $routineTask->load(['template.guidedProfile', 'attachments']);
         abort_if($routineTask->template->task_type === RoutineTaskType::Inspection, 422, 'Inspection occurrences must be completed item by item.');
         $data = $request->validate([
@@ -144,10 +146,13 @@ class RoutineOperationsController extends Controller
         return response()->json(['data' => $inspection]);
     }
 
-    public function recordInspection(Request $request, InspectionRun $inspection, InspectionItem $item, OperationalEvidenceService $evidence, AssetLifecycleService $lifecycle)
+    public function recordInspection(Request $request, InspectionRun $inspection, InspectionItem $item, OperationalEvidenceService $evidence, AssetLifecycleService $lifecycle, RoutineTaskAvailabilityService $availability)
     {
         abort_unless($item->inspection_run_id === $inspection->id, 404);
         $access = app(RoutineTaskAccessService::class);
+        if ($access->isInspectionPerformer($item, $request->user()) && $item->status !== 'INSPECTED') {
+            $availability->ensureActionable($inspection->occurrence);
+        }
         abort_unless($access->canPerformInspectionItem($item, $request->user()), 403);
         abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
         $item->load(['asset.assetType', 'attachments']);
@@ -260,6 +265,8 @@ class RoutineOperationsController extends Controller
             'title' => $item->run->template->title,
             'period_key' => $item->run->period_key,
             'due_at' => $item->run->occurrence->due_at,
+            'available_at' => $item->run->occurrence->availableAt()->toIso8601String(),
+            'is_startable' => $item->run->occurrence->isActionable(),
             'is_assigned_inspector' => $access->assignedToInspectionItem($item, $request->user()),
             'can_inspect' => $access->canPerformInspectionItem($item, $request->user()),
         ])->values());

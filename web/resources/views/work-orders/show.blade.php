@@ -95,6 +95,8 @@
     @endif
 </section>
 
+@include('work-orders.partials.communications')
+
 <div class="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
     <main class="min-w-0 space-y-6">
         <section class="section-card">

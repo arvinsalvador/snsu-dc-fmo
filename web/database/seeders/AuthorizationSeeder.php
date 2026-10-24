@@ -68,7 +68,15 @@ class AuthorizationSeeder extends Seeder
             Role::findByName($role, 'web')->givePermissionTo(['work_orders.view_own', 'work_orders.update_own_submitted', 'work_orders.resubmit_own', 'work_order_categories.view']);
         }
         Role::findByName('Requester', 'web')->givePermissionTo('work_orders.create');
+        Role::findByName('Requester', 'web')->givePermissionTo([
+            'work_orders.messages.view', 'work_orders.messages.create',
+            'fmo_inquiries.create', 'fmo_inquiries.view_own',
+        ]);
         Role::findByName('FMO Staff', 'web')->givePermissionTo(['work_orders.view_assigned', 'work_orders.assess_assigned']);
+        Role::findByName('FMO Staff', 'web')->givePermissionTo([
+            'work_orders.messages.view', 'work_orders.messages.create',
+            'work_orders.internal_notes.view', 'work_orders.internal_notes.create',
+        ]);
         Role::findByName('FMO Staff', 'web')->givePermissionTo(['work_orders.start_assigned', 'work_orders.update_assigned', 'work_orders.end_session', 'work_orders.submit_completion']);
         Role::findByName('FMO Staff', 'web')->givePermissionTo([
             'routine_tasks.view', 'routine_tasks.perform', 'assets.view', 'assets.inspect', 'assets.maintain',
@@ -100,6 +108,22 @@ class AuthorizationSeeder extends Seeder
             Role::findByName($role, 'web')->revokePermissionTo('work_orders.create');
         }
         Role::findByName('FMO Dispatcher', 'web')->givePermissionTo(['work_orders.screen', 'work_orders.request_information', 'work_orders.recommend', 'work_orders.assign', 'work_orders.reassign', 'work_orders.remove_assignee', 'work_orders.view_assessments']);
+        Role::findByName('FMO Dispatcher', 'web')->givePermissionTo([
+            'work_orders.messages.view', 'work_orders.messages.create', 'work_orders.messages.manage',
+            'work_orders.internal_notes.view', 'work_orders.internal_notes.create',
+            'fmo_inquiries.manage', 'fmo_inquiries.reply', 'fmo_inquiries.close',
+        ]);
+        Role::findByName('FMO Head', 'web')->givePermissionTo([
+            'work_orders.messages.view', 'work_orders.messages.create', 'work_orders.messages.manage',
+            'work_orders.internal_notes.view', 'work_orders.internal_notes.create',
+            'fmo_inquiries.manage', 'fmo_inquiries.reply', 'fmo_inquiries.close',
+        ]);
+        foreach (['Campus Director', 'Director for Instruction'] as $role) {
+            Role::findByName($role, 'web')->givePermissionTo('work_orders.messages.view');
+        }
+        Role::findByName('FMO Oversight', 'web')->givePermissionTo([
+            'work_orders.messages.view', 'work_orders.internal_notes.view',
+        ]);
         foreach (['FMO Dispatcher', 'Campus Director', 'Director for Instruction', 'FMO Oversight'] as $role) {
             Role::findByName($role, 'web')->givePermissionTo(['work_orders.view_execution']);
         }

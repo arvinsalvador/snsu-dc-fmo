@@ -6,7 +6,9 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Auth\RegistrationStatusController;
 use App\Http\Controllers\Auth\WebAuthController;
+use App\Http\Controllers\CommunicationAttachmentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FmoContactController;
 use App\Http\Controllers\Locations\LocationManagementController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\Personnel\PersonnelController;
@@ -24,13 +26,14 @@ use App\Http\Controllers\RoutineOperations\OperationalAttachmentController;
 use App\Http\Controllers\RoutineOperations\RoutineReportController;
 use App\Http\Controllers\RoutineOperations\RoutineTaskController;
 use App\Http\Controllers\RoutineOperations\RoutineTaskTemplateController;
+use App\Http\Controllers\WorkOrders\PreferredPersonnelController;
 use App\Http\Controllers\WorkOrders\WorkOrderAssessmentController;
 use App\Http\Controllers\WorkOrders\WorkOrderAssignmentController;
 use App\Http\Controllers\WorkOrders\WorkOrderCategoryController;
+use App\Http\Controllers\WorkOrders\WorkOrderCommunicationController;
 use App\Http\Controllers\WorkOrders\WorkOrderController;
 use App\Http\Controllers\WorkOrders\WorkOrderExecutionController;
 use App\Http\Controllers\WorkOrders\WorkOrderWorkflowController;
-use App\Http\Controllers\WorkOrders\PreferredPersonnelController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -55,6 +58,18 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/notifications', [NotificationsController::class, 'index'])->name('notifications.index');
         Route::post('/notifications/read-all', [NotificationsController::class, 'readAll'])->name('notifications.read-all');
         Route::post('/notifications/{notification}/read', [NotificationsController::class, 'read'])->name('notifications.read');
+        Route::get('/communication-attachments/{attachment}/{variant?}', [CommunicationAttachmentController::class, 'show'])
+            ->whereIn('variant', ['original', 'thumbnail'])->name('communication-attachments.show');
+
+        Route::get('/contact-fmo', [FmoContactController::class, 'index'])->name('contact-fmo.index');
+        Route::get('/contact-fmo/new', [FmoContactController::class, 'create'])->name('contact-fmo.create');
+        Route::post('/contact-fmo', [FmoContactController::class, 'store'])->middleware('throttle:10,1')->name('contact-fmo.store');
+        Route::get('/contact-fmo/{thread}', [FmoContactController::class, 'show'])->name('contact-fmo.show');
+        Route::post('/contact-fmo/{thread}/messages', [FmoContactController::class, 'reply'])->middleware('throttle:20,1')->name('contact-fmo.reply');
+        Route::get('/fmo-inquiries', [FmoContactController::class, 'managementIndex'])->name('fmo-inquiries.index');
+        Route::get('/fmo-inquiries/{thread}', [FmoContactController::class, 'show'])->name('fmo-inquiries.show');
+        Route::post('/fmo-inquiries/{thread}/messages', [FmoContactController::class, 'reply'])->middleware('throttle:20,1')->name('fmo-inquiries.reply');
+        Route::post('/fmo-inquiries/{thread}/close', [FmoContactController::class, 'close'])->name('fmo-inquiries.close');
 
         Route::get('/routine-tasks', [RoutineTaskController::class, 'index'])->name('routine-tasks.index');
         Route::get('/routine-tasks/{routineTask}', [RoutineTaskController::class, 'show'])->name('routine-tasks.show');
@@ -120,6 +135,8 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/work-orders/{workOrder}/assessment/acknowledge', [WorkOrderAssessmentController::class, 'acknowledge'])->name('work-orders.assessment.acknowledge');
         Route::post('/work-orders/{workOrder}/assessments', [WorkOrderAssessmentController::class, 'store'])->name('work-orders.assessments.store');
         Route::post('/work-orders/{workOrder}/assessment/resolve/{decision}', [WorkOrderAssessmentController::class, 'resolve'])->name('work-orders.assessment.resolve');
+        Route::post('/work-orders/{workOrder}/messages', [WorkOrderCommunicationController::class, 'message'])->middleware('throttle:20,1')->name('work-orders.messages.store');
+        Route::post('/work-orders/{workOrder}/internal-notes', [WorkOrderCommunicationController::class, 'internalNote'])->middleware('throttle:20,1')->name('work-orders.internal-notes.store');
         Route::post('/work-orders/{workOrder}/assignments', [WorkOrderAssignmentController::class, 'store'])->name('work-orders.assignments.store');
         Route::delete('/work-orders/{workOrder}/assignments/{assignment}', [WorkOrderAssignmentController::class, 'destroy'])->name('work-orders.assignments.destroy');
         Route::get('/work-orders/queue/{queue}', [WorkOrderWorkflowController::class, 'queue'])->name('work-orders.queue');

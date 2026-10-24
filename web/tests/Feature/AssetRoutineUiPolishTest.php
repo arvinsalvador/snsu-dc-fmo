@@ -102,7 +102,7 @@ class AssetRoutineUiPolishTest extends TestCase
 
         $this->actingAs($this->staffA)->get(route('routine-tasks.index'))->assertOk()
             ->assertSeeInOrder(['Overdue — Update Required', 'Overdue assigned work', 'Due Today', 'Due today assigned work', 'Upcoming', 'Upcoming assigned work', 'Completed Today', 'Completed today assigned work'])
-            ->assertSee('Update Overdue Task')->assertSee('Start Task')->assertSee('View Completed Task')
+            ->assertSee('Update Task')->assertSee('Start Task')->assertSee('View Completed Task')
             ->assertDontSee('Staff B private work');
 
         $this->actingAs($this->staffB)->get(route('routine-tasks.index'))->assertOk()

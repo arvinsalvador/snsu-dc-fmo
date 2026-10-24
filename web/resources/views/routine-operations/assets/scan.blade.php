@@ -30,12 +30,14 @@
             @php($item = $option['item'])
             <article class="rounded-xl border {{ $option['can_inspect'] ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200' }} p-4 sm:p-5">
                 <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div><p class="text-xs font-bold uppercase tracking-[0.14em] {{ $item->run->occurrence->due_at->isPast() ? 'text-rose-700' : 'text-blue-700' }}">{{ $item->run->occurrence->due_at->isPast() ? 'Inspection overdue' : 'Inspection due' }}</p><h3 class="mt-1 font-semibold text-slate-950">{{ $item->run->template->title }}</h3><p class="mt-1 text-sm text-slate-500">{{ $item->run->period_key }} · Due {{ $item->run->occurrence->due_at->timezone(config('app.timezone'))->format('M j, Y · g:i A') }}</p></div>
+                    <div><p class="text-xs font-bold uppercase tracking-[0.14em] {{ $item->run->occurrence->due_at->isPast() ? 'text-rose-700' : 'text-blue-700' }}">{{ !$item->run->occurrence->isAvailable() ? 'Upcoming inspection' : ($item->run->occurrence->due_at->isPast() ? 'Inspection overdue' : 'Inspection due') }}</p><h3 class="mt-1 font-semibold text-slate-950">{{ $item->run->template->title }}</h3><p class="mt-1 text-sm text-slate-500">{{ $item->run->period_key }} · Due {{ $item->run->occurrence->due_at->timezone(config('app.timezone'))->format('M j, Y · g:i A') }}</p></div>
                     @if($option['is_assigned'])<span class="status-badge status-success">Assigned to you</span>@else<span class="status-badge status-neutral">Assigned to another team</span>@endif
                 </div>
                 @if(auth()->user()->can('inspections.view_all'))<p class="mt-3 text-sm text-slate-600"><strong>Assigned:</strong> {{ $item->activeAssignees->pluck('user.name')->filter()->join(', ') ?: 'No active inspector' }}</p>@endif
                 @if($option['can_inspect'])
                     <a class="btn btn-primary mt-4 w-full justify-center sm:w-auto" href="{{ route('assets.inspect', [$asset, 'item' => $item->id]) }}">Start Inspection</a>
+                @elseif($option['is_assigned'] && !$item->run->occurrence->isAvailable())
+                    <p class="mt-3 text-sm font-medium text-slate-700">Available {{ $item->run->occurrence->availableAt()->format('M j, Y') }}</p><p class="mt-1 text-sm text-slate-500">This inspection cannot be started yet.</p>
                 @elseif(!$option['is_assigned'])
                     <p class="mt-3 text-sm font-medium text-slate-700">Inspection not assigned to you</p><p class="mt-1 text-sm text-slate-500">You can view this asset, but the current inspection is assigned to another FMO personnel member.</p>
                 @else

@@ -14,7 +14,15 @@ Creation of a new active template also generates the relevant current window imm
 
 Occurrences use explicit states: `UPCOMING`, `DUE`, `IN_PROGRESS`, `COMPLETED`, `OVERDUE`, `COMPLETED_LATE`, `PARTIALLY_COMPLETED`, `UNABLE_TO_COMPLETE`, and `WAITING_FOR_SUPPLIES`.
 
-Unresolved work becomes `OVERDUE`; it is never deleted or silently skipped. The user interface and management counts treat any past-due, non-final occurrence as overdue even when its workflow label is `IN_PROGRESS`, `PARTIALLY_COMPLETED`, or `WAITING_FOR_SUPPLIES`. Staff must record a structured outcome, a readable summary, the authenticated performer, and a timestamp. Partial updates require remaining work. Unable/waiting updates require one of the configured reason codes. `URGENT_WORK` may include an optional Work Order reference. Required evidence is enforced before resolution.
+### Start availability
+
+`UPCOMING` means visible for planning, not executable. Because the current schema has no separate `available_at` column or early-start setting, the canonical availability boundary is the occurrence's `expected_date` at `00:00:00` in `Asia/Manila`. `due_at` remains the completion deadline and is not used as the opening time. This leaves one central boundary that can later be replaced by an explicit availability field without changing every controller and view.
+
+Before that boundary, My Routine Tasks shows the Upcoming badge, availability date, and a read-only **View Details** action. The detail page hides start, update, completion, and evidence controls. At the boundary, a not-yet-started task offers **Start Task**; in-progress work offers **Continue Task**; overdue unresolved work offers **Update Task**; completed work is read-only.
+
+Web and API start/resolve endpoints recalculate availability on the server and return a friendly validation response for forged early requests. Client-provided actionability flags are never trusted. API occurrence resources include `available_at`, `is_startable`, and `is_actionable` for web/mobile presentation.
+
+Unresolved work becomes `OVERDUE`; it is never deleted or silently skipped. The deterministic progression is upcoming before `available_at`, available/due from `available_at` through `due_at`, and overdue after `due_at` while unresolved. The user interface and management counts treat any past-due, non-final occurrence as overdue even when its earlier workflow label was `IN_PROGRESS`, `PARTIALLY_COMPLETED`, or `WAITING_FOR_SUPPLIES`. Staff must record a structured outcome, a readable summary, the authenticated performer, and a timestamp. Partial updates require remaining work. Unable/waiting updates require one of the configured reason codes. `URGENT_WORK` may include an optional Work Order reference. Required evidence is enforced before resolution.
 
 ## Assignments and history
 

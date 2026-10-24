@@ -38,6 +38,11 @@ class User extends Authenticatable
         return $this->hasOne(FmoPersonnel::class);
     }
 
+    public function fmoContactThreads(): HasMany
+    {
+        return $this->hasMany(FmoContactThread::class, 'requester_user_id');
+    }
+
     public function isApproved(): bool
     {
         return $this->status === AccountStatus::Approved;

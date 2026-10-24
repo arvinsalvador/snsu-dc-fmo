@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAssignment;
 use App\Services\WorkOrderAssignmentService;
+use App\Services\WorkOrderMessageReadService;
 use Illuminate\Http\Request;
 
 class WorkOrderAssignmentController extends Controller
@@ -29,6 +30,10 @@ class WorkOrderAssignmentController extends Controller
         $orders = WorkOrder::with('category', 'building', 'location', 'activeAssignments.personnel.user')
             ->activelyAssignedTo($request->user())
             ->latest('submitted_at')->paginate(20);
+        if ($request->user()->can('work_orders.messages.view')) {
+            $unread = app(WorkOrderMessageReadService::class)->unreadCounts($request->user(), $orders->getCollection());
+            $orders->getCollection()->each(fn (WorkOrder $order) => $order->setAttribute('unread_messages_count', $unread->get($order->id, 0)));
+        }
 
         return view('work-orders.my-tasks', compact('orders'));
     }

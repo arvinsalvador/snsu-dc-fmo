@@ -4,9 +4,11 @@
     'title' => 'Add Evidence Photos',
     'help' => 'Photos are attached to this record after you submit the form.',
     'allowVideo' => false,
+    'maxFiles' => null,
+    'maxSizeKb' => null,
 ])
 
-<div data-photo-picker data-max-files="{{ config('work_orders.attachments.max_count') }}" data-max-bytes="{{ config('work_orders.attachments.max_size_kb') * 1024 }}" class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+<div data-photo-picker data-max-files="{{ $maxFiles ?? config('work_orders.attachments.max_count') }}" data-max-bytes="{{ ($maxSizeKb ?? config('work_orders.attachments.max_size_kb')) * 1024 }}" class="rounded-xl border border-slate-200 bg-slate-50 p-4">
     <div>
         <p class="text-sm font-semibold text-slate-900">{{ $title }}</p>
         <p class="mt-1 text-xs leading-5 text-slate-500">{{ $help }}</p>

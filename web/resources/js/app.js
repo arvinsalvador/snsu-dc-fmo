@@ -87,6 +87,28 @@ export function initializePhotoPicker(container) {
     render();
 }
 
+export function initializeCommunicationComposer(container) {
+    const textarea = container.querySelector('[data-communication-textarea]');
+    container.querySelectorAll('[data-communication-suggestion]').forEach(button => button.addEventListener('click', () => {
+        textarea.value = button.dataset.communicationSuggestion || '';
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }));
+}
+
+export function initializeContactInquiryForm(container) {
+    const category = container.querySelector('[data-contact-category]');
+    const guidance = container.querySelector('[data-existing-work-order-guidance]');
+    const related = container.querySelector('[data-related-work-order] select');
+    const update = () => {
+        const existing = category.value === 'EXISTING_WORK_ORDER_QUESTION';
+        guidance.classList.toggle('hidden', !existing);
+        related.required = existing;
+    };
+    category.addEventListener('change', update);
+    update();
+}
+
 export function initializeEvidenceViewer() {
     const modal = document.querySelector('[data-image-lightbox]');
     if (!modal) return;
@@ -657,6 +679,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeCollapsibles();
     document.querySelectorAll('[data-work-order-location]').forEach(initializeLocationSelects);
     document.querySelectorAll('[data-photo-picker]').forEach(initializePhotoPicker);
+    document.querySelectorAll('[data-communication-composer]').forEach(initializeCommunicationComposer);
+    document.querySelectorAll('[data-contact-inquiry-form]').forEach(initializeContactInquiryForm);
     document.querySelectorAll('[data-guided-description]').forEach(initializeGuidedDescription);
     document.querySelectorAll('[data-work-action-guide]').forEach(initializeWorkActionGuide);
     initializeRoutineAssignmentModal();

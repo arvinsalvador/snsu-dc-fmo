@@ -12,6 +12,7 @@ use App\Notifications\InspectionAttentionNotice;
 use App\Services\AssetLifecycleService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
+use App\Services\RoutineTaskAvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -52,10 +53,14 @@ class InspectionController extends Controller
         return view('routine-operations.inspections.show', compact('inspection', 'performableItemIds', 'personnel'));
     }
 
-    public function record(Request $request, InspectionRun $inspection, InspectionItem $item, OperationalEvidenceService $evidence, AssetLifecycleService $lifecycle)
+    public function record(Request $request, InspectionRun $inspection, InspectionItem $item, OperationalEvidenceService $evidence, AssetLifecycleService $lifecycle, RoutineTaskAvailabilityService $availability)
     {
         abort_unless($item->inspection_run_id === $inspection->id, 404);
-        abort_unless(app(RoutineTaskAccessService::class)->canPerformInspectionItem($item, $request->user()), 403);
+        $access = app(RoutineTaskAccessService::class);
+        if ($access->isInspectionPerformer($item, $request->user()) && $item->status !== 'INSPECTED') {
+            $availability->ensureActionable($inspection->occurrence);
+        }
+        abort_unless($access->canPerformInspectionItem($item, $request->user()), 403);
         abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
         $item->load('asset.assetType', 'attachments');
         abort_if(in_array($item->asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422, 'Disposed or retired assets cannot receive new inspections.');

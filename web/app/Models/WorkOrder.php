@@ -128,4 +128,14 @@ class WorkOrder extends Model
     {
         return $this->hasMany(WorkUpdate::class);
     }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(WorkOrderMessage::class)->orderBy('created_at')->orderBy('id');
+    }
+
+    public function internalNotes(): HasMany
+    {
+        return $this->hasMany(WorkOrderInternalNote::class)->orderBy('created_at')->orderBy('id');
+    }
 }

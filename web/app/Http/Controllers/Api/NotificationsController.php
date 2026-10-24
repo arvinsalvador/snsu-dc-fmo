@@ -26,6 +26,8 @@ class NotificationsController extends Controller
                     'work_order_number' => $item->data['work_order_number'] ?? ($workOrder['number'] ?? null),
                     'work_order_subject' => $item->data['work_order_subject'] ?? ($workOrder['subject'] ?? null),
                     'requester_name' => $item->data['requester_name'] ?? ($workOrder['requester_name'] ?? null),
+                    'inquiry_id' => $item->data['inquiry_id'] ?? null,
+                    'action_url' => $item->data['action_url'] ?? null,
                     'created_at' => $item->created_at?->toIso8601String(),
                     'read_at' => $item->read_at?->toIso8601String(),
                 ];

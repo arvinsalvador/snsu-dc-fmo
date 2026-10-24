@@ -40,6 +40,12 @@
                 @can('work_orders.view_all')
                     <a class="nav-link {{ request()->routeIs('work-orders.index') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.index') }}"><x-icon name="clipboard" /><span>All Work Orders</span></a>
                 @endcan
+                @can('fmo_inquiries.view_own')
+                    <a class="nav-link {{ request()->routeIs('contact-fmo.*') ? 'nav-link-active' : '' }}" href="{{ route('contact-fmo.index') }}"><x-icon name="mail" /><span>Contact FMO</span></a>
+                @endcan
+                @can('fmo_inquiries.manage')
+                    <a class="nav-link {{ request()->routeIs('fmo-inquiries.*') ? 'nav-link-active' : '' }}" href="{{ route('fmo-inquiries.index') }}"><x-icon name="mail" /><span>FMO Inquiries</span></a>
+                @endcan
                 @can('work_orders.screen')
                     <a class="nav-link {{ request()->is('work-orders/queue/screening') ? 'nav-link-active' : '' }}" href="{{ route('work-orders.queue', 'screening') }}"><x-icon name="search" /><span>For Screening</span></a>
                 @endcan

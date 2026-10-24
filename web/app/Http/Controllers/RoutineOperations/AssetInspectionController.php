@@ -8,6 +8,7 @@ use App\Models\InspectionItem;
 use App\Services\AssetLifecycleService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
+use App\Services\RoutineTaskAvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -15,19 +16,22 @@ use Illuminate\Validation\ValidationException;
 
 class AssetInspectionController extends Controller
 {
-    public function create(Request $request, InspectableAsset $asset, RoutineTaskAccessService $access)
+    public function create(Request $request, InspectableAsset $asset, RoutineTaskAccessService $access, RoutineTaskAvailabilityService $availability)
     {
         abort_unless($request->user()->can('assets.inspect'), 403);
         abort_if(in_array($asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422, 'Disposed or retired assets are read-only.');
         $asset->load(['assetType', 'building', 'floor', 'location']);
         abort_unless($request->filled('item'), 403, 'Choose an assigned inspection before inspecting this asset.');
         $item = InspectionItem::with('run')->whereKey($request->string('item'))->where('inspectable_asset_id', $asset->id)->firstOrFail();
+        if ($access->isInspectionPerformer($item, $request->user()) && $item->status !== 'INSPECTED') {
+            $availability->ensureActionable($item->run->occurrence);
+        }
         abort_unless($access->canPerformInspectionItem($item, $request->user()), 403);
 
         return view('routine-operations.assets.inspect', compact('asset', 'item'));
     }
 
-    public function store(Request $request, InspectableAsset $asset, OperationalEvidenceService $evidence, AssetLifecycleService $lifecycle, RoutineTaskAccessService $access)
+    public function store(Request $request, InspectableAsset $asset, OperationalEvidenceService $evidence, AssetLifecycleService $lifecycle, RoutineTaskAccessService $access, RoutineTaskAvailabilityService $availability)
     {
         abort_unless($request->user()->can('assets.inspect'), 403);
         abort_if(in_array($asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422, 'Disposed or retired assets are read-only.');
@@ -42,6 +46,9 @@ class AssetInspectionController extends Controller
             'location_evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'location_evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
         ]);
         $item = InspectionItem::with('run')->whereKey($data['inspection_item_id'])->where('inspectable_asset_id', $asset->id)->firstOrFail();
+        if ($access->isInspectionPerformer($item, $request->user()) && $item->status !== 'INSPECTED') {
+            $availability->ensureActionable($item->run->occurrence);
+        }
         abort_unless($access->canPerformInspectionItem($item, $request->user()), 403);
         $expected = collect($item->checklist_snapshot ?: $asset->assetType->checklist)->pluck('code');
         if ($expected->diff(array_keys($data['checklist']))->isNotEmpty()) {

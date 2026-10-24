@@ -9,6 +9,7 @@ use App\Models\RoutineTaskOccurrence;
 use App\Services\GuidedDescriptionService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
+use App\Services\RoutineTaskAvailabilityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -42,7 +43,7 @@ class RoutineTaskController extends Controller
             'overdue' => (clone $summaryQuery)->unresolvedOverdue()->count(),
             'due_today' => (clone $summaryQuery)->whereBetween('due_at', [now(config('app.timezone')), now(config('app.timezone'))->endOfDay()])
                 ->whereNotIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value, RoutineOccurrenceStatus::UnableToComplete->value])->count(),
-            'upcoming' => (clone $summaryQuery)->where('due_at', '>', now(config('app.timezone'))->endOfDay())
+            'upcoming' => (clone $summaryQuery)->whereDate('expected_date', '>', now(config('app.timezone'))->toDateString())
                 ->whereNotIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value, RoutineOccurrenceStatus::UnableToComplete->value])->count(),
             'completed_today' => (clone $summaryQuery)->whereIn('status', [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value])
                 ->whereBetween('completed_at', [now(config('app.timezone'))->startOfDay(), now(config('app.timezone'))->endOfDay()])->count(),
@@ -71,18 +72,19 @@ class RoutineTaskController extends Controller
         return view('routine-operations.tasks.show', ['occurrence' => $routineTask]);
     }
 
-    public function start(Request $request, RoutineTaskOccurrence $routineTask)
+    public function start(Request $request, RoutineTaskOccurrence $routineTask, RoutineTaskAvailabilityService $availability)
     {
         $this->authorizeOccurrence($request, $routineTask, true);
-        abort_unless(in_array($routineTask->status, [RoutineOccurrenceStatus::Due, RoutineOccurrenceStatus::Upcoming, RoutineOccurrenceStatus::Overdue], true), 422);
+        $availability->ensureStartable($routineTask);
         $routineTask->update(['status' => RoutineOccurrenceStatus::InProgress, 'started_at' => $routineTask->started_at ?? now()]);
 
         return back()->with('status', 'Routine task started.');
     }
 
-    public function resolve(Request $request, RoutineTaskOccurrence $routineTask, GuidedDescriptionService $guided, OperationalEvidenceService $evidence)
+    public function resolve(Request $request, RoutineTaskOccurrence $routineTask, GuidedDescriptionService $guided, OperationalEvidenceService $evidence, RoutineTaskAvailabilityService $availability)
     {
         $this->authorizeOccurrence($request, $routineTask, true);
+        $availability->ensureActionable($routineTask);
         $routineTask->load('template.guidedProfile', 'attachments');
         abort_if($routineTask->template->task_type === RoutineTaskType::Inspection, 422, 'Inspection occurrences must be completed item by item.');
         $allowed = ['COMPLETED', 'COMPLETED_LATE', 'PARTIALLY_COMPLETED', 'UNABLE_TO_COMPLETE', 'WAITING_FOR_SUPPLIES'];

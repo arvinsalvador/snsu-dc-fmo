@@ -51,6 +51,9 @@
                     <tr>
                         <td>
                             <a class="font-semibold text-blue-800 hover:underline" href="{{ route('work-orders.show', $order) }}">{{ $order->work_order_number }}</a>
+                            @if (($order->unread_messages_count ?? 0) > 0)
+                                <span class="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">{{ $order->unread_messages_count }} unread {{ \Illuminate\Support\Str::plural('message', $order->unread_messages_count) }}</span>
+                            @endif
                             <p class="mt-0.5 text-sm text-slate-600">{{ $order->subject }}</p>
                         </td>
                         <td data-label="Submitted">{{ $order->submitted_at?->timezone('Asia/Manila')->format('F j, Y') }}</td>
