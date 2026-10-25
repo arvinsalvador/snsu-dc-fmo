@@ -109,6 +109,22 @@ export function initializeContactInquiryForm(container) {
     update();
 }
 
+export function initializeRegistrationFilters(container) {
+    const period = container.querySelector('[data-registration-period]');
+    const customDates = container.querySelector('[data-registration-custom-dates]');
+    const dateFields = [...container.querySelectorAll('[data-registration-date-field]')];
+    if (!period || !customDates) return;
+
+    const update = () => {
+        const custom = period.value === 'custom';
+        customDates.classList.toggle('hidden', !custom);
+        dateFields.forEach(field => { field.disabled = !custom; });
+    };
+
+    period.addEventListener('change', update);
+    update();
+}
+
 export function initializeEvidenceViewer() {
     const modal = document.querySelector('[data-image-lightbox]');
     if (!modal) return;
@@ -681,6 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-photo-picker]').forEach(initializePhotoPicker);
     document.querySelectorAll('[data-communication-composer]').forEach(initializeCommunicationComposer);
     document.querySelectorAll('[data-contact-inquiry-form]').forEach(initializeContactInquiryForm);
+    document.querySelectorAll('[data-registration-filters]').forEach(initializeRegistrationFilters);
     document.querySelectorAll('[data-guided-description]').forEach(initializeGuidedDescription);
     document.querySelectorAll('[data-work-action-guide]').forEach(initializeWorkActionGuide);
     initializeRoutineAssignmentModal();
