@@ -5,9 +5,12 @@ namespace App\Http\Controllers\WorkOrders;
 use App\Enums\WorkSessionOutcome;
 use App\Enums\WorkUpdateType;
 use App\Http\Controllers\Controller;
+use App\Models\FmoPersonnel;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderCategory;
 use App\Models\WorkSession;
 use App\Services\WorkOrderExecutionService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -18,10 +21,68 @@ class WorkOrderExecutionController extends Controller
         abort_unless(in_array($queue, ['active', 'verification'], true), 404);
         abort_unless($request->user()->can('work_orders.view_execution'), 403);
         $statuses = $queue === 'active' ? ['IN_PROGRESS', 'FOR_CONTINUATION', 'PAUSED', 'WAITING_FOR_MATERIALS', 'NEEDS_INVESTIGATION'] : ['FOR_VERIFICATION'];
-        $orders = WorkOrder::with('requester', 'category', 'building', 'activeAssignments.personnel.user', 'activeSessions.personnel.user')
-            ->whereIn('status', $statuses)->latest('submitted_at')->paginate(20);
+        $priority = strtoupper(trim((string) $request->query('priority', '')));
+        $submitted = (string) $request->query('submitted', '');
+        $defaultSort = $queue === 'active' ? 'latest_activity' : 'oldest_waiting';
+        $sort = strtolower(trim((string) $request->query('sort', $defaultSort)));
+        $perPage = $request->integer('per_page', 20);
+        $filters = [
+            'search' => mb_substr(trim((string) $request->query('search', '')), 0, 100),
+            'category' => (string) $request->query('category', ''),
+            'personnel' => (string) $request->query('personnel', ''),
+            'priority' => in_array($priority, ['NORMAL', 'URGENT'], true) ? $priority : '',
+            'submitted' => in_array($submitted, ['7', '30', '90'], true) ? $submitted : '',
+            'sort' => in_array($sort, ['latest_activity', 'oldest_activity', 'oldest_waiting', 'newest_waiting', 'highest_priority'], true) ? $sort : $defaultSort,
+            'per_page' => in_array($perPage, [20, 50, 100], true) ? $perPage : 20,
+        ];
+        $base = WorkOrder::query()->whereIn('status', $statuses);
+        $summary = $queue === 'active'
+            ? [
+                'jobs' => (clone $base)->count(),
+                'sessions' => WorkSession::query()->whereNull('ended_at')->whereHas('workOrder', fn (Builder $query) => $query->whereIn('status', $statuses))->count(),
+            ]
+            : [
+                'waiting' => (clone $base)->count(),
+                'submitted_today' => (clone $base)->whereBetween('completion_submitted_at', [now('Asia/Manila')->startOfDay()->utc(), now('Asia/Manila')->endOfDay()->utc()])->count(),
+            ];
+        $orders = $base->with([
+            'requester', 'category', 'building', 'floor', 'location',
+            'activeAssignments.personnel.user', 'activeSessions.personnel.user',
+            'updates' => fn ($query) => $query->reorder()->latest('recorded_at')->limit(1),
+        ])->withCount([
+            'activeSessions',
+            'attachments as completion_evidence_count' => fn (Builder $query) => $query->where('purpose', 'EXECUTION')->where('evidence_type', 'COMPLETION'),
+        ])->when($filters['search'] !== '', function (Builder $query) use ($filters): void {
+            $term = '%'.addcslashes($filters['search'], '%_\\').'%';
+            $query->where(function (Builder $query) use ($term): void {
+                $query->where('work_order_number', 'like', $term)
+                    ->orWhere('subject', 'like', $term)
+                    ->orWhereHas('requester', fn (Builder $user) => $user->where('name', 'like', $term))
+                    ->orWhereHas('building', fn (Builder $building) => $building->where('name', 'like', $term))
+                    ->orWhereHas('location', fn (Builder $location) => $location->where('name', 'like', $term));
+            });
+        })->when($filters['category'], fn (Builder $query, string $value) => $query->where('work_order_category_id', $value))
+            ->when($filters['personnel'], fn (Builder $query, string $value) => $query->whereHas('activeAssignments', fn (Builder $assignment) => $assignment->where('fmo_personnel_id', $value)))
+            ->when($filters['priority'], fn (Builder $query, string $value) => $query->where('urgency', $value))
+            ->when($queue === 'verification' && $filters['submitted'], fn (Builder $query) => $query->where('completion_submitted_at', '>=', now()->subDays((int) $filters['submitted'])));
+        match ($filters['sort']) {
+            'oldest_activity' => $orders->orderBy('updated_at')->orderBy('id'),
+            'oldest_waiting' => $orders->orderBy('completion_submitted_at')->orderBy('id'),
+            'newest_waiting' => $orders->orderByDesc('completion_submitted_at')->orderByDesc('id'),
+            'highest_priority' => $orders->orderByRaw("CASE WHEN urgency = 'URGENT' THEN 0 ELSE 1 END")->orderBy('updated_at'),
+            default => $orders->orderByDesc('updated_at')->orderByDesc('id'),
+        };
+        $orders = $orders->paginate($filters['per_page'])->appends(array_filter($filters, fn (mixed $value): bool => $value !== '' && $value !== null));
 
-        return view('work-orders.execution-queue', compact('orders', 'queue'));
+        return view('work-orders.execution-queue', [
+            'orders' => $orders,
+            'queue' => $queue,
+            'filters' => $filters,
+            'categories' => WorkOrderCategory::query()->where('is_active', true)->orderBy('name')->get(),
+            'personnel' => FmoPersonnel::query()->with('user')->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->sortBy('user.name')->values(),
+            'summary' => $summary,
+            'hasFilters' => collect($filters)->except(['sort', 'per_page'])->filter()->isNotEmpty() || $filters['sort'] !== $defaultSort,
+        ]);
     }
 
     public function start(Request $request, WorkOrder $workOrder, WorkOrderExecutionService $execution)

@@ -4,15 +4,20 @@ namespace App\Http\Controllers\RoutineOperations;
 
 use App\Enums\RoutineOccurrenceStatus;
 use App\Http\Controllers\Controller;
+use App\Models\AssetType;
+use App\Models\Building;
 use App\Models\FmoPersonnel;
 use App\Models\InspectionItem;
 use App\Models\InspectionRun;
+use App\Models\RoutineTaskOccurrence;
+use App\Models\RoutineTaskTemplate;
 use App\Models\User;
 use App\Notifications\InspectionAttentionNotice;
 use App\Services\AssetLifecycleService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
 use App\Services\RoutineTaskAvailabilityService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -26,16 +31,76 @@ class InspectionController extends Controller
         $personnel = $access->activePersonnel($request->user());
         $assignedScope = fn ($query) => $request->user()->can('inspections.view_all') ? $query : $query->whereHas('assignments', fn ($assignment) => $assignment
             ->where('fmo_personnel_id', $personnel?->id)->whereNull('unassigned_at'));
-        $query = InspectionRun::with(['template.assetType', 'occurrence.assignees.user'])->withCount([
+        $status = strtolower(trim((string) $request->query('status', 'all')));
+        $frequency = strtoupper(trim((string) $request->query('frequency', '')));
+        $sort = strtolower(trim((string) $request->query('sort', 'operational')));
+        $perPage = $request->integer('per_page', 20);
+        $filters = [
+            'search' => mb_substr(trim((string) $request->query('search', '')), 0, 100),
+            'status' => in_array($status, ['due', 'in_progress', 'overdue', 'upcoming', 'completed', 'all'], true) ? $status : 'all',
+            'asset_type' => (string) $request->query('asset_type', ''),
+            'building' => (string) $request->query('building', ''),
+            'frequency' => in_array($frequency, ['DAILY', 'WEEKLY', 'MONTHLY'], true) ? $frequency : '',
+            'sort' => in_array($sort, ['operational', 'due_asc', 'newest', 'title'], true) ? $sort : 'operational',
+            'per_page' => in_array($perPage, [20, 50, 100], true) ? $perPage : 20,
+        ];
+        $base = InspectionRun::query();
+        $access->scopeInspectionRuns($base, $request->user());
+        $applyState = function (Builder $query, string $state): Builder {
+            $closed = [RoutineOccurrenceStatus::Completed->value, RoutineOccurrenceStatus::CompletedLate->value, RoutineOccurrenceStatus::UnableToComplete->value];
+
+            return match ($state) {
+                'overdue' => $query->where('status', '!=', 'COMPLETED')->whereHas('occurrence', fn (Builder $occurrence) => $occurrence->where('due_at', '<', now(config('app.timezone')))->whereNotIn('status', $closed)),
+                'in_progress' => $query->where('status', 'IN_PROGRESS'),
+                'upcoming' => $query->where('status', '!=', 'COMPLETED')->whereHas('occurrence', fn (Builder $occurrence) => $occurrence->whereDate('expected_date', '>', now(config('app.timezone'))->toDateString())),
+                'completed' => $query->where('status', 'COMPLETED'),
+                'due' => $query->where('status', 'OPEN')->whereHas('occurrence', fn (Builder $occurrence) => $occurrence->whereDate('expected_date', '<=', now(config('app.timezone'))->toDateString())->where('due_at', '>=', now(config('app.timezone')))),
+                default => $query,
+            };
+        };
+        $summary = collect(['due', 'in_progress', 'overdue', 'upcoming', 'completed'])
+            ->mapWithKeys(fn (string $state): array => [$state => $applyState(clone $base, $state)->count()]);
+        $summary['all'] = (clone $base)->count();
+        $query = (clone $base)->with([
+            'template.assetType', 'template.building', 'template.floor', 'template.location',
+            'occurrence.assignees.user',
+        ])->withCount([
             'items as items_count' => fn ($q) => $assignedScope($q),
             'items as inspected_count' => fn ($q) => $assignedScope($q)->where('status', 'INSPECTED'),
             'items as attention_count' => fn ($q) => $assignedScope($q)->whereIn('result', ['NEEDS_ATTENTION', 'DEFECTIVE', 'MISSING', 'OUT_OF_SERVICE', 'NEEDS_REFILL', 'EXPIRED']),
             'items as overdue_count' => fn ($q) => $assignedScope($q)->where('status', '!=', 'INSPECTED')->whereHas('run.occurrence', fn ($occurrence) => $occurrence->where('due_at', '<', now(config('app.timezone')))),
-        ])->latest('created_at');
-        $access->scopeInspectionRuns($query, $request->user());
-        $runs = $query->paginate(20)->withQueryString();
+        ])->when($filters['search'] !== '', function (Builder $query) use ($filters): void {
+            $term = '%'.addcslashes($filters['search'], '%_\\').'%';
+            $query->where(function (Builder $query) use ($term): void {
+                $query->where('period_key', 'like', $term)
+                    ->orWhereHas('template', fn (Builder $template) => $template->where('title', 'like', $term))
+                    ->orWhereHas('items.asset', fn (Builder $asset) => $asset->where('asset_code', 'like', $term)->orWhere('name', 'like', $term));
+            });
+        })->when($filters['asset_type'], fn (Builder $query, string $value) => $query->whereHas('template', fn (Builder $template) => $template->where('asset_type_id', $value)))
+            ->when($filters['building'], function (Builder $query, string $value): void {
+                $query->where(function (Builder $query) use ($value): void {
+                    $query->whereHas('template', fn (Builder $template) => $template->where('building_id', $value))
+                        ->orWhereHas('items.asset', fn (Builder $asset) => $asset->where('building_id', $value));
+                });
+            })->when($filters['frequency'], fn (Builder $query, string $value) => $query->whereHas('template', fn (Builder $template) => $template->where('frequency', $value)));
+        $applyState($query, $filters['status']);
+        $dueAt = RoutineTaskOccurrence::query()->select('due_at')->whereColumn('routine_task_occurrences.id', 'inspection_runs.routine_task_occurrence_id');
+        match ($filters['sort']) {
+            'due_asc' => $query->orderBy($dueAt)->orderBy('id'),
+            'newest' => $query->orderByDesc('created_at')->orderByDesc('id'),
+            'title' => $query->orderBy(RoutineTaskTemplate::query()->select('title')->whereColumn('routine_task_templates.id', 'inspection_runs.routine_task_template_id'))->orderBy('id'),
+            default => $query->orderByRaw("CASE WHEN inspection_runs.status = 'COMPLETED' THEN 1 ELSE 0 END")->orderBy($dueAt)->orderBy('id'),
+        };
+        $runs = $query->paginate($filters['per_page'])->appends(array_filter($filters, fn (mixed $value): bool => $value !== '' && $value !== null));
 
-        return view('routine-operations.inspections.index', compact('runs'));
+        return view('routine-operations.inspections.index', [
+            'runs' => $runs,
+            'filters' => $filters,
+            'summary' => $summary,
+            'assetTypes' => AssetType::query()->where('is_active', true)->orderBy('name')->get(),
+            'buildings' => Building::query()->where('is_active', true)->orderBy('name')->get(),
+            'hasFilters' => $filters['search'] !== '' || $filters['asset_type'] !== '' || $filters['building'] !== '' || $filters['frequency'] !== '' || $filters['sort'] !== 'operational',
+        ]);
     }
 
     public function show(Request $request, InspectionRun $inspection, RoutineTaskAccessService $access)

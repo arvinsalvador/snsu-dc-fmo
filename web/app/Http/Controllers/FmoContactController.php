@@ -18,45 +18,15 @@ class FmoContactController extends Controller
     public function index(Request $request)
     {
         abort_unless($request->user()->can('fmo_inquiries.view_own'), 403);
-        $threads = FmoContactThread::query()
-            ->with(['relatedWorkOrder', 'messages' => fn ($query) => $query->reorder()->latest()->limit(1)])
-            ->where('requester_user_id', $request->user()->id)
-            ->latest('updated_at')->paginate(15);
 
-        return view('communications.contact-index', ['threads' => $threads, 'management' => false]);
+        return view('communications.contact-index', $this->indexData($request, false));
     }
 
     public function managementIndex(Request $request)
     {
         abort_unless($request->user()->can('fmo_inquiries.manage'), 403);
-        $filters = $request->validate([
-            'search' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', Rule::enum(FmoContactStatus::class)],
-            'category' => ['nullable', Rule::enum(FmoContactCategory::class)],
-            'date' => ['nullable', Rule::in(['7', '30', '90'])],
-        ]);
-        $search = trim((string) ($filters['search'] ?? ''));
-        $threads = FmoContactThread::query()
-            ->with(['requester.requesterProfile', 'relatedWorkOrder', 'messages' => fn ($query) => $query->reorder()->latest()->limit(1)])
-            ->when($search !== '', function (Builder $query) use ($search): void {
-                $term = '%'.addcslashes($search, '%_\\').'%';
-                $query->where(function (Builder $query) use ($term): void {
-                    $query->where('subject', 'like', $term)
-                        ->orWhere('category', 'like', $term)
-                        ->orWhereHas('requester', fn (Builder $user) => $user->where('name', 'like', $term))
-                        ->orWhereHas('relatedWorkOrder', fn (Builder $order) => $order->where('work_order_number', 'like', $term));
-                });
-            })
-            ->when($filters['status'] ?? null, fn (Builder $query, $status) => $query->where('status', $status))
-            ->when($filters['category'] ?? null, fn (Builder $query, $category) => $query->where('category', $category))
-            ->when($filters['date'] ?? null, fn (Builder $query, $days) => $query->where('created_at', '>=', now()->subDays((int) $days)))
-            ->latest('updated_at')->paginate(20)->withQueryString();
 
-        return view('communications.contact-index', [
-            'threads' => $threads,
-            'management' => true,
-            'filters' => $filters,
-        ]);
+        return view('communications.contact-index', $this->indexData($request, true));
     }
 
     public function create(Request $request)
@@ -170,5 +140,62 @@ class FmoContactController extends Controller
         if (trim((string) ($data['message'] ?? '')) === '' && ! $request->hasFile('attachments')) {
             throw ValidationException::withMessages(['message' => 'Write a message or attach at least one photo.']);
         }
+    }
+
+    /** @return array<string, mixed> */
+    private function indexData(Request $request, bool $management): array
+    {
+        $status = strtoupper(trim((string) $request->query('status', 'all')));
+        $category = strtoupper(trim((string) $request->query('category', '')));
+        $date = (string) $request->query('date', '');
+        $sort = strtolower(trim((string) $request->query('sort', 'activity_desc')));
+        $perPage = $request->integer('per_page', 20);
+        $filters = [
+            'search' => mb_substr(trim((string) $request->query('search', '')), 0, 100),
+            'status' => in_array($status, ['OPEN', 'RESPONDED', 'CLOSED', 'ALL'], true) ? strtolower($status) : 'all',
+            'category' => FmoContactCategory::tryFrom($category)?->value ?? '',
+            'date' => in_array($date, ['7', '30', '90'], true) ? $date : '',
+            'sort' => in_array($sort, ['activity_desc', 'oldest', 'created_desc'], true) ? $sort : 'activity_desc',
+            'per_page' => in_array($perPage, [20, 50, 100], true) ? $perPage : 20,
+        ];
+        $base = FmoContactThread::query()
+            ->when(! $management, fn (Builder $query) => $query->where('requester_user_id', $request->user()->id));
+        $filtered = (clone $base)->when($filters['search'] !== '', function (Builder $query) use ($filters, $management): void {
+            $term = '%'.addcslashes($filters['search'], '%_\\').'%';
+            $query->where(function (Builder $query) use ($term, $management): void {
+                $query->where('subject', 'like', $term)
+                    ->orWhereHas('messages', fn (Builder $message) => $message->where('body', 'like', $term))
+                    ->orWhereHas('relatedWorkOrder', fn (Builder $order) => $order->where('work_order_number', 'like', $term));
+                if ($management) {
+                    $query->orWhereHas('requester', fn (Builder $user) => $user->where('name', 'like', $term)->orWhere('email', 'like', $term));
+                }
+            });
+        })->when($filters['category'], fn (Builder $query, string $value) => $query->where('category', $value))
+            ->when($filters['date'], fn (Builder $query, string $days) => $query->where('created_at', '>=', now()->subDays((int) $days)));
+        $countRows = (clone $filtered)->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status');
+        $statusCounts = collect([
+            'open' => (int) ($countRows[FmoContactStatus::Open->value] ?? 0),
+            'responded' => (int) ($countRows[FmoContactStatus::Responded->value] ?? 0),
+            'closed' => (int) ($countRows[FmoContactStatus::Closed->value] ?? 0),
+        ]);
+        $statusCounts['all'] = $statusCounts->sum();
+        $threads = $filtered->with([
+            'requester.requesterProfile', 'relatedWorkOrder',
+            'messages' => fn ($query) => $query->reorder()->latest()->limit(1),
+        ])->when($filters['status'] !== 'all', fn (Builder $query) => $query->where('status', strtoupper($filters['status'])));
+        match ($filters['sort']) {
+            'oldest' => $threads->orderBy('created_at')->orderBy('id'),
+            'created_desc' => $threads->orderByDesc('created_at')->orderByDesc('id'),
+            default => $threads->orderByDesc('updated_at')->orderByDesc('id'),
+        };
+        $threads = $threads->paginate($filters['per_page'])->appends(array_filter($filters, fn (mixed $value): bool => $value !== '' && $value !== null));
+
+        return [
+            'threads' => $threads,
+            'management' => $management,
+            'filters' => $filters,
+            'statusCounts' => $statusCounts,
+            'hasFilters' => $filters['search'] !== '' || $filters['category'] !== '' || $filters['date'] !== '' || $filters['sort'] !== 'activity_desc',
+        ];
     }
 }

@@ -89,7 +89,7 @@
 
                 @if ($user->can('reports.view_work_orders') || $user->can('work_orders.view_own') || $user->can('work_orders.view_assigned'))
                     <p class="nav-heading">Reports</p>
-                    <a class="nav-link {{ request()->routeIs('reports.*') ? 'nav-link-active' : '' }}" href="{{ route('reports.history') }}"><x-icon name="chart" /><span>Work History</span></a>
+                    <a class="nav-link {{ request()->routeIs('reports.history', 'reports.export', 'reports.print') ? 'nav-link-active' : '' }}" href="{{ route('reports.history') }}"><x-icon name="chart" /><span>Work History</span></a>
                     @can('reports.view_routine_operations')<a class="nav-link {{ request()->routeIs('reports.routine') ? 'nav-link-active' : '' }}" href="{{ route('reports.routine') }}"><x-icon name="chart" /><span>Routine History</span></a>@endcan
                 @endif
 
