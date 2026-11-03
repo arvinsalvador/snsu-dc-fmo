@@ -12,7 +12,7 @@ class SkillSeeder extends Seeder
         foreach ([
             'Electrical', 'Plumbing', 'Carpentry / Woodworking', 'Welding',
             'Masonry', 'Painting', 'Air Conditioning', 'General Maintenance',
-            'Fabrication', 'Grounds Maintenance', 'Other',
+            'Fabrication', 'Grounds Maintenance', 'Driver', 'Other',
         ] as $name) {
             Skill::firstOrCreate(['name' => $name], ['is_active' => true]);
         }

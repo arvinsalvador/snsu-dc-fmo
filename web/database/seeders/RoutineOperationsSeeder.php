@@ -19,7 +19,8 @@ class RoutineOperationsSeeder extends Seeder
             'Electrical' => 'ELECTRICAL', 'Plumbing' => 'PLUMBING', 'Carpentry / Woodworking' => 'CARPENTRY',
             'Welding' => 'WELDING', 'Fabrication / Craft' => 'WELDING', 'Painting' => 'PAINTING', 'Masonry' => 'MASONRY',
             'Air Conditioning' => 'AIR_CONDITIONING', 'General Repair / Maintenance' => 'GENERAL_MAINTENANCE',
-            'Furniture / Fixture' => 'CARPENTRY', 'Grounds / Outdoor Maintenance' => 'GENERAL_MAINTENANCE', 'Other' => 'GENERIC',
+            'Furniture / Fixture' => 'CARPENTRY', 'Grounds / Outdoor Maintenance' => 'GENERAL_MAINTENANCE',
+            'Transportation / Driver Assistance' => 'GENERIC', 'Other' => 'GENERIC',
         ];
         foreach ($categoryMap as $category => $profileCode) {
             WorkOrderCategory::where('name', $category)->update([

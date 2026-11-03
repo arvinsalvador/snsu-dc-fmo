@@ -19,5 +19,13 @@ class DatabaseSeeder extends Seeder
         $this->call(CampusSeeder::class);
         $this->call(WorkOrderCategorySeeder::class);
         $this->call(RoutineOperationsSeeder::class);
+
+        if (app()->environment(['local', 'testing'])) {
+            $this->call([
+                DevelopmentUsersSeeder::class,
+                DevelopmentLocationsSeeder::class,
+                HistoricalFmoOperationsSeeder::class,
+            ]);
+        }
     }
 }

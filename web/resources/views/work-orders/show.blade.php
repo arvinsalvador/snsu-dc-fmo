@@ -101,6 +101,7 @@
     <main class="min-w-0 space-y-6">
         <section class="section-card">
             <p class="detail-kicker">Request overview</p><h2 class="mt-1 text-xl">Request Details</h2>
+            @if($order->workflowEvents->contains('action', 'HISTORICAL_IMPORT'))<x-alert type="info" title="Historical logbook record" class="mt-5">Imported for development reference from a manual FMO logbook.</x-alert>@endif
             <dl class="mt-5 grid gap-4 sm:grid-cols-2"><div><dt class="detail-label">Work type</dt><dd class="detail-value">{{ $order->category->name }}</dd></div><div><dt class="detail-label">Priority</dt><dd class="detail-value">{{ ucfirst(strtolower($order->urgency)) }}</dd></div><div><dt class="detail-label">Requester</dt><dd class="detail-value">{{ $order->requester->name }}</dd></div><div><dt class="detail-label">Date submitted</dt><dd class="detail-value">{{ $order->submitted_at?->timezone('Asia/Manila')->format('F j, Y · g:i A') }}</dd></div></dl>
             <div class="mt-6 border-t border-slate-100 pt-5"><h3 class="detail-label">Problem description</h3><p class="mt-3 whitespace-pre-line text-base leading-7 text-slate-700">{{ $order->description }}</p></div>
         </section>

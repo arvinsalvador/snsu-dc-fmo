@@ -15,13 +15,14 @@ class WorkOrderCategorySeeder extends Seeder
             'Electrical' => ['Electrical'],
             'Plumbing' => ['Plumbing'],
             'Carpentry / Woodworking' => ['Carpentry / Woodworking'],
-            'Welding' => ['Welding'],
+            'Welding' => ['Welding', 'Fabrication'],
             'Fabrication / Craft' => ['Fabrication', 'Welding'],
             'Painting' => ['Painting'],
             'Masonry' => ['Masonry'],
             'Air Conditioning' => ['Air Conditioning', 'Electrical'],
             'Furniture / Fixture' => ['Carpentry / Woodworking', 'General Maintenance'],
             'Grounds / Outdoor Maintenance' => ['Grounds Maintenance'],
+            'Transportation / Driver Assistance' => ['Driver'],
             'Other' => [],
         ];
 
