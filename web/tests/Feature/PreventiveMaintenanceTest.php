@@ -126,6 +126,46 @@ class PreventiveMaintenanceTest extends TestCase
         $this->assertSame(PreventiveMaintenanceStatus::InProgress, $occurrence->fresh()->status);
     }
 
+    public function test_daily_plan_skips_weekends_and_weekend_start_catch_up_does_not_duplicate_monday(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-06 07:00:00', 'Asia/Manila'));
+        $daily = $this->plan('2026-11-06', 'DAILY');
+        $monthly = $this->plan('2026-10-31', 'MONTHLY', ['day' => 1]);
+        $service = app(PreventiveMaintenanceOccurrenceService::class);
+
+        $this->assertSame(3, $service->generate(CarbonImmutable::parse('2026-10-31'), CarbonImmutable::parse('2026-11-09')));
+        $this->assertSame(0, $service->generate(CarbonImmutable::parse('2026-10-31'), CarbonImmutable::parse('2026-11-09')));
+
+        $this->assertSame(['2026-11-06', '2026-11-09'], $daily->occurrences()->orderBy('available_at')->pluck('period_key')->all());
+        $this->assertSame(1, $daily->occurrences()->whereDate('available_at', '2026-11-09')->count());
+        $monthlyOccurrence = $monthly->occurrences()->sole();
+        $this->assertSame('2026-11', $monthlyOccurrence->period_key);
+        $this->assertSame('2026-11-02 08:00:00', $monthlyOccurrence->available_at->timezone('Asia/Manila')->format('Y-m-d H:i:s'));
+    }
+
+    public function test_corrective_work_order_requires_assignment_completion_and_is_created_once(): void
+    {
+        $plan = $this->plan('2026-11-04', 'DAILY');
+        app(PreventiveMaintenanceOccurrenceService::class)->generate(CarbonImmutable::parse('2026-11-04'), CarbonImmutable::parse('2026-11-04'));
+        $occurrence = $plan->occurrences()->firstOrFail();
+        $this->actingAs($this->staffA)->post(route('preventive-maintenance.tasks.start', $occurrence))->assertRedirect();
+        $occurrence->execution()->update(['findings' => 'Drain line partially blocked.']);
+        $payload = ['subject' => 'Repair Air Conditioner Drain Line'];
+
+        $this->actingAs($this->staffA)->post(route('preventive-maintenance.tasks.corrective-work-order', $occurrence), $payload)->assertSessionHasErrors('subject');
+        $occurrence->update(['status' => PreventiveMaintenanceStatus::Completed, 'completed_at' => now()]);
+        $this->actingAs($this->staffB)->post(route('preventive-maintenance.tasks.corrective-work-order', $occurrence), $payload)->assertForbidden();
+        $this->assertSame(0, $occurrence->correctiveWorkOrders()->count());
+
+        $this->actingAs($this->staffA)->post(route('preventive-maintenance.tasks.corrective-work-order', $occurrence), $payload)->assertRedirect();
+        $workOrder = $occurrence->correctiveWorkOrders()->sole();
+        $this->actingAs($this->staffA)->post(route('preventive-maintenance.tasks.corrective-work-order', $occurrence), $payload)
+            ->assertRedirect(route('preventive-maintenance.tasks.show', $occurrence));
+        $this->actingAs($this->head)->post(route('preventive-maintenance.tasks.corrective-work-order', $occurrence), $payload)
+            ->assertRedirect(route('preventive-maintenance.tasks.show', $occurrence));
+        $this->assertSame($workOrder->id, $occurrence->correctiveWorkOrders()->sole()->id);
+    }
+
     public function test_staff_scope_and_qr_only_allow_assigned_personnel_to_start(): void
     {
         $plan = $this->plan('2026-11-04', 'DAILY');

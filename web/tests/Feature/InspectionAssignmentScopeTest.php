@@ -85,7 +85,7 @@ class InspectionAssignmentScopeTest extends TestCase
             ->assertSee('Asset type in selected location')->assertSee('Customize assignment by asset')
             ->assertSee('data-inspection-template-form', false)->assertSee('Select all visible');
 
-        $start = now()->addDays(8)->toDateString();
+        $start = now()->addDays(10)->toDateString();
         $this->actingAs($this->head)->post(route('routine-templates.store'), [
             'title' => 'Monthly Fire Extinguisher Inspection', 'task_type' => 'INSPECTION', 'frequency' => 'DAILY',
             'start_date' => $start, 'due_time' => '16:00', 'asset_type_id' => $this->type->id,
@@ -134,15 +134,15 @@ class InspectionAssignmentScopeTest extends TestCase
         $template = $this->template([$this->personA->id]);
         $october16 = $this->generate($template, '2026-10-16');
         $this->replaceTemplateTeam($template, [$this->personB->id]);
-        $october17 = $this->generate($template, '2026-10-17');
+        $october19 = $this->generate($template, '2026-10-19');
 
         $oldItem = $october16->items()->with('activeAssignees')->firstOrFail();
-        $newItem = $october17->items()->with('activeAssignees')->firstOrFail();
+        $newItem = $october19->items()->with('activeAssignees')->firstOrFail();
         $this->assertEqualsCanonicalizing([$this->personA->id], $oldItem->activeAssignees->modelKeys());
         $this->assertEqualsCanonicalizing([$this->personB->id], $newItem->activeAssignees->modelKeys());
         $this->actingAs($this->staffA)->get(route('inspections.show', $october16))->assertOk();
-        $this->actingAs($this->staffA)->get(route('inspections.show', $october17))->assertForbidden();
-        $this->actingAs($this->staffB)->get(route('inspections.show', $october17))->assertOk();
+        $this->actingAs($this->staffA)->get(route('inspections.show', $october19))->assertForbidden();
+        $this->actingAs($this->staffB)->get(route('inspections.show', $october19))->assertOk();
     }
 
     public function test_current_item_reassignment_is_audited_and_completed_item_cannot_be_resubmitted_or_reassigned(): void

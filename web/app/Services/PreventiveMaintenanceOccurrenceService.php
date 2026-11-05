@@ -48,9 +48,12 @@ class PreventiveMaintenanceOccurrenceService
                         if (! $this->isExpected($plan, $date)) {
                             continue;
                         }
-                        DB::transaction(function () use ($plan, $date, &$created): void {
+                        $availableDate = $this->nextWorkingDay($date);
+                        if ($this->isFirstPeriodCatchUp($plan, $date) && $this->shiftLeavesPeriod($plan, $date, $availableDate)) {
+                            continue;
+                        }
+                        DB::transaction(function () use ($plan, $date, $availableDate, &$created): void {
                             [$periodStart, $periodEnd] = $this->periodBounds($plan, $date);
-                            $availableDate = $this->nextWorkingDay($date);
                             $availableAt = $availableDate->setTimeFromTimeString((string) $plan->available_time);
                             $dueAt = $availableDate->setTimeFromTimeString((string) $plan->due_time);
                             $now = now(config('app.timezone'));
@@ -108,7 +111,7 @@ class PreventiveMaintenanceOccurrenceService
         $interval = max(1, (int) $plan->interval_value);
         $frequency = $plan->frequency_type;
         if ($frequency === PreventiveMaintenanceFrequency::Daily) {
-            return $start->diffInDays($date) % $interval === 0;
+            return ! $date->isWeekend() && (int) $start->diffInDays($date) % $interval === 0;
         }
         if ($frequency === PreventiveMaintenanceFrequency::Weekly) {
             return $date->dayOfWeekIso === (int) ($config['weekday'] ?? $start->dayOfWeekIso)
@@ -127,7 +130,7 @@ class PreventiveMaintenanceOccurrenceService
             default => $interval,
         };
         if ($frequency === PreventiveMaintenanceFrequency::Custom && ($config['unit'] ?? null) === 'DAY') {
-            return $start->diffInDays($date) % $interval === 0;
+            return ! $date->isWeekend() && (int) $start->diffInDays($date) % $interval === 0;
         }
         if ($frequency === PreventiveMaintenanceFrequency::Custom && ($config['unit'] ?? null) === 'WEEK') {
             return $date->dayOfWeekIso === (int) ($config['weekday'] ?? $start->dayOfWeekIso)
@@ -165,6 +168,31 @@ class PreventiveMaintenanceOccurrenceService
             PreventiveMaintenanceFrequency::Annual => [$date->startOfYear(), $date->endOfYear()],
             PreventiveMaintenanceFrequency::Custom => [$date, $date],
         };
+    }
+
+    /** A month-based plan may open its first period on the start date when the configured day has already passed. */
+    private function isFirstPeriodCatchUp(PreventiveMaintenancePlan $plan, CarbonImmutable $date): bool
+    {
+        $unit = $plan->recurrence_config['unit'] ?? 'MONTH';
+        if (in_array($plan->frequency_type, [PreventiveMaintenanceFrequency::Daily, PreventiveMaintenanceFrequency::Weekly], true)
+            || ($plan->frequency_type === PreventiveMaintenanceFrequency::Custom && $unit !== 'MONTH')) {
+            return false;
+        }
+        $start = CarbonImmutable::parse($plan->start_date, config('app.timezone'))->startOfDay();
+        $day = min((int) ($plan->recurrence_config['day'] ?? $start->day), $date->daysInMonth);
+
+        return $date->isSameDay($start) && $date->day !== $day;
+    }
+
+    /** A weekend catch-up that shifts out of its period has no working day left, and the next period already covers it. */
+    private function shiftLeavesPeriod(PreventiveMaintenancePlan $plan, CarbonImmutable $date, CarbonImmutable $availableDate): bool
+    {
+        if ($plan->frequency_type === PreventiveMaintenanceFrequency::Custom) {
+            return $availableDate->format('Y-m') !== $date->format('Y-m');
+        }
+        [, $periodEnd] = $this->periodBounds($plan, $date);
+
+        return $availableDate->gt($periodEnd);
     }
 
     private function nextWorkingDay(CarbonImmutable $date): CarbonImmutable

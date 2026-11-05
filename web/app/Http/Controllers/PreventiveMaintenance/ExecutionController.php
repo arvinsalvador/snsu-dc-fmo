@@ -160,16 +160,27 @@ class ExecutionController extends Controller
         return back()->with('status', 'Preventive maintenance record verified.');
     }
 
-    public function correctiveWorkOrder(Request $request, PreventiveMaintenanceOccurrence $occurrence, WorkOrderController $numbers)
+    public function correctiveWorkOrder(Request $request, PreventiveMaintenanceOccurrence $occurrence, WorkOrderController $numbers, PreventiveMaintenanceAccessService $access)
     {
-        abort_unless($request->user()->can('preventive_maintenance.perform') || $request->user()->can('preventive_maintenance.manage_plans'), 403);
-        $occurrence->loadMissing(['asset', 'execution']);
-        abort_unless($occurrence->execution && ($occurrence->execution->findings || $occurrence->execution->recommended_corrective_action), 422);
+        abort_unless($request->user()->can('preventive_maintenance.manage_plans') || $access->canPerform($occurrence, $request->user()), 403);
         $data = $request->validate([
             'subject' => ['required', 'string', 'max:255'],
-            'work_order_category_id' => ['nullable', 'exists:work_order_categories,id'],
+            'work_order_category_id' => ['nullable', Rule::exists('work_order_categories', 'id')->where('is_active', true)],
         ]);
-        $workOrder = DB::transaction(function () use ($occurrence, $request, $data, $numbers): WorkOrder {
+        $created = false;
+        $workOrder = DB::transaction(function () use ($occurrence, $request, $data, $numbers, &$created): WorkOrder {
+            $occurrence = PreventiveMaintenanceOccurrence::whereKey($occurrence->id)->lockForUpdate()->firstOrFail();
+            $occurrence->load(['asset', 'execution']);
+            if ($occurrence->status !== PreventiveMaintenanceStatus::Completed) {
+                throw ValidationException::withMessages(['subject' => 'Complete this preventive maintenance before creating a corrective Work Order.']);
+            }
+            if (! $occurrence->execution?->findings && ! $occurrence->execution?->recommended_corrective_action) {
+                throw ValidationException::withMessages(['subject' => 'Record a finding or recommended corrective action before creating a corrective Work Order.']);
+            }
+            if ($existing = $occurrence->correctiveWorkOrders()->oldest('submitted_at')->first()) {
+                return $existing;
+            }
+            $created = true;
             $asset = $occurrence->asset;
             $category = isset($data['work_order_category_id'])
                 ? WorkOrderCategory::findOrFail($data['work_order_category_id'])
@@ -195,6 +206,11 @@ class ExecutionController extends Controller
 
             return $workOrder;
         });
+
+        if (! $created) {
+            return redirect()->route('preventive-maintenance.tasks.show', $occurrence)
+                ->with('status', 'Corrective Work Order '.$workOrder->work_order_number.' already exists for this maintenance record.');
+        }
 
         return redirect()->route('work-orders.show', $workOrder)->with('success', 'Corrective Work Order '.$workOrder->work_order_number.' created through the normal workflow.');
     }

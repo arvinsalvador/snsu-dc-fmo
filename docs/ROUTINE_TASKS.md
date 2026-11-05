@@ -8,6 +8,10 @@ Version 1 supports `DAILY`, `WEEKLY`, and `MONTHLY`. Weekly templates store an I
 
 Run `php artisan routine:generate` from Laravel's scheduler. The command defaults to a configurable 62-day look-back and 35-day look-ahead, so missed cron invocations are backfilled. A unique constraint on template plus period key makes generation idempotent. Configure shared hosting to run `php artisan schedule:run` once per minute. Override the windows with `ROUTINE_BACKFILL_DAYS` and `ROUTINE_LOOKAHEAD_DAYS` if necessary.
 
+### Working days
+
+FMO works Monday to Friday. Daily templates do not generate Saturday or Sunday occurrences. A weekly or monthly date that falls on a weekend moves to the next working day (Monday); the occurrence keeps the period key of its logical week or month, so the shift never creates a second occurrence in either period. The occurrence's `expected_date` and `due_at` use the shifted working day. When a newly started template's first-period catch-up falls on a weekend and the shift would cross into the next period, that catch-up is skipped because the next period's own occurrence already covers the same working day. A Friday occurrence that is still unresolved stays overdue through the weekend.
+
 Creation of a new active template also generates the relevant current window immediately. For monthly schedules this includes the current month even when the configured day has already passed; for weekly schedules it includes the active week. This prevents a newly created current inspection from remaining invisible until the scheduler's next backfill. Future-start and inactive templates are still excluded.
 
 ## Occurrence lifecycle

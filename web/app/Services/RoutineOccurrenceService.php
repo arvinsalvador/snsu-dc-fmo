@@ -35,6 +35,10 @@ class RoutineOccurrenceService
                         if (! $this->isExpected($template, $date)) {
                             continue;
                         }
+                        $scheduledDate = $this->scheduledDate($template, $date);
+                        if ($scheduledDate === null) {
+                            continue;
+                        }
                         $periodKey = $this->periodKey($template, $date);
                         $assets = $template->task_type === RoutineTaskType::Inspection ? $this->eligibleInspectionAssets($template) : null;
                         if ($assets !== null && $assets->isEmpty()) {
@@ -42,11 +46,11 @@ class RoutineOccurrenceService
 
                             continue;
                         }
-                        DB::transaction(function () use ($template, $date, $periodKey, $assets, &$created, $timezone): void {
-                            $dueAt = CarbonImmutable::parse($date->toDateString().' '.$template->due_time, $timezone);
+                        DB::transaction(function () use ($template, $scheduledDate, $periodKey, $assets, &$created, $timezone): void {
+                            $dueAt = CarbonImmutable::parse($scheduledDate->toDateString().' '.$template->due_time, $timezone);
                             $occurrence = RoutineTaskOccurrence::firstOrCreate(
                                 ['routine_task_template_id' => $template->id, 'period_key' => $periodKey],
-                                ['expected_date' => $date, 'due_at' => $dueAt, 'status' => $dueAt->isPast() ? RoutineOccurrenceStatus::Overdue : ($date->isToday() ? RoutineOccurrenceStatus::Due : RoutineOccurrenceStatus::Upcoming), 'guided_description_profile_id' => $template->guided_description_profile_id]
+                                ['expected_date' => $scheduledDate, 'due_at' => $dueAt, 'status' => $dueAt->isPast() ? RoutineOccurrenceStatus::Overdue : ($scheduledDate->isToday() ? RoutineOccurrenceStatus::Due : RoutineOccurrenceStatus::Upcoming), 'guided_description_profile_id' => $template->guided_description_profile_id]
                             );
                             if ($occurrence->wasRecentlyCreated) {
                                 $created++;
@@ -83,12 +87,41 @@ class RoutineOccurrenceService
         $config = $template->recurrence_config ?? [];
 
         return match ($template->frequency) {
-            RoutineFrequency::Daily => true,
-            RoutineFrequency::Weekly => $date->dayOfWeekIso === (int) ($config['weekday'] ?? $template->start_date->dayOfWeekIso)
+            RoutineFrequency::Daily => ! $date->isWeekend(),
+            RoutineFrequency::Weekly => $this->isRegularDate($template, $date)
                 || ($date->isSameDay($template->start_date) && (int) ($config['weekday'] ?? $template->start_date->dayOfWeekIso) < $template->start_date->dayOfWeekIso),
-            RoutineFrequency::Monthly => $date->day === min((int) ($config['day'] ?? $template->start_date->day), $date->daysInMonth)
+            RoutineFrequency::Monthly => $this->isRegularDate($template, $date)
                 || ($date->isSameDay($template->start_date) && (int) ($config['day'] ?? $template->start_date->day) < $template->start_date->day),
         };
+    }
+
+    private function isRegularDate(RoutineTaskTemplate $template, CarbonImmutable $date): bool
+    {
+        $config = $template->recurrence_config ?? [];
+
+        return match ($template->frequency) {
+            RoutineFrequency::Daily => true,
+            RoutineFrequency::Weekly => $date->dayOfWeekIso === (int) ($config['weekday'] ?? $template->start_date->dayOfWeekIso),
+            RoutineFrequency::Monthly => $date->day === min((int) ($config['day'] ?? $template->start_date->day), $date->daysInMonth),
+        };
+    }
+
+    /**
+     * FMO works Monday to Friday. A weekend schedule date moves to the next working day while the
+     * occurrence keeps its logical period key. A first-period catch-up whose shift would leave its
+     * period is skipped, because the next period's own occurrence already covers that working day.
+     */
+    private function scheduledDate(RoutineTaskTemplate $template, CarbonImmutable $date): ?CarbonImmutable
+    {
+        $scheduled = $date;
+        while ($scheduled->isWeekend()) {
+            $scheduled = $scheduled->addDay();
+        }
+        if ($scheduled->isSameDay($date) || $this->isRegularDate($template, $date)) {
+            return $scheduled;
+        }
+
+        return $this->periodKey($template, $scheduled) === $this->periodKey($template, $date) ? $scheduled : null;
     }
 
     private function periodKey(RoutineTaskTemplate $template, CarbonImmutable $date): string

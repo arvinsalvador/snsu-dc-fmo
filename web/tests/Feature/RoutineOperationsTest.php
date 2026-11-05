@@ -96,6 +96,33 @@ class RoutineOperationsTest extends TestCase
         $this->assertSame(RoutineOccurrenceStatus::Overdue, $daily->occurrences()->whereDate('expected_date', '2026-10-12')->firstOrFail()->status);
     }
 
+    public function test_generation_follows_monday_to_friday_working_days_without_duplicate_mondays(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-06 12:00:00', 'Asia/Manila'));
+        $daily = $this->template('Daily grounds cleaning', 'DAILY', '2026-11-06');
+        $saturdayWeekly = $this->template('Saturday weekly check', 'WEEKLY', '2026-11-02', ['weekday' => 6]);
+        $saturdayMonthly = $this->template('Monthly check on the 7th', 'MONTHLY', '2026-10-01', ['day' => 7]);
+        $sundayStartWeekly = $this->template('Monday check started on Sunday', 'WEEKLY', '2026-11-08', ['weekday' => 1]);
+        $service = app(RoutineOccurrenceService::class);
+
+        $this->assertSame(5, $service->generate(CarbonImmutable::parse('2026-11-06'), CarbonImmutable::parse('2026-11-09')));
+        $this->assertSame(0, $service->generate(CarbonImmutable::parse('2026-11-06'), CarbonImmutable::parse('2026-11-09')));
+
+        $this->assertSame(['2026-11-06', '2026-11-09'], $daily->occurrences()->orderBy('expected_date')->get()->map(fn ($occurrence) => $occurrence->expected_date->toDateString())->all());
+        $weekly = $saturdayWeekly->occurrences()->sole();
+        $this->assertSame('2026-11-09', $weekly->expected_date->toDateString());
+        $this->assertSame(CarbonImmutable::parse('2026-11-07')->format('o-\WW'), $weekly->period_key);
+        $monthly = $saturdayMonthly->occurrences()->sole();
+        $this->assertSame('2026-11-09', $monthly->expected_date->toDateString());
+        $this->assertSame('2026-11', $monthly->period_key);
+        $this->assertSame('2026-11-09', $sundayStartWeekly->occurrences()->sole()->expected_date->toDateString());
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-09 09:00:00', 'Asia/Manila'));
+        $service->refreshStatuses();
+        $this->assertSame(RoutineOccurrenceStatus::Overdue, $daily->occurrences()->whereDate('expected_date', '2026-11-06')->sole()->status);
+        $this->assertTrue($weekly->fresh()->isStartable());
+    }
+
     public function test_overdue_task_requires_accountability_evidence_and_assigned_scope(): void
     {
         Storage::fake('local');
@@ -282,15 +309,15 @@ class RoutineOperationsTest extends TestCase
 
     public function test_future_daily_and_weekly_tasks_are_visible_but_server_locked_until_manila_availability(): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-24 23:59:59', 'Asia/Manila'));
-        $daily = $this->template('Tomorrow daily task', 'DAILY', '2026-10-25', [], ['end_date' => '2026-10-25']);
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-25 23:59:59', 'Asia/Manila'));
+        $daily = $this->template('Tomorrow daily task', 'DAILY', '2026-10-26', [], ['end_date' => '2026-10-26']);
         $weekly = $this->template('Future weekly task', 'WEEKLY', '2026-10-30', ['weekday' => 5], ['end_date' => '2026-10-30']);
-        app(RoutineOccurrenceService::class)->generate(CarbonImmutable::parse('2026-10-25'), CarbonImmutable::parse('2026-10-30'));
+        app(RoutineOccurrenceService::class)->generate(CarbonImmutable::parse('2026-10-26'), CarbonImmutable::parse('2026-10-30'));
         $occurrence = $daily->occurrences()->firstOrFail();
 
         $this->actingAs($this->staff)->get(route('routine-tasks.index'))->assertOk()
             ->assertSee('Tomorrow daily task')->assertSee('Future weekly task')->assertSee('Upcoming')
-            ->assertSee('Available Oct 25, 2026')->assertSee('View Details')->assertDontSee('Start Task');
+            ->assertSee('Available Oct 26, 2026')->assertSee('View Details')->assertDontSee('Start Task');
         $this->actingAs($this->staff)->get(route('routine-tasks.show', $occurrence))->assertOk()
             ->assertSee('This task is not available yet.')->assertDontSee('Start task')->assertDontSee('Update this task');
         $this->actingAs($this->staff)->post(route('routine-tasks.start', $occurrence))->assertSessionHasErrors('task');
@@ -303,14 +330,14 @@ class RoutineOperationsTest extends TestCase
         app('auth')->forgetGuards();
         $token = $this->staff->createToken('availability-test')->plainTextToken;
         $this->withToken($token)->getJson('/api/v1/routine-tasks/'.$occurrence->id)->assertOk()
-            ->assertJsonPath('data.available_at', '2026-10-25T00:00:00+08:00')
+            ->assertJsonPath('data.available_at', '2026-10-26T00:00:00+08:00')
             ->assertJsonPath('data.is_startable', false);
         $this->withToken($token)->postJson('/api/v1/routine-tasks/'.$occurrence->id.'/start')->assertUnprocessable()->assertJsonValidationErrors('task');
         $this->withToken($token)->postJson('/api/v1/routine-tasks/'.$occurrence->id.'/resolve', [
             'resolution' => 'COMPLETED', 'generated_summary' => 'Forged API completion.',
         ])->assertUnprocessable()->assertJsonValidationErrors('task');
 
-        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-25 00:00:00', 'Asia/Manila'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-26 00:00:00', 'Asia/Manila'));
         $this->assertTrue($occurrence->fresh()->isStartable());
         $this->actingAs($this->staff)->get(route('routine-tasks.show', $occurrence))->assertOk()->assertSee('Start task');
         $this->actingAs($this->staff)->post(route('routine-tasks.start', $occurrence))->assertRedirect();
@@ -336,11 +363,11 @@ class RoutineOperationsTest extends TestCase
         $this->actingAs($this->staff)->get(route('routine-tasks.index'))->assertOk()
             ->assertSee('November Fire Extinguisher Inspection')->assertSee('View Inspection')->assertDontSee('Start Inspection');
         $this->actingAs($this->staff)->get(route('inspections.index'))->assertOk()
-            ->assertSee('Upcoming')->assertSee('Available Nov 1, 2026')->assertSee('View Inspection')->assertDontSee('Start Inspection');
+            ->assertSee('Upcoming')->assertSee('Available Nov 2, 2026')->assertSee('View Inspection')->assertDontSee('Start Inspection');
         $this->actingAs($this->staff)->get(route('inspections.show', $run))->assertOk()
             ->assertSee('Upcoming inspection')->assertSee('This inspection cannot be started yet.')->assertDontSee('Save Item Inspection');
         $this->actingAs($this->staff)->get(route('assets.scan', $asset->qr_token))->assertOk()
-            ->assertSee('Upcoming inspection')->assertSee('Available Nov 1, 2026')->assertSee('This inspection cannot be started yet.')->assertDontSee('Start Inspection');
+            ->assertSee('Upcoming inspection')->assertSee('Available Nov 2, 2026')->assertSee('This inspection cannot be started yet.')->assertDontSee('Start Inspection');
         $this->actingAs($this->staff)->get(route('assets.inspect', [$asset, 'item' => $item->id]))->assertSessionHasErrors('task');
         $this->actingAs($this->staff)->post(route('inspections.items.record', [$run, $item]), [])->assertSessionHasErrors('task');
         $this->assertSame('NOT_INSPECTED', $item->fresh()->status);

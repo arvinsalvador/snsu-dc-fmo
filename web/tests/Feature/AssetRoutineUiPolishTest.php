@@ -111,6 +111,7 @@ class AssetRoutineUiPolishTest extends TestCase
 
     public function test_assigned_inspection_card_shows_scoped_two_of_five_progress(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-19 10:00:00', 'Asia/Manila'));
         $type = AssetType::where('code', 'WF')->firstOrFail();
         foreach (range(1, 5) as $number) {
             $this->asset($type, 'WF-PROGRESS-00'.$number);

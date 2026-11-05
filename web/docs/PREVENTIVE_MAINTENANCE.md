@@ -6,7 +6,7 @@ Preventive Maintenance (PM) is the scheduled-maintenance layer for records in th
 
 `Asset → PM Plan → PM Occurrence → Assignment Snapshot → Execution → Asset History`
 
-A defect found during PM may create a linked corrective Work Order. The repair then follows the normal Work Order workflow and never becomes complete merely because PM found it.
+A defect found during PM may create a linked corrective Work Order. The repair then follows the normal Work Order workflow and never becomes complete merely because PM found it. Only an assigned performer of that occurrence or a plan manager may create it, only after the occurrence is completed with a finding or recommended corrective action, and only once per occurrence: retries return to the PM record and its existing Work Order instead of creating a duplicate.
 
 ## Asset classes and systems
 
@@ -20,7 +20,7 @@ Frequencies are daily, weekly, monthly, quarterly, semiannual, annual, or a cust
 
 ## Scheduling and working days
 
-`pm:generate` creates occurrences idempotently using a unique plan/period key. Saturday and Sunday schedules move to Monday, while the occurrence retains its original logical period. Generation runs daily at 00:20 Asia/Manila. A lightweight hourly schedule refreshes availability/overdue state and sends notices, and web/API start requests refresh state again so availability is enforced accurately even between scheduler runs.
+`pm:generate` creates occurrences idempotently using a unique plan/period key. Daily plans (and custom day-interval plans) skip Saturday and Sunday instead of shifting them, so Monday never receives extra daily occurrences. Weekly, monthly, quarterly, semiannual, annual, and custom week/month schedules that land on a weekend move to Monday, while the occurrence retains its original logical period. A first-period catch-up on a weekend start date is skipped when the shift would leave its period, because the next period already covers that Monday. Generation runs daily at 00:20 Asia/Manila. A lightweight hourly schedule refreshes availability/overdue state and sends notices, and web/API start requests refresh state again so availability is enforced accurately even between scheduler runs.
 
 Occurrences snapshot the plan name, type, checklist, readings, evidence rule, verification rule, asset, and assignees. Editing a plan never rewrites completed records. Upcoming tasks are visible but the server rejects start requests before `available_at`.
 
