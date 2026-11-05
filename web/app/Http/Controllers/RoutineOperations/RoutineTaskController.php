@@ -10,8 +10,8 @@ use App\Services\GuidedDescriptionService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
 use App\Services\RoutineTaskAvailabilityService;
+use App\Services\StoredFileTransaction;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -115,7 +115,7 @@ class RoutineTaskController extends Controller
             $status = 'COMPLETED_LATE';
         }
         $personnel = $request->user()->personnelProfile;
-        DB::transaction(function () use ($routineTask, $data, $status, $personnel, $request, $evidence): void {
+        app(StoredFileTransaction::class)->run(function () use ($routineTask, $data, $status, $personnel, $request, $evidence): void {
             $routineTask->update([
                 'status' => $status, 'started_at' => $routineTask->started_at ?? now(),
                 'completed_at' => in_array($status, ['COMPLETED', 'COMPLETED_LATE', 'UNABLE_TO_COMPLETE'], true) ? ($data['actual_completion_at'] ?? now()) : null,

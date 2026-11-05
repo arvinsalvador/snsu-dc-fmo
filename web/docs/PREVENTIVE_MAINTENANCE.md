@@ -26,7 +26,7 @@ Occurrences snapshot the plan name, type, checklist, readings, evidence rule, ve
 
 ## Assignment and access
 
-Assignments use FMO Personnel IDs. Regular FMO Staff only see and perform assigned occurrences. FMO Head has full plan, assignment, verification, dashboard, and reporting access. Dispatchers manage schedules and assignments. Oversight and Campus Director roles receive broader read/report access without staff execution authority.
+Assignments use FMO Personnel IDs. Regular FMO Staff only see and perform assigned occurrences. Each occurrence receives the plan's team once, when it is generated; later scheduler runs never add people to existing occurrences. Changing a plan's team replaces the team on open occurrences that have not started, adds new members to in-progress occurrences without removing the person already performing the work, and leaves completed and cancelled occurrences untouched. FMO Head has full plan, assignment, verification, dashboard, and reporting access. Dispatchers manage schedules and assignments. Oversight and Campus Director roles receive broader read/report access without staff execution authority.
 
 ## Execution
 
@@ -36,9 +36,9 @@ Evidence uses the existing local private media pipeline with compressed original
 
 ## History and compliance
 
-Asset history combines PM, inspections, corrective Work Orders, repair records, condition/lifecycle events, and child-component history. PM reports support server-side search; plan, maintenance type, asset type, location, personnel, status, and date filters; pagination; and filtered CSV export. The dashboard supports asset class, asset type, building, personnel, and date filtering.
+Asset history combines PM, inspections, corrective Work Orders, repair records, condition/lifecycle events, and child-component history. It is paginated in the database across all sources, lists only completed or already-overdue PM (never future or cancelled occurrences), and omits lifecycle entries that only duplicate an inspection or PM completion without changing condition or lifecycle. The PM history CSV streams every matching row in date order. PM reports support server-side search; plan, maintenance type, asset type, location, personnel, status, and date filters; pagination; and filtered CSV export. The dashboard supports asset class, asset type, building, personnel, and date filtering.
 
-On-time compliance is `completed on or before due_at ÷ occurrences due to date × 100`. Future and cancelled occurrences are excluded. A late completion is complete but not on-time compliant.
+On-time compliance is `completed on or before due_at ÷ occurrences due to date × 100`. Both counts use only occurrences whose `due_at` has passed; future and cancelled occurrences are excluded, so work finished early today does not inflate the rate before it is due. A late completion is complete but not on-time compliant.
 
 ## QR and notifications
 

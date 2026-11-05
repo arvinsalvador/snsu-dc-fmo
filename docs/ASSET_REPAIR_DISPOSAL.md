@@ -4,7 +4,7 @@ Asset action requests preserve who requested review, the originating inspection 
 
 ## Repair
 
-Staff with `assets.request_repair` may submit a repair review from an inspection or asset page. Users with `assets.review_repair` may mark it **Repairable — Approve for Repair**, **Not Repairable**, return it for more information, or reject it. Approval moves the asset to `UNDER_REPAIR`. Repair recording is a separate responsibility from inspection: a person needs both `assets.maintain` and an active assignment to that repair action. Users with `assets.assign_maintenance` can replace the repair team; ended rows retain the actor, timestamp, and reason.
+Staff with `assets.request_repair` may submit a repair review from an inspection or asset page. Users with `assets.review_repair` may mark it **Repairable — Approve for Repair**, **Not Repairable**, return it for more information, or reject it. Approval moves the asset to `UNDER_REPAIR`. Repair recording is a separate responsibility from inspection: a person needs both `assets.maintain` and an active assignment to that repair action. Users with `assets.assign_maintenance` can replace the repair team; ended rows retain the actor, timestamp, and reason. Only the asset's current approved repair (the latest one while it is `UNDER_REPAIR`) grants repair access. Recording **Repaired and serviceable** or **Not repairable** ends that repair team's assignments; **Partially repaired** keeps the team in place.
 
 - Repaired/serviceable → condition `GOOD`, lifecycle `ACTIVE`.
 - Partially repaired → condition `NEEDS_REPAIR`, lifecycle remains `UNDER_REPAIR`.

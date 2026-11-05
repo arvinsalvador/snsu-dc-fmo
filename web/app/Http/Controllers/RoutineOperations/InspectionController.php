@@ -17,9 +17,9 @@ use App\Services\AssetLifecycleService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
 use App\Services\RoutineTaskAvailabilityService;
+use App\Services\StoredFileTransaction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -151,7 +151,7 @@ class InspectionController extends Controller
             abort_unless($request->user()->can($permission), 403);
         }
         $personnel = $request->user()->personnelProfile;
-        DB::transaction(function () use ($item, $inspection, $data, $request, $personnel, $evidence, $lifecycle): void {
+        app(StoredFileTransaction::class)->run(function () use ($item, $inspection, $data, $request, $personnel, $evidence, $lifecycle): void {
             $lockedItem = InspectionItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
             abort_if($lockedItem->status === 'INSPECTED', 422, 'This inspection item is already complete.');
             $failedLabels = collect($item->checklist_snapshot ?: $item->asset->assetType->checklist)->filter(fn ($check) => ($data['checklist'][$check['code']] ?? null) === 'NO')->pluck('label');

@@ -29,7 +29,7 @@ class DashboardController extends Controller
         $inProgress = (clone $base)->where('status', PreventiveMaintenanceStatus::InProgress->value)->count();
         $completedMonth = (clone $base)->where('status', PreventiveMaintenanceStatus::Completed->value)->whereBetween('completed_at', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()])->count();
         $duePeriods = (clone $base)->where('due_at', '<=', $now)->where('status', '!=', PreventiveMaintenanceStatus::Cancelled->value)->count();
-        $onTime = (clone $base)->where('status', PreventiveMaintenanceStatus::Completed->value)->whereColumn('completed_at', '<=', 'due_at')->count();
+        $onTime = (clone $base)->where('due_at', '<=', $now)->where('status', PreventiveMaintenanceStatus::Completed->value)->whereColumn('completed_at', '<=', 'due_at')->count();
         $compliance = $duePeriods ? round($onTime / $duePeriods * 100, 1) : null;
         $upcoming = (clone $base)->with(['asset.assetType', 'asset.building', 'assignees.user'])->whereBetween('due_at', [$now, $now->copy()->addDays(30)])->orderBy('due_at')->limit(20)->get();
         $recurringDefects = (clone $base)->with('asset')->whereHas('execution', fn ($execution) => $execution->whereNotNull('findings'))

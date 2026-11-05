@@ -33,16 +33,14 @@ class ReportController extends Controller
         return response()->streamDownload(function () use ($query): void {
             $output = fopen('php://output', 'w');
             fputcsv($output, ['Date', 'Asset', 'Asset Type', 'Location', 'PM Plan', 'Personnel', 'Result', 'Status', 'Corrective Work Order']);
-            $query->chunkById(200, function ($rows) use ($output): void {
-                foreach ($rows as $row) {
-                    fputcsv($output, [
-                        ($row->completed_at ?: $row->due_at)?->timezone(config('app.timezone'))->format('Y-m-d H:i:s'),
-                        $row->asset->name, $row->asset->assetType->name,
-                        collect([$row->asset->building?->name, $row->asset->location?->name])->filter()->join(' • '),
-                        $row->plan_name_snapshot, $row->assignees->pluck('user.name')->join('; '),
-                        $row->execution?->condition_after, $row->status->value, $row->correctiveWorkOrders->pluck('work_order_number')->join('; '),
-                    ]);
-                }
+            $query->orderBy('id')->lazy(200)->each(function ($row) use ($output): void {
+                fputcsv($output, [
+                    ($row->completed_at ?: $row->due_at)?->timezone(config('app.timezone'))->format('Y-m-d H:i:s'),
+                    $row->asset->name, $row->asset->assetType->name,
+                    collect([$row->asset->building?->name, $row->asset->location?->name])->filter()->join(' • '),
+                    $row->plan_name_snapshot, $row->assignees->pluck('user.name')->join('; '),
+                    $row->execution?->condition_after, $row->status->value, $row->correctiveWorkOrders->pluck('work_order_number')->join('; '),
+                ]);
             });
             fclose($output);
         }, 'preventive-maintenance-history.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);

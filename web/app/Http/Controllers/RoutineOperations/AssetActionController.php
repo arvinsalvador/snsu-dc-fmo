@@ -9,9 +9,11 @@ use App\Models\InspectableAsset;
 use App\Services\AssetLifecycleService;
 use App\Services\AssetMaintenanceAssignmentService;
 use App\Services\OperationalEvidenceService;
+use App\Services\StoredFileTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AssetActionController extends Controller
 {
@@ -21,10 +23,14 @@ class AssetActionController extends Controller
             'evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')]]);
         abort_unless($request->user()->can($data['type'] === 'REPAIR' ? 'assets.request_repair' : 'assets.request_disposal'), 403);
         abort_if(in_array($asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422);
-        $action = $lifecycle->request($asset, $request->user(), $data['type'], $data['problem_description']);
-        if (! empty($data['evidence'])) {
-            $evidence->attach($action, $data['evidence'], $request->user()->id, 'ASSET_ACTION_EVIDENCE');
-        }
+        $action = app(StoredFileTransaction::class)->run(function () use ($asset, $request, $data, $lifecycle, $evidence): AssetActionRequest {
+            $action = $lifecycle->request($asset, $request->user(), $data['type'], $data['problem_description']);
+            if (! empty($data['evidence'])) {
+                $evidence->attach($action, $data['evidence'], $request->user()->id, 'ASSET_ACTION_EVIDENCE');
+            }
+
+            return $action;
+        });
 
         if ($request->expectsJson()) {
             return response()->json(['data' => $action->fresh(['attachments'])], 201);
@@ -75,14 +81,18 @@ class AssetActionController extends Controller
     public function maintain(Request $request, InspectableAsset $asset, AssetLifecycleService $lifecycle, OperationalEvidenceService $evidence)
     {
         abort_unless($request->user()->can('assets.maintain'), 403);
-        abort_unless(app(AssetMaintenanceAssignmentService::class)->assignedToRepair($asset, $request->user()), 403);
         abort_unless($asset->lifecycle_status->value === 'UNDER_REPAIR', 422, 'This asset is not currently approved for repair.');
+        abort_unless(app(AssetMaintenanceAssignmentService::class)->assignedToRepair($asset, $request->user()), 403);
         $data = $request->validate(['work_performed' => ['required', 'string', 'max:5000'], 'parts_materials' => ['nullable', 'string', 'max:5000'],
             'result' => ['required', Rule::in(['REPAIRED_SERVICEABLE', 'PARTIALLY_REPAIRED', 'NOT_REPAIRABLE'])], 'remarks' => ['nullable', 'string', 'max:5000'],
             'evidence' => ['required', 'array', 'min:1', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')]]);
         $action = $asset->actionRequests()->whereIn('decision', ['APPROVE_REPAIR', 'SEND_FOR_REPAIR'])->latest('reviewed_at')->first();
         $record = null;
-        DB::transaction(function () use ($asset, $action, $data, $request, $lifecycle, $evidence, &$record): void {
+        app(StoredFileTransaction::class)->run(function () use ($asset, $action, $data, $request, $lifecycle, $evidence, &$record): void {
+            $asset = InspectableAsset::query()->lockForUpdate()->findOrFail($asset->id);
+            if ($asset->lifecycle_status->value !== 'UNDER_REPAIR') {
+                throw ValidationException::withMessages(['result' => 'This repair has already been recorded. Refresh the asset page to see its current status.']);
+            }
             $record = $asset->maintenanceRecords()->create(['asset_action_request_id' => $action?->id, 'recorded_by' => $request->user()->id, 'recorded_at' => now()] + $data);
             $evidence->attach($record, $data['evidence'], $request->user()->id, 'REPAIR_EVIDENCE');
             match ($data['result']) {
@@ -92,6 +102,12 @@ class AssetActionController extends Controller
             };
             if ($data['result'] === 'NOT_REPAIRABLE') {
                 $lifecycle->request($asset->fresh(), $request->user(), 'DISPOSAL', $data['remarks'] ?? $data['work_performed']);
+            }
+            if ($action && $data['result'] !== 'PARTIALLY_REPAIRED') {
+                $action->assignments()->whereNull('unassigned_at')->update([
+                    'unassigned_at' => now(), 'unassigned_by' => $request->user()->id, 'active_marker' => null,
+                    'change_reason' => $data['result'] === 'REPAIRED_SERVICEABLE' ? 'Repair completed.' : 'Repair closed as not repairable.',
+                ]);
             }
         });
 
@@ -124,10 +140,16 @@ class AssetActionController extends Controller
         abort_unless($asset->lifecycle_status->value === 'APPROVED_FOR_DISPOSAL', 422);
         $data = $request->validate(['disposed_at' => ['required', 'date', 'before_or_equal:today'], 'remarks' => ['required', 'string', 'max:5000'],
             'evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')]]);
-        $lifecycle->transition($asset, $request->user(), 'ASSET_DISPOSED', 'DISPOSED', 'UNUSABLE', 'Disposed '.$data['disposed_at'].': '.$data['remarks']);
-        if (! empty($data['evidence'])) {
-            $evidence->attach($asset, $data['evidence'], $request->user()->id, 'DISPOSAL_EVIDENCE');
-        }
+        app(StoredFileTransaction::class)->run(function () use ($asset, $request, $data, $lifecycle, $evidence): void {
+            $locked = InspectableAsset::query()->lockForUpdate()->findOrFail($asset->id);
+            if ($locked->lifecycle_status->value !== 'APPROVED_FOR_DISPOSAL') {
+                throw ValidationException::withMessages(['disposed_at' => 'This asset has already been marked as disposed. Refresh the page to see its current status.']);
+            }
+            $lifecycle->transition($locked, $request->user(), 'ASSET_DISPOSED', 'DISPOSED', 'UNUSABLE', 'Disposed '.$data['disposed_at'].': '.$data['remarks']);
+            if (! empty($data['evidence'])) {
+                $evidence->attach($locked, $data['evidence'], $request->user()->id, 'DISPOSAL_EVIDENCE');
+            }
+        });
 
         if ($request->expectsJson()) {
             return response()->json(['data' => $asset->fresh()]);

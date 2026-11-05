@@ -15,6 +15,7 @@ use App\Services\GuidedDescriptionService;
 use App\Services\OperationalEvidenceService;
 use App\Services\PreventiveMaintenanceAccessService;
 use App\Services\PreventiveMaintenanceOccurrenceService;
+use App\Services\StoredFileTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -66,7 +67,8 @@ class ExecutionController extends Controller
             'generated_summary' => ['nullable', 'string', 'max:5000'], 'remarks' => ['nullable', 'string', 'max:5000'], 'additional_remarks' => ['nullable', 'string', 'max:5000'],
             'materials_used' => ['nullable', 'string', 'max:5000'], 'recommended_corrective_action' => ['nullable', 'string', 'max:5000'],
             'replacement_component' => ['nullable', 'array'], 'replacement_component.*' => ['nullable', 'string', 'max:255'],
-            'replacement_old_condition' => ['nullable', 'array'], 'replacement_remarks' => ['nullable', 'array'],
+            'replacement_old_condition' => ['nullable', 'array'], 'replacement_old_condition.*' => ['nullable', 'string', 'max:255'],
+            'replacement_remarks' => ['nullable', 'array'], 'replacement_remarks.*' => ['nullable', 'string', 'max:1000'],
             'photos' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')],
             'photos.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
             'before_photos' => ['nullable', 'array'], 'before_photos.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
@@ -92,7 +94,11 @@ class ExecutionController extends Controller
         if ($occurrence->evidence_required_snapshot && $photoCount === 0 && ! $occurrence->execution?->attachments()->exists()) {
             throw ValidationException::withMessages(['photos' => 'Photo evidence is required for this maintenance task.']);
         }
-        DB::transaction(function () use ($occurrence, $request, $data, $evidence, $lifecycle, $guided): void {
+        app(StoredFileTransaction::class)->run(function () use ($occurrence, $request, $data, $evidence, $lifecycle, $guided): void {
+            $locked = PreventiveMaintenanceOccurrence::whereKey($occurrence->id)->lockForUpdate()->firstOrFail();
+            if ($locked->status !== PreventiveMaintenanceStatus::InProgress) {
+                throw ValidationException::withMessages(['task' => 'This maintenance task has already been completed. Refresh the page to see the saved record.']);
+            }
             $execution = $occurrence->execution()->lockForUpdate()->firstOrFail();
             $actions = array_values(array_filter($data['guided_actions'] ?? $data['actions'] ?? []));
             $replacements = collect($data['replacement_component'] ?? [])->filter()->values()->map(fn ($component, $index) => [

@@ -9,8 +9,8 @@ use App\Services\AssetLifecycleService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
 use App\Services\RoutineTaskAvailabilityService;
+use App\Services\StoredFileTransaction;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -62,7 +62,7 @@ class AssetInspectionController extends Controller
             abort_unless($request->user()->can($permission), 403);
         }
         abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
-        DB::transaction(function () use (&$item, $asset, $data, $request, $evidence, $lifecycle): void {
+        app(StoredFileTransaction::class)->run(function () use (&$item, $asset, $data, $request, $evidence, $lifecycle): void {
             $item = InspectionItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
             abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
             $attributes = ['status' => 'INSPECTED', 'inspector_personnel_id' => $request->user()->personnelProfile?->id,

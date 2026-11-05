@@ -18,8 +18,8 @@ use App\Services\GuidedDescriptionService;
 use App\Services\OperationalEvidenceService;
 use App\Services\RoutineTaskAccessService;
 use App\Services\RoutineTaskAvailabilityService;
+use App\Services\StoredFileTransaction;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -79,7 +79,7 @@ class RoutineOperationsController extends Controller
             throw ValidationException::withMessages(['evidence' => 'Photo evidence is required for this task.']);
         }
         $status = $data['resolution'] === 'COMPLETED' && $routineTask->due_at->isPast() ? 'COMPLETED_LATE' : $data['resolution'];
-        DB::transaction(function () use ($routineTask, $data, $status, $request, $evidence): void {
+        app(StoredFileTransaction::class)->run(function () use ($routineTask, $data, $status, $request, $evidence): void {
             $routineTask->update(['status' => $status, 'started_at' => $routineTask->started_at ?? now(),
                 'completed_at' => in_array($status, ['COMPLETED', 'COMPLETED_LATE', 'UNABLE_TO_COMPLETE'], true) ? ($data['actual_completion_at'] ?? now()) : null,
                 'performed_by_personnel_id' => $request->user()->personnelProfile?->id, 'performed_by_user_id' => $request->user()->id,
@@ -176,7 +176,7 @@ class RoutineOperationsController extends Controller
             $permission = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'assets.request_repair' : 'assets.request_disposal';
             abort_unless($request->user()->can($permission), 403);
         }
-        DB::transaction(function () use ($item, $inspection, $data, $request, $evidence, $lifecycle): void {
+        app(StoredFileTransaction::class)->run(function () use ($item, $inspection, $data, $request, $evidence, $lifecycle): void {
             $item = InspectionItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
             abort_if($item->status === 'INSPECTED', 422, 'This inspection item is already complete.');
             $condition = match ($data['result']) {

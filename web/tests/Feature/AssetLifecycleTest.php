@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AssetActionAssignment;
 use App\Models\AssetActionRequest;
 use App\Models\AssetType;
 use App\Models\Building;
@@ -48,6 +49,7 @@ class AssetLifecycleTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-05 09:00:00', 'Asia/Manila'));
         $this->seed([AuthorizationSeeder::class, RoutineOperationsSeeder::class]);
         $this->head = $this->user('FMO Head');
         $this->staff = $this->user('FMO Staff');
@@ -202,6 +204,62 @@ class AssetLifecycleTest extends TestCase
         $this->assertFalse($type->fresh()->is_active);
         $this->assertDatabaseHas('inspectable_assets', ['id' => $asset->id, 'asset_type_id' => $type->id]);
         $this->actingAs($this->head)->post('/assets', $this->assetPayload(['asset_code' => 'WP-DC-002', 'asset_type_id' => $type->id]))->assertSessionHasErrors('asset_type_id');
+    }
+
+    protected function tearDown(): void
+    {
+        CarbonImmutable::setTestNow();
+        parent::tearDown();
+    }
+
+    public function test_completed_repair_closes_the_team_so_it_cannot_record_the_next_repair_cycle(): void
+    {
+        Storage::fake('local');
+        $asset = $this->asset();
+        $personnelId = $this->staff->personnelProfile->id;
+        $firstRepair = $this->approvedRepair($asset, 'Hose is cracked.');
+        $this->actingAs($this->head)->post(route('assets.actions.assign-maintenance', $firstRepair), ['assignee_ids' => [$personnelId]])->assertRedirect();
+        $this->actingAs($this->staff)->post(route('assets.maintenance.store', $asset), [
+            'work_performed' => 'Replaced the cracked hose.', 'result' => 'REPAIRED_SERVICEABLE',
+            'evidence' => [UploadedFile::fake()->image('hose.jpg', 900, 700)],
+        ])->assertRedirect();
+
+        $this->assertSame(0, AssetActionAssignment::where('asset_action_request_id', $firstRepair->id)->whereNull('unassigned_at')->count());
+
+        $this->approvedRepair($asset, 'Pressure gauge is broken.');
+        $this->actingAs($this->staff)->post(route('assets.maintenance.store', $asset), [
+            'work_performed' => 'Attempted gauge replacement.', 'result' => 'REPAIRED_SERVICEABLE',
+            'evidence' => [UploadedFile::fake()->image('gauge.jpg', 900, 700)],
+        ])->assertForbidden();
+        $this->assertSame(1, $asset->maintenanceRecords()->count());
+    }
+
+    public function test_inspection_rolled_back_after_evidence_upload_leaves_no_private_files(): void
+    {
+        Storage::fake('local');
+        $asset = $this->asset();
+        $item = $this->inspectionItem($asset);
+        $asset->update(['lifecycle_status' => 'UNDER_REPAIR']);
+        $checklist = collect($this->type->checklist)->mapWithKeys(fn ($check) => [$check['code'] => 'YES'])->all();
+
+        $this->actingAs($this->staff)->post(route('assets.inspections.store', $asset), [
+            'inspection_item_id' => $item->id, 'condition' => 'NEEDS_REPAIR', 'checklist' => $checklist,
+            'summary' => 'Valve is leaking.', 'recommended_action' => 'REPAIR_REVIEW',
+            'evidence' => [UploadedFile::fake()->image('valve.jpg', 900, 700)],
+        ])->assertSessionHasErrors('type');
+
+        $this->assertSame('NOT_INSPECTED', $item->fresh()->status);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    private function approvedRepair(InspectableAsset $asset, string $problem): AssetActionRequest
+    {
+        $this->actingAs($this->staff)->post(route('assets.actions.request', $asset), ['type' => 'REPAIR', 'problem_description' => $problem])->assertRedirect();
+        $repair = AssetActionRequest::where('type', 'REPAIR')->where('problem_description', $problem)->sole();
+        $this->actingAs($this->head)->post(route('assets.actions.review', $repair), ['decision' => 'APPROVE_REPAIR'])->assertRedirect();
+        $this->assertSame('UNDER_REPAIR', $asset->fresh()->lifecycle_status->value);
+
+        return $repair;
     }
 
     private function asset(array $overrides = []): InspectableAsset

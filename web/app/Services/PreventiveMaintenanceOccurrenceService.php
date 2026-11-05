@@ -79,8 +79,8 @@ class PreventiveMaintenanceOccurrenceService
                             );
                             if ($occurrence->wasRecentlyCreated) {
                                 $created++;
+                                $occurrence->assignees()->attach($plan->activeAssignees->modelKeys());
                             }
-                            $occurrence->assignees()->syncWithoutDetaching($plan->activeAssignees->modelKeys());
                         });
                     }
                 }

@@ -18,8 +18,8 @@ use App\Services\AssetQrCodeService;
 use App\Services\OperationalEvidenceService;
 use App\Services\PreventiveMaintenanceAccessService;
 use App\Services\RoutineTaskAccessService;
+use App\Services\StoredFileTransaction;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -60,7 +60,7 @@ class AssetController extends Controller
     {
         abort_unless($request->user()->can('assets.manage'), 403);
         $data = $this->validated($request);
-        DB::transaction(function () use ($data, $request, $evidence, $lifecycle, &$asset): void {
+        app(StoredFileTransaction::class)->run(function () use ($data, $request, $evidence, $lifecycle, &$asset): void {
             $asset = InspectableAsset::create(collect($data)->except(['asset_photos', 'placement_photos'])->all());
             if (! empty($data['asset_photos'])) {
                 $evidence->attach($asset, $data['asset_photos'], $request->user()->id, 'ASSET_PHOTO');
@@ -124,7 +124,7 @@ class AssetController extends Controller
     {
         abort_unless($request->user()->can('assets.manage'), 403);
         $data = $this->validated($request, $asset);
-        DB::transaction(function () use ($asset, $data, $request, $evidence): void {
+        app(StoredFileTransaction::class)->run(function () use ($asset, $data, $request, $evidence): void {
             $asset->update(collect($data)->except(['asset_photos', 'placement_photos'])->all());
             if (! empty($data['asset_photos'])) {
                 $evidence->attach($asset, $data['asset_photos'], $request->user()->id, 'ASSET_PHOTO');

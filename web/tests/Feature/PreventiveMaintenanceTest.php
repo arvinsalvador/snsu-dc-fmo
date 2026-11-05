@@ -12,6 +12,7 @@ use App\Models\PreventiveMaintenancePlan;
 use App\Models\PreventiveMaintenanceTemplate;
 use App\Models\User;
 use App\Services\AssetMaintenanceHistoryService;
+use App\Services\PreventiveMaintenanceAccessService;
 use App\Services\PreventiveMaintenanceNoticeService;
 use App\Services\PreventiveMaintenanceOccurrenceService;
 use Carbon\CarbonImmutable;
@@ -261,6 +262,70 @@ class PreventiveMaintenanceTest extends TestCase
         $tokenB = $this->staffB->createToken('pm-unassigned-test')->plainTextToken;
         $this->withToken($tokenB)->getJson('/api/v1/preventive-maintenance/tasks/'.$occurrence->id)->assertForbidden();
         $this->withToken($tokenB)->postJson('/api/v1/preventive-maintenance/tasks/'.$occurrence->id.'/start')->assertForbidden();
+    }
+
+    public function test_plan_edit_keeps_in_progress_performer_and_never_rewrites_completed_assignees(): void
+    {
+        $plan = $this->plan('2026-11-03', 'DAILY');
+        $service = app(PreventiveMaintenanceOccurrenceService::class);
+        $service->generate(CarbonImmutable::parse('2026-11-03'), CarbonImmutable::parse('2026-11-05'));
+        $completed = $plan->occurrences()->where('period_key', '2026-11-03')->sole();
+        $completed->update(['status' => PreventiveMaintenanceStatus::Completed, 'completed_at' => now()]);
+        $inProgress = $plan->occurrences()->where('period_key', '2026-11-04')->sole();
+        $this->actingAs($this->staffA)->post(route('preventive-maintenance.tasks.start', $inProgress))->assertRedirect();
+        $upcoming = $plan->occurrences()->where('period_key', '2026-11-05')->sole();
+        $personB = $this->staffB->personnelProfile;
+
+        $this->actingAs($this->head)->put(route('preventive-maintenance.plans.update', $plan), [
+            'inspectable_asset_id' => $this->asset->id, 'name' => $plan->name, 'maintenance_type' => 'PREVENTIVE',
+            'frequency_type' => 'DAILY', 'interval_value' => 1, 'start_date' => '2026-11-03',
+            'available_time' => '08:00', 'due_time' => '17:00', 'checklist_label' => ['Clean filter', 'Test cooling performance'],
+            'assignee_ids' => [$personB->id], 'is_active' => 1,
+        ])->assertRedirect(route('preventive-maintenance.plans.index'));
+        $service->generate(CarbonImmutable::parse('2026-11-03'), CarbonImmutable::parse('2026-11-05'));
+
+        $this->assertEqualsCanonicalizing([$this->personA->id], $completed->assignees()->pluck('fmo_personnel.id')->all());
+        $this->assertEqualsCanonicalizing([$this->personA->id, $personB->id], $inProgress->assignees()->pluck('fmo_personnel.id')->all());
+        $this->assertEqualsCanonicalizing([$personB->id], $upcoming->assignees()->pluck('fmo_personnel.id')->all());
+        $this->assertTrue(app(PreventiveMaintenanceAccessService::class)->canPerform($inProgress->fresh(), $this->staffA));
+    }
+
+    public function test_compliance_counts_only_occurrences_already_due(): void
+    {
+        $plan = $this->plan('2026-11-03', 'DAILY');
+        app(PreventiveMaintenanceOccurrenceService::class)->generate(CarbonImmutable::parse('2026-11-03'), CarbonImmutable::parse('2026-11-04'));
+        $plan->occurrences()->where('period_key', '2026-11-04')->update(['status' => PreventiveMaintenanceStatus::Completed->value, 'completed_at' => now()]);
+
+        $this->actingAs($this->head)->get(route('preventive-maintenance.dashboard'))->assertOk()->assertViewHas('compliance', fn (?float $compliance): bool => $compliance === 0.0);
+    }
+
+    public function test_history_export_includes_every_row_beyond_the_first_batch(): void
+    {
+        $plan = $this->plan('2026-11-04', 'DAILY');
+        app(PreventiveMaintenanceOccurrenceService::class)->generate(CarbonImmutable::parse('2026-11-04'), CarbonImmutable::parse('2027-11-04'));
+        $total = $plan->occurrences()->count();
+        $this->assertGreaterThan(200, $total);
+
+        $csv = $this->actingAs($this->head)->get(route('preventive-maintenance.history.export'))->assertOk()->streamedContent();
+
+        $this->assertSame($total + 1, count(array_filter(explode("\n", $csv))));
+    }
+
+    public function test_asset_history_excludes_future_pm_and_duplicate_lifecycle_entries(): void
+    {
+        $plan = $this->plan('2026-11-04', 'DAILY');
+        app(PreventiveMaintenanceOccurrenceService::class)->generate(CarbonImmutable::parse('2026-11-04'), CarbonImmutable::parse('2026-11-10'));
+        $occurrence = $plan->occurrences()->where('period_key', '2026-11-04')->sole();
+        $this->actingAs($this->staffA)->post(route('preventive-maintenance.tasks.start', $occurrence))->assertRedirect();
+        $this->actingAs($this->staffA)->post(route('preventive-maintenance.tasks.complete', $occurrence), [
+            'checklist' => ['ITEM_1' => 'OK', 'ITEM_2' => 'OK'], 'condition_after' => 'GOOD',
+            'guided_actions' => ['CLEAN_FILTER'], 'guided_outcome' => 'RESOLVED',
+        ])->assertRedirect();
+
+        $history = app(AssetMaintenanceHistoryService::class)->paginate($this->asset);
+
+        $this->assertSame(1, $history->total());
+        $this->assertSame(['PM_COMPLETED'], collect($history->items())->pluck('type')->all());
     }
 
     private function user(string $role): User

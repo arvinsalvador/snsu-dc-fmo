@@ -33,10 +33,22 @@ class AssetMaintenanceAssignmentService
         });
     }
 
+    /** The repair request that currently governs the asset: the latest approved one, and only while the asset is under repair. */
+    public function currentRepairAction(InspectableAsset $asset): ?AssetActionRequest
+    {
+        if (($asset->lifecycle_status?->value ?? (string) $asset->lifecycle_status) !== 'UNDER_REPAIR') {
+            return null;
+        }
+
+        return $asset->actionRequests()->whereIn('decision', ['APPROVE_REPAIR', 'SEND_FOR_REPAIR'])
+            ->latest('reviewed_at')->latest('id')->first();
+    }
+
     public function activeRepairAction(InspectableAsset $asset): ?AssetActionRequest
     {
-        return $asset->actionRequests()->whereIn('decision', ['APPROVE_REPAIR', 'SEND_FOR_REPAIR'])
-            ->whereHas('assignments', fn ($query) => $query->whereNull('unassigned_at'))->latest('reviewed_at')->first();
+        $action = $this->currentRepairAction($asset);
+
+        return $action?->assignments()->whereNull('unassigned_at')->exists() ? $action : null;
     }
 
     public function assignedToRepair(InspectableAsset $asset, User $user): bool
@@ -46,7 +58,7 @@ class AssetMaintenanceAssignmentService
             return false;
         }
 
-        return $asset->actionRequests()->whereIn('decision', ['APPROVE_REPAIR', 'SEND_FOR_REPAIR'])
-            ->whereHas('assignments', fn ($query) => $query->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at'))->exists();
+        return (bool) $this->currentRepairAction($asset)?->assignments()
+            ->where('fmo_personnel_id', $personnel->id)->whereNull('unassigned_at')->exists();
     }
 }

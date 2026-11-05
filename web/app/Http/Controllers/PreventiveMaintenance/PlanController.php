@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\PreventiveMaintenance;
 
 use App\Enums\PreventiveMaintenanceFrequency;
+use App\Enums\PreventiveMaintenanceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\FmoPersonnel;
 use App\Models\InspectableAsset;
+use App\Models\PreventiveMaintenanceOccurrence;
 use App\Models\PreventiveMaintenancePlan;
 use App\Models\PreventiveMaintenanceTemplate;
 use App\Services\PreventiveMaintenanceOccurrenceService;
@@ -165,7 +167,14 @@ class PlanController extends Controller
                 ['assigned_by' => $actorId, 'assigned_at' => now(), 'unassigned_at' => null, 'created_at' => now(), 'updated_at' => now()]
             );
         }
-        $plan->occurrences()->open()->whereNull('completed_at')->get()->each(fn ($occurrence) => $occurrence->assignees()->sync($ids));
+        $plan->occurrences()->open()->whereNull('completed_at')->get()->each(function (PreventiveMaintenanceOccurrence $occurrence) use ($ids): void {
+            if ($occurrence->status === PreventiveMaintenanceStatus::InProgress) {
+                $occurrence->assignees()->syncWithoutDetaching($ids);
+
+                return;
+            }
+            $occurrence->assignees()->sync($ids);
+        });
     }
 
     private function formData(PreventiveMaintenancePlan $plan, Request $request): array
