@@ -41,7 +41,7 @@ class AssetInspectionController extends Controller
             'condition' => ['required', Rule::in(['PRISTINE', 'GOOD', 'FAIR', 'NEEDS_REPAIR', 'DAMAGED', 'BROKEN', 'UNUSABLE'])],
             'checklist' => ['required', 'array'], 'checklist.*' => ['required', Rule::in(['YES', 'NO', 'NOT_APPLICABLE'])],
             'summary' => ['required', 'string', 'max:5000'], 'remarks' => ['nullable', 'string', 'max:5000'],
-            'recommended_action' => ['required', Rule::in(['NONE', 'REPAIR_REVIEW', 'DISPOSAL_REVIEW'])],
+            'recommended_action' => ['required', Rule::in(['NONE', 'PREVENTIVE_MAINTENANCE_REQUIRED', 'REPAIR_REVIEW', 'DISPOSAL_REVIEW'])],
             'evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
             'location_evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'location_evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
         ]);
@@ -57,7 +57,7 @@ class AssetInspectionController extends Controller
         if ((in_array($data['condition'], ['NEEDS_REPAIR', 'DAMAGED', 'BROKEN', 'UNUSABLE'], true) || $data['recommended_action'] !== 'NONE') && empty($data['evidence'])) {
             throw ValidationException::withMessages(['evidence' => 'A current asset photo is required for this condition or recommendation.']);
         }
-        if ($data['recommended_action'] !== 'NONE') {
+        if (in_array($data['recommended_action'], ['REPAIR_REVIEW', 'DISPOSAL_REVIEW'], true)) {
             $permission = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'assets.request_repair' : 'assets.request_disposal';
             abort_unless($request->user()->can($permission), 403);
         }
@@ -78,7 +78,7 @@ class AssetInspectionController extends Controller
             }
             $asset->update(['condition' => $data['condition'], 'last_inspected_at' => now()]);
             $lifecycle->event($asset, $request->user(), 'ASSET_INSPECTED', $data['summary']);
-            if ($data['recommended_action'] !== 'NONE') {
+            if (in_array($data['recommended_action'], ['REPAIR_REVIEW', 'DISPOSAL_REVIEW'], true)) {
                 $type = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'REPAIR' : 'DISPOSAL';
                 $lifecycle->request($asset->fresh(), $request->user(), $type, $data['summary'], $item);
             }

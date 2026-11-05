@@ -49,6 +49,9 @@ return [
         'assets.mark_disposed', 'assets.generate_qr', 'asset_types.manage',
         'inspections.view', 'inspections.perform', 'inspections.view_all', 'inspections.assign',
         'reports.view_routine_operations',
+        'preventive_maintenance.view', 'preventive_maintenance.manage_plans', 'preventive_maintenance.assign',
+        'preventive_maintenance.perform', 'preventive_maintenance.verify', 'preventive_maintenance.view_all',
+        'preventive_maintenance.reports',
     ],
     'delegable_permissions' => [
         'users.view_pending_registrations',
@@ -78,6 +81,9 @@ return [
         'assets.mark_disposed', 'assets.generate_qr', 'asset_types.manage',
         'inspections.view', 'inspections.perform', 'inspections.view_all', 'inspections.assign',
         'reports.view_routine_operations',
+        'preventive_maintenance.view', 'preventive_maintenance.manage_plans', 'preventive_maintenance.assign',
+        'preventive_maintenance.perform', 'preventive_maintenance.verify', 'preventive_maintenance.view_all',
+        'preventive_maintenance.reports',
     ],
     'core_roles' => [
         'Requester', 'FMO Staff', 'FMO Dispatcher', 'FMO Head',

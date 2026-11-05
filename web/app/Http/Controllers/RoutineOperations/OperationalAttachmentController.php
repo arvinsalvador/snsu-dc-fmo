@@ -8,14 +8,16 @@ use App\Models\AssetMaintenanceRecord;
 use App\Models\InspectableAsset;
 use App\Models\InspectionItem;
 use App\Models\OperationalAttachment;
+use App\Models\PreventiveMaintenanceExecution;
 use App\Models\RoutineTaskOccurrence;
+use App\Services\PreventiveMaintenanceAccessService;
 use App\Services\RoutineTaskAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class OperationalAttachmentController extends Controller
 {
-    public function show(Request $request, OperationalAttachment $attachment, RoutineTaskAccessService $access, string $variant = 'original')
+    public function show(Request $request, OperationalAttachment $attachment, RoutineTaskAccessService $access, PreventiveMaintenanceAccessService $pmAccess, string $variant = 'original')
     {
         $target = $attachment->attachable;
         if ($target instanceof RoutineTaskOccurrence) {
@@ -29,6 +31,9 @@ class OperationalAttachmentController extends Controller
             abort_unless($request->user()->can('assets.view'), 403);
         } elseif ($target instanceof AssetActionRequest || $target instanceof AssetMaintenanceRecord) {
             abort_unless($request->user()->can('assets.view'), 403);
+        } elseif ($target instanceof PreventiveMaintenanceExecution) {
+            $target->loadMissing('occurrence');
+            abort_unless($request->user()->can('preventive_maintenance.view_all') || ($request->user()->can('preventive_maintenance.view') && $pmAccess->assignedTo($target->occurrence, $request->user())), 403);
         } else {
             abort(404);
         }

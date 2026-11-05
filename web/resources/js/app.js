@@ -608,6 +608,17 @@ export function initializeAssetFilters(form) {
     update();
 }
 
+export function initializePmPlanForm(form) {
+    const template = form.querySelector('select[name="template_id"]');
+    if (!template || form.dataset.newPlan !== 'true') return;
+    template.addEventListener('change', () => {
+        if (!template.value) return;
+        const url = new URL(window.location.href);
+        url.searchParams.set('template', template.value);
+        window.location.assign(url);
+    });
+}
+
 export function initializeActionMenus() {
     const menus = [...document.querySelectorAll('[data-action-menu]')];
     if (!menus.length) return;
@@ -704,6 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeAssetQrModal();
     document.querySelectorAll('[data-inspection-template-form]').forEach(initializeInspectionTemplateForm);
     document.querySelectorAll('[data-asset-filters]').forEach(initializeAssetFilters);
+    document.querySelectorAll('[data-pm-plan-form]').forEach(initializePmPlanForm);
     document.querySelectorAll('[data-personnel-skills]').forEach(initializePersonnelSkills);
     initializeActionMenus();
     initializeEvidenceViewer();

@@ -81,10 +81,13 @@ class AuthorizationSeeder extends Seeder
         Role::findByName('FMO Staff', 'web')->givePermissionTo([
             'routine_tasks.view', 'routine_tasks.perform', 'assets.view', 'assets.inspect', 'assets.maintain',
             'assets.request_repair', 'assets.request_disposal', 'inspections.view', 'inspections.perform',
+            'preventive_maintenance.view', 'preventive_maintenance.perform',
         ]);
         Role::findByName('FMO Dispatcher', 'web')->givePermissionTo([
             'routine_tasks.view', 'routine_tasks.assign', 'routine_tasks.view_all', 'assets.view',
             'inspections.view', 'inspections.view_all', 'inspections.assign', 'reports.view_routine_operations',
+            'preventive_maintenance.view', 'preventive_maintenance.view_all', 'preventive_maintenance.manage_plans',
+            'preventive_maintenance.assign', 'preventive_maintenance.reports',
         ]);
         Role::findByName('FMO Head', 'web')->givePermissionTo([
             'routine_tasks.view', 'routine_tasks.manage', 'routine_tasks.assign', 'routine_tasks.perform', 'routine_tasks.view_all',
@@ -92,10 +95,17 @@ class AuthorizationSeeder extends Seeder
             'assets.review_repair', 'assets.request_disposal', 'assets.approve_disposal', 'assets.mark_disposed',
             'assets.generate_qr', 'asset_types.manage', 'inspections.view', 'inspections.perform', 'inspections.view_all', 'inspections.assign',
             'reports.view_routine_operations',
+            'preventive_maintenance.view', 'preventive_maintenance.view_all', 'preventive_maintenance.manage_plans',
+            'preventive_maintenance.assign', 'preventive_maintenance.perform', 'preventive_maintenance.verify',
+            'preventive_maintenance.reports',
         ]);
         Role::findByName('Campus Director', 'web')->givePermissionTo([
             'assets.view', 'assets.view_all', 'assets.review_repair', 'assets.approve_disposal', 'assets.assign_maintenance', 'assets.mark_disposed', 'assets.generate_qr',
             'inspections.view', 'inspections.view_all', 'inspections.assign',
+            'preventive_maintenance.view', 'preventive_maintenance.view_all', 'preventive_maintenance.verify', 'preventive_maintenance.reports',
+        ]);
+        Role::findByName('FMO Oversight', 'web')->givePermissionTo([
+            'assets.view', 'assets.view_all', 'preventive_maintenance.view', 'preventive_maintenance.view_all', 'preventive_maintenance.reports',
         ]);
         foreach (['Campus Director', 'Director for Instruction', 'FMO Dispatcher', 'FMO Oversight'] as $role) {
             Role::findByName($role, 'web')->givePermissionTo(['work_orders.view_all', 'work_orders.update_own_submitted', 'work_orders.resubmit_own', 'work_order_categories.view']);

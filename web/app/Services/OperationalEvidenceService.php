@@ -19,6 +19,7 @@ class OperationalEvidenceService
                     'InspectionItem' => 'inspection-evidence/'.$target->id,
                     'AssetActionRequest' => 'asset-action-evidence/'.$target->id,
                     'AssetMaintenanceRecord' => 'asset-maintenance-evidence/'.$target->id,
+                    'PreventiveMaintenanceExecution' => 'preventive-maintenance-evidence/'.$target->id,
                     default => 'routine-evidence/'.$target->id,
                 };
                 $target->attachments()->create($this->media->store($upload, $directory, 'evidence') + [

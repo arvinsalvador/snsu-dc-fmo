@@ -8,15 +8,18 @@ use App\Models\InspectionRun;
 use App\Services\AssetLifecycleService;
 use App\Services\AssetMaintenanceAssignmentService;
 use App\Services\AssetQrCodeService;
+use App\Services\PreventiveMaintenanceAccessService;
+use App\Services\PreventiveMaintenanceOccurrenceService;
 use App\Services\RoutineTaskAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class AssetQrController extends Controller
 {
-    public function scan(Request $request, string $token, RoutineTaskAccessService $access, AssetMaintenanceAssignmentService $maintenanceAssignments)
+    public function scan(Request $request, string $token, RoutineTaskAccessService $access, AssetMaintenanceAssignmentService $maintenanceAssignments, PreventiveMaintenanceAccessService $pmAccess, PreventiveMaintenanceOccurrenceService $pmScheduler)
     {
         abort_unless($request->user()->can('assets.view'), 403);
+        $pmScheduler->refreshStatuses();
         $asset = InspectableAsset::with(['assetType', 'campus', 'building', 'floor', 'location', 'attachments' => fn ($query) => $query->where('purpose', 'ASSET_PHOTO')->latest()])->where('qr_token', $token)->firstOrFail();
         $items = $asset->inspectionItems()->where('status', '!=', 'INSPECTED')
             ->whereHas('run', fn ($runs) => $runs->whereIn('status', ['OPEN', 'IN_PROGRESS']))
@@ -37,8 +40,14 @@ class AssetQrController extends Controller
         ])->values();
         $repairAssigned = $request->user()->can('assets.maintain') && $maintenanceAssignments->assignedToRepair($asset, $request->user());
         $repairAction = $maintenanceAssignments->activeRepairAction($asset);
+        $pmQuery = $asset->preventiveMaintenanceOccurrences()->with(['plan', 'assignees.user'])->open()->orderBy('due_at');
+        $pmOptions = $pmQuery->get()->map(fn ($occurrence) => [
+            'occurrence' => $occurrence,
+            'is_assigned' => $pmAccess->assignedTo($occurrence, $request->user()),
+            'can_start' => $pmAccess->canPerform($occurrence, $request->user()) && $occurrence->isStartable(),
+        ]);
 
-        return view('routine-operations.assets.scan', compact('asset', 'inspectionOptions', 'scopeWarning', 'repairAssigned', 'repairAction'));
+        return view('routine-operations.assets.scan', compact('asset', 'inspectionOptions', 'scopeWarning', 'repairAssigned', 'repairAction', 'pmOptions'));
     }
 
     public function print(Request $request, InspectableAsset $asset, AssetQrCodeService $qr)

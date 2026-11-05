@@ -63,12 +63,14 @@
                     <a class="nav-link {{ request()->routeIs('work-orders.execution-queue') && request()->route('queue') === 'verification' ? 'nav-link-active' : '' }}" href="{{ route('work-orders.execution-queue', 'verification') }}"><x-icon name="shield-check" /><span>For Verification</span></a>
                 @endcan
 
-                @if ($user->can('routine_tasks.view') || $user->can('routine_tasks.view_all') || $user->can('inspections.view') || $user->can('assets.view'))
+                @if ($user->can('routine_tasks.view') || $user->can('routine_tasks.view_all') || $user->can('inspections.view') || $user->can('assets.view') || $user->can('preventive_maintenance.view'))
                     <p class="nav-heading">Routine Operations</p>
                     @can('routine_tasks.view')<a class="nav-link {{ request()->routeIs('routine-tasks.*') ? 'nav-link-active' : '' }}" href="{{ route('routine-tasks.index') }}"><x-icon name="tasks" /><span>My Routine Tasks</span></a>@endcan
                     @can('routine_tasks.view_all')<a class="nav-link {{ request()->routeIs('routine-templates.*') ? 'nav-link-active' : '' }}" href="{{ route('routine-templates.index') }}"><x-icon name="clock" /><span>Recurring Tasks</span></a>@endcan
                     @can('inspections.view')<a class="nav-link {{ request()->routeIs('inspections.*') ? 'nav-link-active' : '' }}" href="{{ route('inspections.index') }}"><x-icon name="search" /><span>Inspections</span></a>@endcan
                     @can('assets.view')<a class="nav-link {{ request()->routeIs('assets.*') ? 'nav-link-active' : '' }}" href="{{ route('assets.index') }}"><x-icon name="tag" /><span>Assets / Equipment</span></a>@endcan
+                    @can('preventive_maintenance.view')<a class="nav-link {{ request()->routeIs('preventive-maintenance.tasks.*') ? 'nav-link-active' : '' }}" href="{{ route('preventive-maintenance.tasks.index') }}"><x-icon name="wrench" /><span>My PM Tasks</span></a>@endcan
+                    @can('preventive_maintenance.view_all')<a class="nav-link {{ request()->routeIs('preventive-maintenance.dashboard','preventive-maintenance.plans.*') ? 'nav-link-active' : '' }}" href="{{ route('preventive-maintenance.dashboard') }}"><x-icon name="chart" /><span>PM Dashboard</span></a>@endcan
                 @endif
 
                 @if ($user->can('personnel.view') || $user->can('skills.view') || $user->can('buildings.view') || $user->can('campuses.view') || $user->can('locations.view') || $user->can('work_order_categories.view'))
@@ -91,6 +93,7 @@
                     <p class="nav-heading">Reports</p>
                     <a class="nav-link {{ request()->routeIs('reports.history', 'reports.export', 'reports.print') ? 'nav-link-active' : '' }}" href="{{ route('reports.history') }}"><x-icon name="chart" /><span>Work History</span></a>
                     @can('reports.view_routine_operations')<a class="nav-link {{ request()->routeIs('reports.routine') ? 'nav-link-active' : '' }}" href="{{ route('reports.routine') }}"><x-icon name="chart" /><span>Routine History</span></a>@endcan
+                    @can('preventive_maintenance.reports')<a class="nav-link {{ request()->routeIs('preventive-maintenance.history*') ? 'nav-link-active' : '' }}" href="{{ route('preventive-maintenance.history') }}"><x-icon name="clock" /><span>PM History</span></a>@endcan
                 @endif
 
                 @if ($user->can('users.view_pending_registrations') || $user->can('users.view') || $user->can('roles.view'))

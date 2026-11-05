@@ -50,6 +50,19 @@
     </div>
 </section>
 
+<section class="section-card mt-6">
+    <h2 class="text-lg">Preventive Maintenance</h2>
+    <div class="mt-4 space-y-3">
+        @forelse($pmOptions as $option)
+            @php($pm = $option['occurrence'])
+            <article class="rounded-xl border {{ $option['is_assigned'] ? 'border-cyan-300 bg-cyan-50/50' : 'border-slate-200' }} p-4">
+                <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="text-xs font-bold uppercase tracking-[0.14em] text-cyan-800">{{ $pm->status->value === 'UPCOMING' ? 'Upcoming Preventive Maintenance' : ($pm->is_overdue ? 'Maintenance Overdue' : 'Preventive Maintenance Due') }}</p><h3 class="mt-1 font-semibold">{{ $pm->plan_name_snapshot }}</h3><p class="mt-1 text-sm text-slate-500">Due {{ $pm->due_at->timezone(config('app.timezone'))->format('M j, Y · g:i A') }}</p></div>@if($option['is_assigned'])<span class="status-badge status-success">Assigned to you</span>@else<span class="status-badge status-neutral">Not assigned</span>@endif</div>
+                @if($option['can_start'])<form method="POST" action="{{ route('preventive-maintenance.tasks.start',$pm) }}" class="mt-4">@csrf<button class="btn btn-primary w-full sm:w-auto" type="submit">Start Preventive Maintenance</button></form>@elseif($pm->status->value === 'IN_PROGRESS' && $option['is_assigned'])<a class="btn btn-primary mt-4 w-full justify-center sm:w-auto" href="{{ route('preventive-maintenance.tasks.show',$pm) }}">Continue Preventive Maintenance</a>@elseif($pm->status->value === 'UPCOMING')<p class="mt-3 text-sm font-medium">Available {{ $pm->available_at->timezone(config('app.timezone'))->format('M j, Y') }}</p><p class="mt-1 text-sm text-slate-500">This maintenance cannot be started yet.</p>@elseif(!$option['is_assigned'])<p class="mt-3 text-sm text-slate-500">You may view the asset, but only assigned personnel can perform this maintenance.</p>@endif
+            </article>
+        @empty<x-empty-state title="No current PM" description="This asset has no open preventive-maintenance task." />@endforelse
+    </div>
+</section>
+
 @if($repairAction)
 <section class="section-card mt-6"><h2 class="text-lg">Current Repair Assignment</h2>@if($repairAssigned)<div class="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-4"><p class="font-semibold text-amber-950">Repair assigned to you</p><p class="mt-1 text-sm text-amber-900">Open the asset record to document the repair work.</p><a class="btn btn-primary mt-4" href="{{ route('assets.show', $asset) }}">Open Repair Action</a></div>@elseif(auth()->user()->can('assets.maintain'))<p class="mt-3 text-sm text-slate-500">Repair is assigned to another FMO personnel member.</p>@endif</section>
 @endif

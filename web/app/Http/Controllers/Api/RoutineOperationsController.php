@@ -159,7 +159,7 @@ class RoutineOperationsController extends Controller
         abort_if(in_array($item->asset->lifecycle_status->value, ['DISPOSED', 'RETIRED'], true), 422, 'Disposed or retired assets cannot receive new inspections.');
         $data = $request->validate(['result' => ['required', Rule::in($item->asset->assetType->result_options)], 'checklist' => ['required', 'array'],
             'checklist.*' => ['required', Rule::in(['YES', 'NO', 'NOT_APPLICABLE'])], 'remarks' => ['nullable', 'string', 'max:5000'],
-            'recommended_action' => ['nullable', Rule::in(['NONE', 'REPAIR_REVIEW', 'DISPOSAL_REVIEW'])],
+            'recommended_action' => ['nullable', Rule::in(['NONE', 'PREVENTIVE_MAINTENANCE_REQUIRED', 'REPAIR_REVIEW', 'DISPOSAL_REVIEW'])],
             'evidence' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')], 'evidence.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')]]);
         $data['recommended_action'] ??= 'NONE';
         $expected = collect($item->checklist_snapshot ?: $item->asset->assetType->checklist)->pluck('code');
@@ -172,7 +172,7 @@ class RoutineOperationsController extends Controller
         if ((in_array($data['result'], ['NEEDS_REPAIR', 'DAMAGED', 'BROKEN', 'UNUSABLE', 'DEFECTIVE', 'OUT_OF_SERVICE', 'MISSING'], true) || $data['recommended_action'] !== 'NONE') && $item->attachments->isEmpty() && empty($data['evidence'])) {
             throw ValidationException::withMessages(['evidence' => 'Photo evidence is required for a damaged or non-serviceable asset.']);
         }
-        if ($data['recommended_action'] !== 'NONE') {
+        if (in_array($data['recommended_action'], ['REPAIR_REVIEW', 'DISPOSAL_REVIEW'], true)) {
             $permission = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'assets.request_repair' : 'assets.request_disposal';
             abort_unless($request->user()->can($permission), 403);
         }
@@ -191,7 +191,7 @@ class RoutineOperationsController extends Controller
             if (! empty($data['evidence'])) {
                 $evidence->attach($item, $data['evidence'], $request->user()->id, 'INSPECTION_EVIDENCE');
             }
-            if ($data['recommended_action'] !== 'NONE') {
+            if (in_array($data['recommended_action'], ['REPAIR_REVIEW', 'DISPOSAL_REVIEW'], true)) {
                 $type = $data['recommended_action'] === 'REPAIR_REVIEW' ? 'REPAIR' : 'DISPOSAL';
                 $lifecycle->request($item->asset->fresh(), $request->user(), $type, $item->generated_summary, $item);
             }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AssetClass;
 use App\Enums\AssetCondition;
 use App\Enums\AssetLifecycleStatus;
 use App\Enums\AssetStatus;
@@ -18,7 +19,7 @@ class InspectableAsset extends Model
     use HasUlids;
 
     protected $fillable = [
-        'asset_code', 'asset_type_id', 'name', 'description', 'campus_id', 'building_id', 'floor_id',
+        'asset_code', 'asset_type_id', 'asset_class', 'parent_asset_id', 'name', 'description', 'campus_id', 'building_id', 'floor_id',
         'building_location_id', 'exact_placement', 'brand', 'model', 'serial_number', 'installed_at',
         'inspection_frequency', 'status', 'condition', 'lifecycle_status', 'qr_token', 'qr_regenerated_at',
         'qr_regenerated_by', 'last_inspected_at', 'notes',
@@ -27,7 +28,7 @@ class InspectableAsset extends Model
     protected function casts(): array
     {
         return ['installed_at' => 'date', 'last_inspected_at' => 'datetime', 'qr_regenerated_at' => 'datetime',
-            'inspection_frequency' => RoutineFrequency::class, 'status' => AssetStatus::class,
+            'inspection_frequency' => RoutineFrequency::class, 'status' => AssetStatus::class, 'asset_class' => AssetClass::class,
             'condition' => AssetCondition::class, 'lifecycle_status' => AssetLifecycleStatus::class];
     }
 
@@ -41,6 +42,31 @@ class InspectableAsset extends Model
     public function assetType(): BelongsTo
     {
         return $this->belongsTo(AssetType::class);
+    }
+
+    public function parentAsset(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_asset_id');
+    }
+
+    public function childAssets(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_asset_id');
+    }
+
+    public function preventiveMaintenancePlans(): HasMany
+    {
+        return $this->hasMany(PreventiveMaintenancePlan::class);
+    }
+
+    public function preventiveMaintenanceOccurrences(): HasMany
+    {
+        return $this->hasMany(PreventiveMaintenanceOccurrence::class);
+    }
+
+    public function workOrders(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class);
     }
 
     public function campus(): BelongsTo

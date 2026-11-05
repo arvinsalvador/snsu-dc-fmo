@@ -10,10 +10,13 @@ use App\Models\Campus;
 use App\Models\Floor;
 use App\Models\FmoPersonnel;
 use App\Models\InspectableAsset;
+use App\Models\PreventiveMaintenanceOccurrence;
 use App\Services\AssetLifecycleService;
 use App\Services\AssetMaintenanceAssignmentService;
+use App\Services\AssetMaintenanceHistoryService;
 use App\Services\AssetQrCodeService;
 use App\Services\OperationalEvidenceService;
+use App\Services\PreventiveMaintenanceAccessService;
 use App\Services\RoutineTaskAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,12 +74,12 @@ class AssetController extends Controller
         return redirect()->route('assets.show', $asset)->with('status', 'Inspectable asset added.');
     }
 
-    public function show(Request $request, InspectableAsset $asset, AssetQrCodeService $qr, RoutineTaskAccessService $access, AssetMaintenanceAssignmentService $maintenanceAssignments, AssetLifecycleService $lifecycle)
+    public function show(Request $request, InspectableAsset $asset, AssetQrCodeService $qr, RoutineTaskAccessService $access, AssetMaintenanceAssignmentService $maintenanceAssignments, AssetLifecycleService $lifecycle, PreventiveMaintenanceAccessService $pmAccess, AssetMaintenanceHistoryService $historyService)
     {
         abort_unless($request->user()->can('assets.view'), 403);
-        $asset->load(['assetType', 'campus', 'building', 'floor', 'location', 'attachments.uploader',
+        $asset->load(['assetType', 'parentAsset', 'childAssets.assetType', 'campus', 'building', 'floor', 'location', 'attachments.uploader',
             'actionRequests.requester', 'actionRequests.reviewer', 'actionRequests.attachments', 'actionRequests.activeAssignees.user',
-            'maintenanceRecords.recorder', 'maintenanceRecords.attachments', 'lifecycleEvents.actor']);
+            'maintenanceRecords.recorder', 'maintenanceRecords.attachments', 'lifecycleEvents.actor', 'preventiveMaintenancePlans']);
         $history = $asset->inspectionItems()->with(['run.template', 'inspector.user', 'attachments'])->where('status', 'INSPECTED')->latest('inspected_at')->paginate(15);
         $pendingAction = $lifecycle->activePendingRequest($asset);
         $pendingAction?->loadMissing(['requester', 'attachments']);
@@ -98,7 +101,16 @@ class AssetController extends Controller
                 ->whereHas('run', fn ($run) => $run->whereIn('status', ['OPEN', 'IN_PROGRESS']))->get()->pluck('run')->unique('id')->values()
             : collect();
 
-        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction', 'qrSvg', 'assignedInspectionItems', 'repairAction', 'canMaintainAsset', 'maintenancePersonnel', 'managedInspectionRuns'));
+        $pmQuery = PreventiveMaintenanceOccurrence::with(['plan', 'assignees.user', 'execution'])
+            ->where('inspectable_asset_id', $asset->id)->open()->orderBy('due_at');
+        $pmAccess->scope($pmQuery, $request->user());
+        $currentPmTasks = $request->user()->can('preventive_maintenance.view') ? $pmQuery->get() : collect();
+        $lastPm = $asset->preventiveMaintenanceOccurrences()->where('status', 'COMPLETED')->latest('completed_at')->first();
+        $nextPm = $asset->preventiveMaintenanceOccurrences()->open()->orderBy('due_at')->first();
+        $lastRepair = $asset->workOrders()->whereNotNull('verified_at')->latest('verified_at')->first();
+        $maintenanceHistory = $historyService->paginate($asset);
+
+        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction', 'qrSvg', 'assignedInspectionItems', 'repairAction', 'canMaintainAsset', 'maintenancePersonnel', 'managedInspectionRuns', 'currentPmTasks', 'lastPm', 'nextPm', 'lastRepair', 'maintenanceHistory'));
     }
 
     public function edit(Request $request, InspectableAsset $asset)
@@ -129,7 +141,10 @@ class AssetController extends Controller
     {
         $data = $request->validate([
             'asset_code' => ['required', 'string', 'max:40', Rule::unique('inspectable_assets')->ignore($asset)],
-            'asset_type_id' => ['required', Rule::exists('asset_types', 'id')->where(fn ($query) => $query->where('is_active', true)->when($asset, fn ($types) => $types->orWhere('id', $asset->asset_type_id)))], 'name' => ['required', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:5000'],
+            'asset_type_id' => ['required', Rule::exists('asset_types', 'id')->where(fn ($query) => $query->where('is_active', true)->when($asset, fn ($types) => $types->orWhere('id', $asset->asset_type_id)))],
+            'asset_class' => ['nullable', Rule::in(['EQUIPMENT', 'FACILITY_COMPONENT', 'UTILITY_SYSTEM', 'SAFETY_EQUIPMENT', 'VEHICLE', 'OTHER'])],
+            'parent_asset_id' => ['nullable', 'exists:inspectable_assets,id', Rule::notIn(array_filter([$asset?->id]))],
+            'name' => ['required', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:5000'],
             'campus_id' => ['required', 'exists:campuses,id'], 'building_id' => ['required', 'exists:buildings,id'], 'floor_id' => ['nullable', 'exists:floors,id'],
             'building_location_id' => ['nullable', 'exists:building_locations,id'], 'exact_placement' => ['nullable', 'string', 'max:255'],
             'brand' => ['nullable', 'string', 'max:255'], 'model' => ['nullable', 'string', 'max:255'], 'serial_number' => ['nullable', 'string', 'max:255'],
@@ -151,10 +166,22 @@ class AssetController extends Controller
         if (($data['building_location_id'] ?? null) && ! BuildingLocation::whereKey($data['building_location_id'])->where('building_id', $data['building_id'])->where('is_active', true)->where(fn ($query) => ($data['floor_id'] ?? null) ? $query->whereNull('floor_id')->orWhere('floor_id', $data['floor_id']) : $query->whereNull('floor_id'))->exists()) {
             $errors['building_location_id'] = 'The selected area does not belong to the selected building and floor.';
         }
+        if ($asset && ($parentId = $data['parent_asset_id'] ?? null)) {
+            $visited = [];
+            while ($parentId && ! isset($visited[$parentId])) {
+                if ($parentId === $asset->id) {
+                    $errors['parent_asset_id'] = 'An asset cannot be placed beneath one of its own components.';
+                    break;
+                }
+                $visited[$parentId] = true;
+                $parentId = InspectableAsset::whereKey($parentId)->value('parent_asset_id');
+            }
+        }
         if ($errors) {
             throw ValidationException::withMessages($errors);
         }
 
+        $data['asset_class'] = $data['asset_class'] ?? $asset?->asset_class?->value ?? 'EQUIPMENT';
         $data['lifecycle_status'] = $asset?->lifecycle_status?->value ?? 'ACTIVE';
         $data['status'] = $asset?->status?->value ?? 'ACTIVE';
 
@@ -164,6 +191,7 @@ class AssetController extends Controller
     private function formData(InspectableAsset $asset): array
     {
         return ['asset' => $asset, 'assetTypes' => AssetType::where('is_active', true)->when($asset->exists, fn ($query) => $query->orWhereKey($asset->asset_type_id))->orderBy('name')->get(),
+            'parentAssets' => InspectableAsset::when($asset->exists, fn ($query) => $query->where('id', '!=', $asset->id))->whereIn('asset_class', ['UTILITY_SYSTEM', 'FACILITY_COMPONENT', 'EQUIPMENT'])->orderBy('asset_code')->get(),
             'campuses' => Campus::where('is_active', true)->orderBy('name')->get()];
     }
 }

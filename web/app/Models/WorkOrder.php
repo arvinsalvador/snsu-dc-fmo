@@ -14,7 +14,7 @@ class WorkOrder extends Model
 {
     use HasUlids;
 
-    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'subject', 'description', 'urgency', 'status', 'submitted_at', 'recommendation', 'decided_by', 'decided_at', 'information_context', 'completion_summary', 'work_performed_summary', 'non_photo_reason', 'completion_submitted_by', 'completion_submitted_at', 'verified_by', 'verified_at', 'verification_note', 'execution_cycle'];
+    protected $fillable = ['work_order_number', 'requester_id', 'work_order_category_id', 'campus_id', 'building_id', 'floor_id', 'building_location_id', 'inspectable_asset_id', 'preventive_maintenance_occurrence_id', 'subject', 'description', 'urgency', 'status', 'submitted_at', 'recommendation', 'decided_by', 'decided_at', 'information_context', 'completion_summary', 'work_performed_summary', 'non_photo_reason', 'completion_submitted_by', 'completion_submitted_at', 'verified_by', 'verified_at', 'verification_note', 'execution_cycle'];
 
     protected function casts(): array
     {
@@ -49,6 +49,16 @@ class WorkOrder extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(BuildingLocation::class, 'building_location_id');
+    }
+
+    public function asset(): BelongsTo
+    {
+        return $this->belongsTo(InspectableAsset::class, 'inspectable_asset_id');
+    }
+
+    public function preventiveMaintenanceOccurrence(): BelongsTo
+    {
+        return $this->belongsTo(PreventiveMaintenanceOccurrence::class);
     }
 
     public function preferredPersonnel(): BelongsToMany

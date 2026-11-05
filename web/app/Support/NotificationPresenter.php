@@ -27,7 +27,7 @@ class NotificationPresenter
         ],
         'work' => [
             'label' => 'Work updates',
-            'events' => ['WORK_WAITING_MATERIALS', 'ROUTINE_DUE', 'ROUTINE_OVERDUE', 'INSPECTION_ATTENTION'],
+            'events' => ['WORK_WAITING_MATERIALS', 'ROUTINE_DUE', 'ROUTINE_OVERDUE', 'PM_DUE', 'PM_OVERDUE', 'INSPECTION_ATTENTION'],
         ],
         'messages' => [
             'label' => 'Messages',
@@ -152,6 +152,8 @@ class NotificationPresenter
             'FMO_INQUIRY_REPLY' => $this->style('Inquiry reply', 'mail', 'bg-cyan-100 text-cyan-800'),
             'ROUTINE_DUE' => $this->style('Routine task due', 'clipboard', 'bg-cyan-100 text-cyan-800'),
             'ROUTINE_OVERDUE' => $this->style('Routine task overdue', 'warning', 'bg-amber-100 text-amber-800'),
+            'PM_DUE' => $this->style('Preventive maintenance due', 'wrench', 'bg-cyan-100 text-cyan-800'),
+            'PM_OVERDUE' => $this->style('Preventive maintenance overdue', 'warning', 'bg-rose-100 text-rose-800'),
             'INSPECTION_ATTENTION' => $this->style('Inspection attention', 'search', 'bg-rose-100 text-rose-800'),
             'COMPLETION_SUBMITTED' => $this->style('Verification', 'eye', 'bg-violet-100 text-violet-800'),
             'COMPLETION_VERIFIED' => $this->style('Completed', 'check-circle', 'bg-emerald-100 text-emerald-800'),

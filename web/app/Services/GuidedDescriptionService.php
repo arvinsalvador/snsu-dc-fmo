@@ -80,6 +80,27 @@ class GuidedDescriptionService
         ];
     }
 
+    public function preventiveMaintenanceProfile(): GuidedDescriptionProfile
+    {
+        return new GuidedDescriptionProfile([
+            'code' => 'PREVENTIVE_MAINTENANCE',
+            'name' => 'Preventive maintenance work',
+            'context' => 'PREVENTIVE_MAINTENANCE',
+            'actions' => [
+                ['code' => 'CLEAN_FILTER', 'label' => 'Cleaned filter', 'clause' => 'cleaned the filter'],
+                ['code' => 'CLEAR_DRAIN', 'label' => 'Cleared drain line', 'clause' => 'cleared the drain line'],
+                ['code' => 'CHECK_ELECTRICAL', 'label' => 'Checked electrical terminals', 'clause' => 'checked the electrical terminals'],
+                ['code' => 'INSPECT_COMPONENTS', 'label' => 'Inspected components', 'clause' => 'inspected the components'],
+                ['code' => 'LUBRICATE_PARTS', 'label' => 'Lubricated moving parts', 'clause' => 'lubricated the moving parts'],
+                ['code' => 'TEST_OPERATION', 'label' => 'Tested operation', 'clause' => 'tested normal operation'],
+                ['code' => 'OTHER_ACTION', 'label' => 'Other maintenance performed', 'clause' => 'completed other maintenance'],
+            ],
+            'outcomes' => $this->standardOutcomes(),
+            'sentence_templates' => ['version' => 2],
+            'is_active' => true,
+        ]);
+    }
+
     /** @return list<array{code: string, label: string, description: string, clause: string}> */
     public function standardOutcomes(): array
     {

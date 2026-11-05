@@ -115,7 +115,7 @@ class WorkOrderController extends Controller
                 ->where('personnel_status', 'ACTIVE')->whereNull('archived_at')->get()->filter->isAssignable();
         }
 
-        $workOrder->load('requester.requesterProfile', 'category.guidedProfile', 'category.relevantSkills', 'campus', 'building', 'floor', 'location', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier');
+        $workOrder->load('requester.requesterProfile', 'category.guidedProfile', 'category.relevantSkills', 'campus', 'building', 'floor', 'location', 'asset', 'preventiveMaintenanceOccurrence.asset', 'preventiveMaintenanceOccurrence.execution', 'preferredPersonnel.user', 'preferredPersonnel.skills', 'attachments.uploader', 'attachments.workUpdate', 'workflowEvents.actor', 'activeAssignments.personnel.user', 'assessments.personnel.user', 'sessions.personnel.user', 'updates.personnel.user', 'updates.attachments', 'completionSubmitter', 'verifier');
 
         $authorization = app(CommunicationAuthorizationService::class);
         $communications = app(CommunicationService::class);
