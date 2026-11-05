@@ -41,9 +41,9 @@ class LocationController extends Controller
         abort_unless($r->user()->can('locations.view'), 403);
 
         $floors = Floor::where('building_id', $r->query('building_id'))
-            ->where('is_active', true)
-            ->whereHas('building', fn ($query) => $query->where('is_active', true)
-                ->whereHas('campus', fn ($campus) => $campus->where('is_active', true)))
+            ->when(! $r->boolean('include_inactive'), fn ($query) => $query->where('is_active', true)
+                ->whereHas('building', fn ($building) => $building->where('is_active', true)
+                    ->whereHas('campus', fn ($campus) => $campus->where('is_active', true))))
             ->orderBy('display_order')->orderBy('name')->get(['id', 'building_id', 'name']);
 
         return response()->json(['data' => $floors]);

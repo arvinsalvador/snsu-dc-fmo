@@ -3,6 +3,7 @@ import { initializeLocationSelects } from './work-order-location.js';
 import { initializeCollapsibles } from './collapsible.js';
 import { initializePersonnelSkills } from './personnel-skills.js';
 import { preferredPersonnelSelector } from './preferred-personnel.js';
+import { floorSelector } from './floor-selector.js';
 
 export function initializePhotoPicker(container) {
     const preview = container.querySelector('[data-photo-preview]');
@@ -700,6 +701,7 @@ export function initializeActionMenus() {
 
 window.Alpine = Alpine;
 Alpine.data('preferredPersonnelSelector', preferredPersonnelSelector);
+Alpine.data('floorSelector', floorSelector);
 Alpine.start();
 
 document.addEventListener('DOMContentLoaded', () => {

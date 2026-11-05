@@ -146,7 +146,7 @@ class LocationManagementController extends Controller
         abort_unless($r->user()->can('locations.view'), 403);
         $q = BuildingLocation::with('building.campus', 'floor')->when($r->campus_id, fn ($q, $v) => $q->whereHas('building', fn ($b) => $b->where('campus_id', $v)))->when($r->building_id, fn ($q, $v) => $q->where('building_id', $v))->when($r->floor_id, fn ($q, $v) => $q->where('floor_id', $v))->when($r->type, fn ($q, $v) => $q->where('type', $v))->when($r->filled('active'), fn ($q) => $q->where('is_active', $r->boolean('active')))->when($r->search, fn ($q, $v) => $q->where(fn ($x) => $x->where('name', 'like', "%$v%")->orWhere('code', 'like', "%$v%")));
 
-        return view('locations.locations', ['locations' => $q->paginate(20)->withQueryString(), 'buildings' => Building::with('campus')->get(), 'floors' => Floor::with('building')->get(), 'types' => LocationType::cases()]);
+        return view('locations.locations', ['locations' => $q->paginate(20)->withQueryString(), 'buildings' => Building::with('campus')->get(), 'floors' => Floor::with('building')->orderBy('display_order')->orderBy('name')->get(), 'types' => LocationType::cases()]);
     }
 
     private function campusData(Request $r, ?Campus $c = null): array
@@ -161,12 +161,7 @@ class LocationManagementController extends Controller
 
     private function locationData(Request $r, ?BuildingLocation $l = null): array
     {
-        $d = $r->validate(['building_id' => ['required', Rule::exists('buildings', 'id')], 'floor_id' => ['nullable', Rule::exists('floors', 'id')], 'type' => ['required', Rule::enum(LocationType::class)], 'code' => ['nullable', 'max:100'], 'name' => ['required', 'max:255'], 'description' => ['nullable'], 'is_active' => ['required', 'boolean']]);
-        if ($d['floor_id'] ?? null) {
-            abort_unless(Floor::whereKey($d['floor_id'])->where('building_id', $d['building_id'])->exists(), 422, 'Floor must belong to the selected building.');
-        }
-
-        return $d;
+        return $r->validate(['building_id' => ['required', Rule::exists('buildings', 'id')], 'floor_id' => ['nullable', Rule::exists('floors', 'id')->where('building_id', $r->input('building_id'))], 'type' => ['required', Rule::enum(LocationType::class)], 'code' => ['nullable', 'max:100'], 'name' => ['required', 'max:255'], 'description' => ['nullable'], 'is_active' => ['required', 'boolean']], ['floor_id.exists' => 'The selected floor does not belong to the selected building.']);
     }
 
     private function floorData(Request $r, Building $building, ?Floor $floor = null): array
