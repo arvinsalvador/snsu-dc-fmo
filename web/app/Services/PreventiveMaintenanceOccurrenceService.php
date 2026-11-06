@@ -38,7 +38,7 @@ class PreventiveMaintenanceOccurrenceService
         $to = $to->setTimezone($timezone)->startOfDay();
         $created = 0;
 
-        PreventiveMaintenancePlan::query()->with('activeAssignees')->where('is_active', true)
+        PreventiveMaintenancePlan::query()->with('activeAssignees')->where('is_active', true)->where('trigger_type', 'CALENDAR')
             ->whereDate('start_date', '<=', $to)
             ->where(fn ($query) => $query->whereNull('end_date')->orWhereDate('end_date', '>=', $from))
             ->chunkById(100, function ($plans) use ($from, $to, &$created): void {

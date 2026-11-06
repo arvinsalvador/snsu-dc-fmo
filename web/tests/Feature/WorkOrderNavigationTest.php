@@ -123,4 +123,24 @@ class WorkOrderNavigationTest extends TestCase
         $this->assertOnlyActiveNavigation($tasks->getContent(), 'work-orders.my-tasks');
         $this->get('/work-orders')->assertForbidden();
     }
+
+    public function test_list_offers_stage_filters_with_counts_and_detail_shows_lifecycle_progress(): void
+    {
+        $requester = $this->user('Requester');
+        $head = $this->user('FMO Head');
+        $this->order($requester, 'WO-2026-000010');
+        $inProgress = $this->order($requester, 'WO-2026-000011', WorkOrderStatus::InProgress);
+        $this->order($requester, 'WO-2026-000012', WorkOrderStatus::Completed)->update(['urgency' => 'URGENT']);
+        $this->order($requester, 'WO-2026-000013', WorkOrderStatus::Cancelled)->update(['urgency' => 'URGENT']);
+
+        $this->actingAs($head)->get(route('work-orders.index'))->assertOk()
+            ->assertViewHas('stageCounts', fn ($counts) => $counts['review'] === 1 && $counts['active'] === 1 && $counts['completed'] === 1 && $counts['closed'] === 1)
+            ->assertViewHas('urgentOpen', 0)->assertSee('For review')->assertSee('In progress');
+        $this->actingAs($head)->get(route('work-orders.index', ['stage' => 'active']))->assertOk()
+            ->assertSee('WO-2026-000011')->assertDontSee('WO-2026-000010')->assertDontSee('WO-2026-000012');
+        $this->actingAs($head)->get(route('work-orders.index', ['stage' => 'closed']))->assertOk()->assertSee('WO-2026-000013')->assertDontSee('WO-2026-000011');
+
+        $this->actingAs($head)->get(route('work-orders.show', $inProgress))->assertOk()
+            ->assertSee('Work Order progress')->assertSee('Verification')->assertSee('aria-current="step"', false);
+    }
 }

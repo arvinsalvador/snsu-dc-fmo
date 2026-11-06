@@ -25,7 +25,7 @@ class DashboardController extends Controller
         $now = now(config('app.timezone'));
         $due = (clone $base)->whereDate('due_at', $now->toDateString())->whereNotIn('status', ['COMPLETED', 'CANCELLED'])->count();
         $week = (clone $base)->whereBetween('due_at', [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()])->whereNotIn('status', ['COMPLETED', 'CANCELLED'])->count();
-        $overdue = (clone $base)->where('due_at', '<', $now)->whereNotIn('status', [PreventiveMaintenanceStatus::Completed->value, PreventiveMaintenanceStatus::Cancelled->value])->count();
+        $overdue = (clone $base)->where(fn ($late) => $late->where('due_at', '<', $now)->orWhere('status', PreventiveMaintenanceStatus::Overdue->value))->whereNotIn('status', [PreventiveMaintenanceStatus::Completed->value, PreventiveMaintenanceStatus::Cancelled->value])->count();
         $inProgress = (clone $base)->where('status', PreventiveMaintenanceStatus::InProgress->value)->count();
         $completedMonth = (clone $base)->where('status', PreventiveMaintenanceStatus::Completed->value)->whereBetween('completed_at', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()])->count();
         $duePeriods = (clone $base)->where('due_at', '<=', $now)->where('status', '!=', PreventiveMaintenanceStatus::Cancelled->value)->count();

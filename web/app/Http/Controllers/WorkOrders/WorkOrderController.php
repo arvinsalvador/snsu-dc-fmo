@@ -50,6 +50,20 @@ class WorkOrderController extends Controller
         if (! $all) {
             $orders->where('requester_id', $request->user()->id);
         }
+        $stages = [
+            'review' => ['For review', ['SUBMITTED', 'FOR_SCREENING', 'NEEDS_INFORMATION', 'FOR_APPROVAL']],
+            'assignment' => ['Awaiting assignment', ['APPROVED']],
+            'active' => ['In progress', ['ASSIGNED', 'FOR_ASSESSMENT', 'ASSESSMENT_REVIEW', 'READY_FOR_WORK', 'IN_PROGRESS', 'FOR_CONTINUATION', 'PAUSED', 'WAITING_FOR_MATERIALS', 'NEEDS_INVESTIGATION']],
+            'verification' => ['For verification', ['FOR_VERIFICATION']],
+            'completed' => ['Completed', ['COMPLETED']],
+            'closed' => ['Closed', ['DISAPPROVED', 'CANCELLED']],
+        ];
+        $statusCounts = (clone $orders)->reorder()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+        $urgentOpen = (clone $orders)->reorder()->where('urgency', 'URGENT')->whereNotIn('status', ['COMPLETED', 'CANCELLED', 'DISAPPROVED'])->count();
+        $stageCounts = collect($stages)->map(fn (array $stage): int => (int) collect($stage[1])->sum(fn (string $status) => $statusCounts[$status] ?? 0));
+        if ($request->filled('stage') && isset($stages[$request->string('stage')->value()])) {
+            $orders->whereIn('status', $stages[$request->string('stage')->value()][1]);
+        }
         if ($request->filled('search')) {
             $search = $request->string('search')->trim()->value();
             $orders->where(fn ($query) => $query->where('work_order_number', 'like', "%{$search}%")->orWhere('subject', 'like', "%{$search}%"));
@@ -64,7 +78,7 @@ class WorkOrderController extends Controller
             $page->getCollection()->each(fn (WorkOrder $order) => $order->setAttribute('unread_messages_count', $unread->get($order->id, 0)));
         }
 
-        return view('work-orders.index', ['orders' => $page, 'all' => $all]);
+        return view('work-orders.index', ['orders' => $page, 'all' => $all, 'stages' => $stages, 'stageCounts' => $stageCounts, 'urgentOpen' => $urgentOpen]);
     }
 
     public function create(Request $request)

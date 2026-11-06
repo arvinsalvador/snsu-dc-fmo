@@ -22,12 +22,12 @@ class InspectableAsset extends Model
         'asset_code', 'asset_type_id', 'asset_class', 'parent_asset_id', 'name', 'description', 'campus_id', 'building_id', 'floor_id',
         'building_location_id', 'exact_placement', 'brand', 'model', 'serial_number', 'installed_at',
         'inspection_frequency', 'status', 'condition', 'lifecycle_status', 'qr_token', 'qr_regenerated_at',
-        'qr_regenerated_by', 'last_inspected_at', 'notes',
+        'qr_regenerated_by', 'last_inspected_at', 'notes', 'specifications', 'current_odometer_km', 'odometer_updated_at',
     ];
 
     protected function casts(): array
     {
-        return ['installed_at' => 'date', 'last_inspected_at' => 'datetime', 'qr_regenerated_at' => 'datetime',
+        return ['installed_at' => 'date', 'last_inspected_at' => 'datetime', 'qr_regenerated_at' => 'datetime', 'specifications' => 'array', 'odometer_updated_at' => 'datetime',
             'inspection_frequency' => RoutineFrequency::class, 'status' => AssetStatus::class, 'asset_class' => AssetClass::class,
             'condition' => AssetCondition::class, 'lifecycle_status' => AssetLifecycleStatus::class];
     }
@@ -62,6 +62,29 @@ class InspectableAsset extends Model
     public function preventiveMaintenanceOccurrences(): HasMany
     {
         return $this->hasMany(PreventiveMaintenanceOccurrence::class);
+    }
+
+    public function transportRequests(): HasMany
+    {
+        return $this->hasMany(TransportRequest::class);
+    }
+
+    public function isVehicle(): bool
+    {
+        return $this->asset_class === AssetClass::Vehicle;
+    }
+
+    /** A vehicle that may be assigned to a trip: active, serviceable lifecycle, not under repair or disposal. */
+    public function isTripEligible(): bool
+    {
+        return $this->isVehicle()
+            && $this->lifecycle_status === AssetLifecycleStatus::Active
+            && $this->status === AssetStatus::Active;
+    }
+
+    public function specification(string $key): mixed
+    {
+        return data_get($this->specifications, $key);
     }
 
     public function workOrders(): HasMany

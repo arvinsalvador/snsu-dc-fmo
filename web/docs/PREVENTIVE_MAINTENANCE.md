@@ -24,6 +24,19 @@ Frequencies are daily, weekly, monthly, quarterly, semiannual, annual, or a cust
 
 Occurrences snapshot the plan name, type, checklist, readings, evidence rule, verification rule, asset, and assignees. Editing a plan never rewrites completed records. Upcoming tasks are visible but the server rejects start requests before `available_at`.
 
+## Triggers: calendar and odometer
+
+Each plan has a **trigger type**.
+
+- **Calendar** plans use the frequency rules above.
+- **Odometer** plans (Vehicle assets only) fall due by distance. A plan stores the interval (km), the baseline/last service odometer (defaults to the vehicle's current reading), an optional due-soon threshold (defaults to `config('maintenance.odometer_due_soon_km')`, 500 km), and the computed next due odometer (`last service + interval`). The calendar scheduler ignores them.
+
+Plan status against the vehicle's current odometer: **Upcoming** (beyond the threshold), **Due Soon** (within the threshold), **Due** (remaining is 0), **Overdue** (current is past the due mileage). Example: interval 5,000 km, last service 45,000 → due at 50,000; at 48,332 km 1,668 km remain; at 49,850 km it is Due Soon (150 km); at 50,030 km it is Overdue by 30 km.
+
+**Trip → odometer → PM.** Completing a Transport trip updates the vehicle's current odometer (forward only) and recalculates its odometer plans. Once a plan is within its threshold, one open PM occurrence is created (period key `ODO-<due km>`, no due date, `due_odometer_km` set), assigned to the plan's team, and the assignees are notified once as due-soon and once as overdue. An odometer occurrence moves to Overdue when the odometer passes the due mileage. It appears in task lists, the dashboard overdue count, and the asset page like any other PM task.
+
+**Completing an odometer service** requires the odometer reading at service. The plan's last service becomes that reading, the next due becomes reading + interval, and the vehicle's current odometer is raised to the reading if it was lower. Completed services appear in the asset's maintenance history; history never changes when the plan is edited.
+
 ## Assignment and access
 
 Assignments use FMO Personnel IDs. Regular FMO Staff only see and perform assigned occurrences. Each occurrence receives the plan's team once, when it is generated; later scheduler runs never add people to existing occurrences. Changing a plan's team replaces the team on open occurrences that have not started, adds new members to in-progress occurrences without removing the person already performing the work, and leaves completed and cancelled occurrences untouched. FMO Head has full plan, assignment, verification, dashboard, and reporting access. Dispatchers manage schedules and assignments. Oversight and Campus Director roles receive broader read/report access without staff execution authority.

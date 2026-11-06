@@ -63,6 +63,14 @@
                     <a class="nav-link {{ request()->routeIs('work-orders.execution-queue') && request()->route('queue') === 'verification' ? 'nav-link-active' : '' }}" href="{{ route('work-orders.execution-queue', 'verification') }}"><x-icon name="shield-check" /><span>For Verification</span></a>
                 @endcan
 
+                @if ($user->can('transport.request') || $user->can('transport.view_own') || $user->can('transport.view_all'))
+                    <p class="nav-heading">Transportation</p>
+                    @can('transport.request')<a class="nav-link {{ request()->routeIs('transport.create') ? 'nav-link-active' : '' }}" href="{{ route('transport.create') }}"><x-icon name="plus" /><span>New Transport Request</span></a>@endcan
+                    @can('transport.view_own')<a class="nav-link {{ request()->routeIs('transport.mine') ? 'nav-link-active' : '' }}" href="{{ route('transport.mine') }}"><x-icon name="map-pin" /><span>My Trip Requests</span></a>@endcan
+                    @can('transport.view_all')<a class="nav-link {{ request()->routeIs('transport.index') ? 'nav-link-active' : '' }}" href="{{ route('transport.index') }}"><x-icon name="assignment" /><span>Trip Requests</span></a>@endcan
+                    @if ($user->can('transport.history') || $user->can('transport.view_own'))<a class="nav-link {{ request()->routeIs('transport.history') ? 'nav-link-active' : '' }}" href="{{ route('transport.history') }}"><x-icon name="clock" /><span>Trip History</span></a>@endif
+                @endif
+
                 @if ($user->can('routine_tasks.view') || $user->can('routine_tasks.view_all') || $user->can('inspections.view') || $user->can('assets.view') || $user->can('preventive_maintenance.view'))
                     <p class="nav-heading">Routine Operations</p>
                     @can('routine_tasks.view')<a class="nav-link {{ request()->routeIs('routine-tasks.*') ? 'nav-link-active' : '' }}" href="{{ route('routine-tasks.index') }}"><x-icon name="tasks" /><span>My Routine Tasks</span></a>@endcan

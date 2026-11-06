@@ -8,6 +8,7 @@ use App\Enums\WorkOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\WorkOrders\WorkOrderController;
 use App\Models\PreventiveMaintenanceOccurrence;
+use App\Models\PreventiveMaintenancePlan;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderCategory;
 use App\Services\AssetLifecycleService;
@@ -16,6 +17,7 @@ use App\Services\OperationalEvidenceService;
 use App\Services\PreventiveMaintenanceAccessService;
 use App\Services\PreventiveMaintenanceOccurrenceService;
 use App\Services\StoredFileTransaction;
+use App\Services\VehicleOdometerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -63,6 +65,7 @@ class ExecutionController extends Controller
             'guided_outcome' => ['nullable', 'required_with:guided_actions', Rule::in(['RESOLVED', 'PARTIAL', 'WAITING_SUPPLIES', 'PROBLEM_PERSISTS', 'INVESTIGATION'])],
             'other_action' => ['nullable', 'string', 'max:500'],
             'condition_after' => ['required', Rule::enum(AssetCondition::class)],
+            'service_odometer_km' => [Rule::requiredIf($occurrence->due_odometer_km !== null), 'nullable', 'integer', 'min:0', 'max:99999999'],
             'findings' => ['nullable', 'string', 'max:5000'], 'action_performed' => ['nullable', 'string', 'max:5000'],
             'generated_summary' => ['nullable', 'string', 'max:5000'], 'remarks' => ['nullable', 'string', 'max:5000'], 'additional_remarks' => ['nullable', 'string', 'max:5000'],
             'materials_used' => ['nullable', 'string', 'max:5000'], 'recommended_corrective_action' => ['nullable', 'string', 'max:5000'],
@@ -137,8 +140,16 @@ class ExecutionController extends Controller
                     $evidence->attach($execution, $data[$field], $request->user()->id, $purpose);
                 }
             }
-            $occurrence->update(['status' => PreventiveMaintenanceStatus::Completed, 'completed_at' => now()]);
+            $occurrence->update(['status' => PreventiveMaintenanceStatus::Completed, 'completed_at' => now(),
+                'service_odometer_km' => $locked->due_odometer_km !== null ? (int) $data['service_odometer_km'] : null]);
             $asset = $occurrence->asset()->lockForUpdate()->firstOrFail();
+            if ($locked->due_odometer_km !== null) {
+                // The next service falls due one interval after this service, then the vehicle's reading is brought up to date.
+                $plan = PreventiveMaintenancePlan::query()->whereKey($occurrence->preventive_maintenance_plan_id)->lockForUpdate()->firstOrFail();
+                $plan->update(['last_service_odometer_km' => (int) $data['service_odometer_km'],
+                    'next_due_odometer_km' => (int) $data['service_odometer_km'] + (int) $plan->odometer_interval_km]);
+                app(VehicleOdometerService::class)->record($asset, (int) $data['service_odometer_km']);
+            }
             if ($asset->condition->value !== $data['condition_after']) {
                 $lifecycle->transition($asset, $request->user(), 'PREVENTIVE_MAINTENANCE_CONDITION_UPDATED', null, $data['condition_after'], 'Condition updated from preventive maintenance '.$occurrence->plan_name_snapshot.'.');
             } else {

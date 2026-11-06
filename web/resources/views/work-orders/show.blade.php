@@ -42,20 +42,32 @@
 
 <a class="inline-flex min-h-10 items-center text-sm font-semibold text-blue-800 hover:underline" href="{{ $backRoute }}">← Back to {{ $assigned && ! $user->can('work_orders.view_all') ? 'My Tasks' : 'Work Orders' }}</a>
 
-<header class="mt-4 border-b border-slate-200 pb-6">
-    <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-        <div class="min-w-0">
-            <p class="detail-kicker">{{ $order->work_order_number }}</p>
-            <h1 class="mt-2 text-balance">{{ $order->subject }}</h1>
-            <p class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600"><span>{{ $order->category->name }}</span><span aria-hidden="true">•</span><span>{{ $order->building->name }}</span><span aria-hidden="true">•</span><span>Submitted {{ $order->submitted_at?->timezone('Asia/Manila')->format('M j, Y') }}</span></p>
-            @if ($order->floor || $order->location)<p class="mt-2 text-sm font-medium text-slate-700">{{ $order->location?->name ?? 'Building-wide concern' }}@if($order->floor) · {{ $order->floor->name }}@endif</p>@endif
+<header class="app-card mt-4 overflow-hidden">
+    <div class="p-5 sm:p-6">
+        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+            <div class="flex min-w-0 items-start gap-4">
+                <span class="hidden size-12 shrink-0 place-items-center rounded-2xl bg-blue-700 text-white shadow-xs sm:grid"><x-icon name="clipboard" size="size-6" /></span>
+                <div class="min-w-0">
+                    <p class="detail-kicker">{{ $order->work_order_number }}</p>
+                    <h1 class="mt-1.5 text-balance">{{ $order->subject }}</h1>
+                    <ul class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-600">
+                        <li class="inline-flex items-center gap-1.5"><x-icon name="tag" size="size-4" class="text-slate-400" />{{ $order->category->name }}</li>
+                        <li class="inline-flex items-center gap-1.5"><x-icon name="map-pin" size="size-4" class="text-slate-400" />{{ $order->building->name }}@if($order->floor || $order->location) · {{ $order->location?->name ?? 'Building-wide concern' }}@if($order->floor) · {{ $order->floor->name }}@endif @endif</li>
+                        <li class="inline-flex items-center gap-1.5"><x-icon name="calendar" size="size-4" class="text-slate-400" />Submitted {{ $order->submitted_at?->timezone('Asia/Manila')->format('M j, Y') }}</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="flex shrink-0 flex-wrap items-center gap-2">
+                @if ($order->urgency === 'URGENT')<span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-800 ring-1 ring-inset ring-rose-200"><x-icon name="warning" size="size-4" />Urgent</span>@endif
+                <x-status-badge :status="$order->status" />
+            </div>
         </div>
-        <x-status-badge :status="$order->status" />
     </div>
+    <div class="border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6"><x-work-order-progress :order="$order" /></div>
 </header>
 
 <section class="status-panel mt-6">
-    <p class="detail-kicker">Current status</p>
+    <p class="detail-kicker flex items-center gap-2"><x-icon name="info" size="size-4" />Current status</p>
     <div class="mt-2 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div class="max-w-3xl"><h2 class="text-2xl">{{ $statusCopy[0] }}</h2><p class="mt-2 leading-7 text-slate-700">{{ $statusCopy[1] }}</p></div>
         <div class="shrink-0">
@@ -103,8 +115,20 @@
             <p class="detail-kicker">Request overview</p><h2 class="mt-1 text-xl">Request Details</h2>
             @if($order->workflowEvents->contains('action', 'HISTORICAL_IMPORT'))<x-alert type="info" title="Historical logbook record" class="mt-5">Imported for development reference from a manual FMO logbook.</x-alert>@endif
             @if($order->preventiveMaintenanceOccurrence)<x-alert type="info" title="Originating Preventive Maintenance" class="mt-5">Created from <a class="font-semibold underline" href="{{ route('preventive-maintenance.tasks.show',$order->preventiveMaintenanceOccurrence) }}">{{ $order->preventiveMaintenanceOccurrence->plan_name_snapshot }}</a> for <a class="font-semibold underline" href="{{ route('assets.show',$order->preventiveMaintenanceOccurrence->asset) }}">{{ $order->preventiveMaintenanceOccurrence->asset->asset_code }} — {{ $order->preventiveMaintenanceOccurrence->asset->name }}</a>.</x-alert>@endif
-            <dl class="mt-5 grid gap-4 sm:grid-cols-2"><div><dt class="detail-label">Work type</dt><dd class="detail-value">{{ $order->category->name }}</dd></div><div><dt class="detail-label">Priority</dt><dd class="detail-value">{{ ucfirst(strtolower($order->urgency)) }}</dd></div><div><dt class="detail-label">Requester</dt><dd class="detail-value">{{ $order->requester->name }}</dd></div><div><dt class="detail-label">Date submitted</dt><dd class="detail-value">{{ $order->submitted_at?->timezone('Asia/Manila')->format('F j, Y · g:i A') }}</dd></div></dl>
-            <div class="mt-6 border-t border-slate-100 pt-5"><h3 class="detail-label">Problem description</h3><p class="mt-3 whitespace-pre-line text-base leading-7 text-slate-700">{{ $order->description }}</p></div>
+            <dl class="mt-5 grid gap-3 sm:grid-cols-2">
+                @foreach ([
+                    ['Work type', $order->category->name, 'tag', false],
+                    ['Priority', ucfirst(strtolower($order->urgency)), 'warning', $order->urgency === 'URGENT'],
+                    ['Requester', $order->requester->name, 'user', false],
+                    ['Date submitted', $order->submitted_at?->timezone('Asia/Manila')->format('F j, Y · g:i A'), 'calendar', false],
+                ] as [$label, $value, $icon, $alert])
+                    <div class="flex items-start gap-3 rounded-xl border p-3.5 {{ $alert ? 'border-rose-200 bg-rose-50/60' : 'border-slate-100 bg-slate-50/70' }}">
+                        <span class="grid size-9 shrink-0 place-items-center rounded-lg {{ $alert ? 'bg-rose-100 text-rose-700' : 'bg-white text-blue-700 ring-1 ring-slate-200' }}"><x-icon :name="$icon" size="size-4" /></span>
+                        <div class="min-w-0"><dt class="detail-label">{{ $label }}</dt><dd class="mt-0.5 text-sm font-semibold text-slate-900">{{ $value }}</dd></div>
+                    </div>
+                @endforeach
+            </dl>
+            <div class="mt-6"><h3 class="detail-label">Problem description</h3><div class="mt-2 rounded-xl border-l-4 border-blue-300 bg-slate-50 px-5 py-4"><p class="whitespace-pre-line text-base leading-7 text-slate-800">{{ $order->description }}</p></div></div>
         </section>
 
         @if ($operational)
@@ -180,13 +204,25 @@
     </main>
 
     <aside class="space-y-6 xl:sticky xl:top-24">
-        <section class="section-card"><p class="detail-kicker">Where</p><h2 class="mt-1 text-lg">Location</h2><ol class="mt-4 space-y-3 text-sm"><li><span class="detail-label block">Campus</span><span class="detail-value">{{ $order->campus->name }}</span></li><li class="border-l-2 border-blue-200 pl-4"><span class="detail-label block">Building</span><span class="detail-value">{{ $order->building->name }}</span></li><li class="border-l-2 border-blue-200 pl-4"><span class="detail-label block">Floor</span><span class="detail-value">{{ $order->floor?->name ?? 'Building-wide concern' }}</span></li><li class="border-l-2 border-blue-200 pl-4"><span class="detail-label block">Area</span><span class="detail-value">{{ $order->location?->name ?? 'No specific room or area' }}</span></li></ol></section>
+        <section class="section-card"><p class="detail-kicker">Where</p><h2 class="mt-1 text-lg">Location</h2>
+            <ol class="mt-4 space-y-1">
+                @foreach ([['Campus', $order->campus->name, 'building'], ['Building', $order->building->name, 'building'], ['Floor', $order->floor?->name ?? 'Building-wide concern', 'floor'], ['Area', $order->location?->name ?? 'No specific room or area', 'map-pin']] as [$label, $value, $icon])
+                    <li class="flex items-start gap-3 rounded-lg px-2 py-2"><span class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-700"><x-icon :name="$icon" size="size-4" /></span><div class="min-w-0"><span class="detail-label block">{{ $label }}</span><span class="detail-value !mt-0.5 block">{{ $value }}</span></div></li>
+                @endforeach
+            </ol></section>
 
         <section class="section-card"><p class="detail-kicker">Responsibility</p><h2 class="mt-1 text-lg">People</h2><div class="mt-4 space-y-4"><div><p class="detail-label mb-2">Requester</p><div class="person-row"><span class="person-avatar">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($order->requester->name, 0, 1)) }}</span><div><p class="text-sm font-semibold">{{ $order->requester->name }}</p><p class="mt-0.5 text-xs text-slate-500">{{ $order->requester->requesterProfile?->department ?? $order->requester->requesterProfile?->organizational_office ?? ucfirst($order->requester->user_type) }}</p></div></div></div>
-            <div><p class="detail-label mb-2">Requester Personnel Preferences</p><div class="space-y-2">@forelse ($order->preferredPersonnel as $preferred)<div class="person-row"><span class="person-avatar !bg-amber-100 !text-amber-800">☆</span><div class="min-w-0"><p class="text-sm font-semibold text-slate-900">{{ $preferred->user->name }}</p><p class="mt-1 text-xs leading-5 text-slate-600" title="{{ $preferred->skillSummary(PHP_INT_MAX, true) }}">{{ $preferred->skillSummary(3, true) }}</p></div></div>@empty<p class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No personnel preference was submitted.</p>@endforelse<p class="text-xs font-medium text-amber-700">Advisory only</p></div></div>
+            <div><p class="detail-label mb-2">Requester Personnel Preferences</p><div class="space-y-2">@forelse ($order->preferredPersonnel as $preferred)<div class="person-row"><span class="person-avatar !bg-amber-100 !text-amber-800"><x-icon name="heart" size="size-4" /></span><div class="min-w-0"><p class="text-sm font-semibold text-slate-900">{{ $preferred->user->name }}</p><p class="mt-1 text-xs leading-5 text-slate-600" title="{{ $preferred->skillSummary(PHP_INT_MAX, true) }}">{{ $preferred->skillSummary(3, true) }}</p></div></div>@empty<p class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No personnel preference was submitted.</p>@endforelse<p class="text-xs font-medium text-amber-700">Advisory only</p></div></div>
             <div><p class="detail-label mb-2">Assigned FMO team</p><div class="space-y-2">@forelse($order->activeAssignments as $assignment)<div class="person-row"><span class="person-avatar">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($assignment->personnel->user->name, 0, 1)) }}</span><div><p class="text-sm font-semibold">{{ $assignment->personnel->user->name }}</p><p class="mt-0.5 text-xs text-slate-500">{{ $assignment->personnel->designation ?: 'FMO Personnel' }}</p></div></div>@empty<p class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">Awaiting FMO personnel assignment.</p>@endforelse</div></div></div></section>
 
-        <section class="section-card"><p class="detail-kicker">Additional details</p><h2 class="mt-1 text-lg">Work Order Info</h2><dl class="mt-4 space-y-4"><div><dt class="detail-label">Work Order number</dt><dd class="detail-value">{{ $order->work_order_number }}</dd></div><div><dt class="detail-label">Urgency</dt><dd class="detail-value">{{ ucfirst(strtolower($order->urgency)) }}</dd></div><div><dt class="detail-label">Last updated</dt><dd class="detail-value">{{ $order->updated_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') }}</dd></div>@if($management && $order->recommendation)<div><dt class="detail-label">Screening recommendation</dt><dd class="detail-value">{{ \Illuminate\Support\Str::of($order->recommendation)->replace('_', ' ')->title() }}</dd></div>@endif</dl></section>
+        <section class="section-card"><p class="detail-kicker">Additional details</p><h2 class="mt-1 text-lg">Work Order Info</h2>
+            <dl class="mt-4 divide-y divide-slate-100 text-sm">
+                <div class="flex items-center justify-between gap-3 py-2.5"><dt class="detail-label">Work Order number</dt><dd class="font-semibold text-slate-900">{{ $order->work_order_number }}</dd></div>
+                <div class="flex items-center justify-between gap-3 py-2.5"><dt class="detail-label">Urgency</dt><dd>@if ($order->urgency === 'URGENT')<span class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800 ring-1 ring-inset ring-rose-200">Urgent</span>@else<span class="font-semibold text-slate-900">{{ ucfirst(strtolower($order->urgency)) }}</span>@endif</dd></div>
+                <div class="flex items-center justify-between gap-3 py-2.5"><dt class="detail-label">Open for</dt><dd class="font-semibold text-slate-900">{{ ($order->status === \App\Enums\WorkOrderStatus::Completed ? $order->verified_at : null) ? $order->submitted_at?->diffForHumans($order->verified_at, true) : $order->submitted_at?->diffForHumans(null, true) }}</dd></div>
+                <div class="flex items-start justify-between gap-3 py-2.5"><dt class="detail-label">Last updated</dt><dd class="text-right font-semibold text-slate-900">{{ $order->updated_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') }}</dd></div>
+                @if ($management && $order->recommendation)<div class="flex items-center justify-between gap-3 py-2.5"><dt class="detail-label">Screening recommendation</dt><dd class="text-right font-semibold text-slate-900">{{ \Illuminate\Support\Str::of($order->recommendation)->replace('_', ' ')->title() }}</dd></div>@endif
+            </dl></section>
     </aside>
 </div>
 

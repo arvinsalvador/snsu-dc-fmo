@@ -180,8 +180,20 @@ class RoutineOperationsSeeder extends Seeder
             ['code' => 'EL', 'name' => 'Emergency Light', 'checklist' => $this->checks(['Unit present', 'Housing intact', 'Charging indicator normal', 'Light activates', 'Battery backup functions', 'Mounting secure']), 'result_options' => ['GOOD', 'NEEDS_ATTENTION', 'DEFECTIVE', 'MISSING', 'OUT_OF_SERVICE'], 'is_active' => true],
             ['code' => 'AC', 'name' => 'Air Conditioner', 'checklist' => $this->checks(['Unit present', 'Filter condition acceptable', 'Cooling functions', 'No unusual noise', 'No visible leak', 'Mounting secure']), 'result_options' => ['GOOD', 'NEEDS_ATTENTION', 'DEFECTIVE', 'MISSING', 'OUT_OF_SERVICE'], 'is_active' => true],
             ['code' => 'WF', 'name' => 'Wall Fan', 'checklist' => $this->checks(['Unit present', 'Guard intact', 'Blades unobstructed', 'Speed controls work', 'Mounting secure']), 'result_options' => ['GOOD', 'NEEDS_ATTENTION', 'DEFECTIVE', 'MISSING', 'OUT_OF_SERVICE'], 'is_active' => true],
+            ...$this->vehicleTypes(),
             ['code' => 'CF', 'name' => 'Ceiling Fan', 'checklist' => $this->checks(['Unit present', 'Blades intact', 'No excessive vibration', 'Speed controls work', 'Mounting secure']), 'result_options' => ['GOOD', 'NEEDS_ATTENTION', 'DEFECTIVE', 'MISSING', 'OUT_OF_SERVICE'], 'is_active' => true],
         ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function vehicleTypes(): array
+    {
+        $checklist = $this->checks(['Exterior condition acceptable', 'Tires and lights acceptable', 'Fluids and battery acceptable', 'Brakes and steering responsive', 'Interior and safety equipment complete']);
+        $results = ['GOOD', 'NEEDS_ATTENTION', 'DEFECTIVE', 'MISSING', 'OUT_OF_SERVICE'];
+
+        return collect(['VAN' => 'Van', 'UV' => 'Utility Vehicle', 'SUV' => 'SUV', 'PICKUP' => 'Pickup', 'MOTO' => 'Motorcycle', 'OTHERVEH' => 'Other Vehicle'])
+            ->map(fn (string $name, string $code): array => ['code' => $code, 'name' => $name, 'checklist' => $checklist, 'result_options' => $results, 'is_active' => true])
+            ->values()->all();
     }
 
     private function checks(array $labels): array

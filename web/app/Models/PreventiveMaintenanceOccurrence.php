@@ -18,7 +18,7 @@ class PreventiveMaintenanceOccurrence extends Model
 
     protected $appends = ['is_overdue', 'is_startable'];
 
-    protected $fillable = ['preventive_maintenance_plan_id', 'inspectable_asset_id', 'period_key', 'scheduled_period_start', 'scheduled_period_end', 'available_at', 'due_at', 'status', 'plan_name_snapshot', 'maintenance_type_snapshot', 'checklist_snapshot', 'reading_snapshot', 'evidence_required_snapshot', 'verification_required_snapshot', 'started_at', 'completed_at', 'verified_at', 'verified_by', 'verification_note', 'due_notice_sent_at', 'overdue_notice_sent_at'];
+    protected $fillable = ['preventive_maintenance_plan_id', 'inspectable_asset_id', 'period_key', 'scheduled_period_start', 'scheduled_period_end', 'available_at', 'due_at', 'due_odometer_km', 'service_odometer_km', 'status', 'plan_name_snapshot', 'maintenance_type_snapshot', 'checklist_snapshot', 'reading_snapshot', 'evidence_required_snapshot', 'verification_required_snapshot', 'started_at', 'completed_at', 'verified_at', 'verified_by', 'verification_note', 'due_notice_sent_at', 'overdue_notice_sent_at'];
 
     protected function casts(): array
     {
@@ -57,9 +57,12 @@ class PreventiveMaintenanceOccurrence extends Model
 
     public function isOverdue(?CarbonInterface $at = null): bool
     {
+        if ($this->due_odometer_km !== null) {
+            return ! $this->status->isClosed() && $this->status === PreventiveMaintenanceStatus::Overdue;
+        }
         $at ??= now(config('app.timezone'));
 
-        return $this->due_at->lt($at) && ! $this->status->isClosed();
+        return $this->due_at?->lt($at) === true && ! $this->status->isClosed();
     }
 
     public function isStartable(?CarbonInterface $at = null): bool

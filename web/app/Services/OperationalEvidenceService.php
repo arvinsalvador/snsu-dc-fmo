@@ -20,10 +20,12 @@ class OperationalEvidenceService
                     'AssetActionRequest' => 'asset-action-evidence/'.$target->id,
                     'AssetMaintenanceRecord' => 'asset-maintenance-evidence/'.$target->id,
                     'PreventiveMaintenanceExecution' => 'preventive-maintenance-evidence/'.$target->id,
+                    'TransportRequest' => 'transport-evidence/'.$target->id,
                     default => 'routine-evidence/'.$target->id,
                 };
                 $target->attachments()->create($this->media->store($upload, $directory, 'evidence') + [
-                    'uploaded_by' => $userId, 'purpose' => $purpose, 'evidence_type' => 'PHOTO',
+                    'uploaded_by' => $userId, 'purpose' => $purpose,
+                    'evidence_type' => str_starts_with((string) $upload->getMimeType(), 'image/') ? 'PHOTO' : 'DOCUMENT',
                 ]);
             }
         });

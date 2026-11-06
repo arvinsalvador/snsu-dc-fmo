@@ -128,6 +128,18 @@
         @case('floor')
             <path d="m3 8 9-5 9 5-9 5ZM3 13l9 5 9-5M3 17l9 5 9-5" />
             @break
+        @case('truck')
+            <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h8A1.5 1.5 0 0 1 14 6.5V16H3ZM14 9h3.6a1.5 1.5 0 0 1 1.2.6l1.7 2.3a1.5 1.5 0 0 1 .3.9V16H14Z" /><circle cx="7.5" cy="17.5" r="2" /><circle cx="17" cy="17.5" r="2" />
+            @break
+        @case('arrow-right')
+            <path d="M5 12h14M13 6l6 6-6 6" />
+            @break
+        @case('gauge')
+            <path d="M4.5 18a8.5 8.5 0 1 1 15 0" /><path d="m12 13 4-4" /><circle cx="12" cy="14" r="1" />
+            @break
+        @case('paperclip')
+            <path d="m21 11.5-8.6 8.6a5 5 0 0 1-7.1-7.1l8.9-8.9a3.4 3.4 0 0 1 4.8 4.8l-8.9 8.9a1.7 1.7 0 0 1-2.4-2.4l8.2-8.2" />
+            @break
         @default
             <circle cx="12" cy="12" r="9" />
     @endswitch

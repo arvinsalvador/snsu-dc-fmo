@@ -21,7 +21,7 @@ class TaskController extends Controller
             ->orderBy('due_at');
         $access->scope($query, $request->user());
         $summary = [
-            'overdue' => (clone $query)->open()->where('due_at', '<', now(config('app.timezone')))->count(),
+            'overdue' => (clone $query)->open()->where(fn ($overdue) => $overdue->where('due_at', '<', now(config('app.timezone')))->orWhere('status', PreventiveMaintenanceStatus::Overdue->value))->count(),
             'available' => (clone $query)->where('status', PreventiveMaintenanceStatus::Available->value)->count(),
             'in_progress' => (clone $query)->where('status', PreventiveMaintenanceStatus::InProgress->value)->count(),
             'upcoming' => (clone $query)->where('status', PreventiveMaintenanceStatus::Upcoming->value)->count(),
@@ -29,7 +29,7 @@ class TaskController extends Controller
         if ($request->filled('status')) {
             $status = $request->string('status')->value();
             if ($status === PreventiveMaintenanceStatus::Overdue->value) {
-                $query->open()->where('due_at', '<', now(config('app.timezone')));
+                $query->open()->where(fn ($overdue) => $overdue->where('due_at', '<', now(config('app.timezone')))->orWhere('status', PreventiveMaintenanceStatus::Overdue->value));
             } else {
                 $query->where('status', $status);
             }

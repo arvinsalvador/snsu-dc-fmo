@@ -158,6 +158,15 @@ class AuthorizationSeeder extends Seeder
             ]);
         }
 
+        foreach (['Requester', 'FMO Staff', 'FMO Dispatcher', 'FMO Head', 'Campus Director', 'Director for Instruction', 'FMO Oversight'] as $role) {
+            Role::findByName($role, 'web')->givePermissionTo(['transport.request', 'transport.view_own']);
+        }
+        Role::findByName('FMO Staff', 'web')->givePermissionTo(['transport.update_assigned_trip', 'transport.complete_assigned_trip']);
+        Role::findByName('FMO Head', 'web')->givePermissionTo(['transport.approve', 'transport.dispatch', 'transport.view_all', 'transport.history']);
+        Role::findByName('Campus Director', 'web')->givePermissionTo(['transport.approve', 'transport.view_all', 'transport.history']);
+        Role::findByName('FMO Dispatcher', 'web')->givePermissionTo(['transport.approve_delegated', 'transport.dispatch', 'transport.view_all', 'transport.history']);
+        Role::findByName('FMO Oversight', 'web')->givePermissionTo(['transport.view_all', 'transport.history']);
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

@@ -10,8 +10,10 @@ use App\Models\InspectionItem;
 use App\Models\OperationalAttachment;
 use App\Models\PreventiveMaintenanceExecution;
 use App\Models\RoutineTaskOccurrence;
+use App\Models\TransportRequest;
 use App\Services\PreventiveMaintenanceAccessService;
 use App\Services\RoutineTaskAccessService;
+use App\Services\TransportAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -34,6 +36,14 @@ class OperationalAttachmentController extends Controller
         } elseif ($target instanceof PreventiveMaintenanceExecution) {
             $target->loadMissing('occurrence');
             abort_unless($request->user()->can('preventive_maintenance.view_all') || ($request->user()->can('preventive_maintenance.view') && $pmAccess->assignedTo($target->occurrence, $request->user())), 403);
+        } elseif ($target instanceof TransportRequest) {
+            $transport = app(TransportAccessService::class);
+            $user = $request->user();
+            abort_unless(match ($attachment->purpose) {
+                TransportRequest::APPROVAL_EVIDENCE_PURPOSE => $transport->canSeeApprovalEvidence($user),
+                TransportRequest::DOCUMENT_PURPOSE => $transport->canView($target, $user),
+                default => $transport->canSeeTripDocuments($target, $user),
+            }, 403);
         } else {
             abort(404);
         }

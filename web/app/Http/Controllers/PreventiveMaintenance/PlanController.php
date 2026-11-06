@@ -5,15 +5,18 @@ namespace App\Http\Controllers\PreventiveMaintenance;
 use App\Enums\PreventiveMaintenanceFrequency;
 use App\Enums\PreventiveMaintenanceStatus;
 use App\Http\Controllers\Controller;
+use App\Models\AssetType;
 use App\Models\FmoPersonnel;
 use App\Models\InspectableAsset;
 use App\Models\PreventiveMaintenanceOccurrence;
 use App\Models\PreventiveMaintenancePlan;
 use App\Models\PreventiveMaintenanceTemplate;
+use App\Services\OdometerMaintenanceService;
 use App\Services\PreventiveMaintenanceOccurrenceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class PlanController extends Controller
 {
@@ -22,13 +25,18 @@ class PlanController extends Controller
         abort_unless($request->user()->can('preventive_maintenance.view_all'), 403);
         $plans = PreventiveMaintenancePlan::with(['asset.assetType', 'asset.building', 'activeAssignees.user'])
             ->withCount('occurrences')
+            ->withMin(['occurrences as next_due_at' => fn ($query) => $query->open()->whereNotNull('due_at')], 'due_at')
             ->when($request->filled('q'), fn ($query) => $query->where(fn ($inner) => $inner
                 ->where('name', 'like', '%'.$request->string('q').'%')
                 ->orWhereHas('asset', fn ($asset) => $asset->where('name', 'like', '%'.$request->string('q').'%')->orWhere('asset_code', 'like', '%'.$request->string('q').'%'))))
             ->when($request->filled('status'), fn ($query) => $query->where('is_active', $request->string('status')->value() === 'ACTIVE'))
+            ->when($request->filled('trigger'), fn ($query) => $query->where('trigger_type', $request->string('trigger')->value() === 'ODOMETER' ? 'ODOMETER' : 'CALENDAR'))
+            ->when($request->filled('asset_class'), fn ($query) => $query->whereHas('asset', fn ($asset) => $asset->where('asset_class', $request->string('asset_class')->value())))
+            ->when($request->filled('asset_type'), fn ($query) => $query->whereHas('asset', fn ($asset) => $asset->where('asset_type_id', $request->string('asset_type')->value())))
             ->latest()->paginate($this->perPage($request))->withQueryString();
+        $assetTypes = AssetType::orderBy('name')->get(['id', 'name']);
 
-        return view('preventive-maintenance.plans.index', compact('plans'));
+        return view('preventive-maintenance.plans.index', compact('plans', 'assetTypes'));
     }
 
     public function create(Request $request)
@@ -87,6 +95,9 @@ class PlanController extends Controller
         $now = now(config('app.timezone'))->toImmutable();
         $from = $generator->currentPeriodStart($plan, $now);
         $generator->generate($from, $now->addDays(30)->max($from));
+        if ($plan->isOdometerBased()) {
+            app(OdometerMaintenanceService::class)->recalculate($plan->asset->fresh());
+        }
 
         return redirect()->route('preventive-maintenance.plans.index')->with('status', 'Preventive maintenance plan created and current tasks generated.');
     }
@@ -102,13 +113,16 @@ class PlanController extends Controller
     public function update(Request $request, PreventiveMaintenancePlan $plan, PreventiveMaintenanceOccurrenceService $generator)
     {
         abort_unless($request->user()->can('preventive_maintenance.manage_plans'), 403);
-        $data = $this->validated($request);
+        $data = $this->validated($request, $plan);
         DB::transaction(function () use ($plan, $data, $request): void {
             $plan->update($data);
             $this->syncAssignments($plan, $data['assignee_ids'], $request->user()->id);
         });
         $now = now(config('app.timezone'))->toImmutable();
         $generator->generate($generator->currentPeriodStart($plan->fresh(), $now), $now->addDays(30));
+        if ($plan->fresh()->isOdometerBased()) {
+            app(OdometerMaintenanceService::class)->recalculate($plan->asset->fresh());
+        }
 
         return redirect()->route('preventive-maintenance.plans.index')->with('status', 'Plan updated. Completed maintenance records were not changed.');
     }
@@ -124,19 +138,25 @@ class PlanController extends Controller
         return back()->with('status', 'Plan deactivated. Existing history was preserved.');
     }
 
-    private function validated(Request $request): array
+    private function validated(Request $request, ?PreventiveMaintenancePlan $existing = null): array
     {
+        $calendar = $request->input('trigger_type', 'CALENDAR') !== 'ODOMETER';
+        $odometer = ! $calendar;
         $data = $request->validate([
+            'trigger_type' => ['nullable', Rule::in(['CALENDAR', 'ODOMETER'])],
+            'odometer_interval_km' => [Rule::requiredIf($odometer), 'nullable', 'integer', 'min:1', 'max:1000000'],
+            'last_service_odometer_km' => ['nullable', 'integer', 'min:0', 'max:99999999'],
+            'due_soon_km' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'inspectable_asset_id' => ['required', 'exists:inspectable_assets,id'],
             'template_id' => ['nullable', 'exists:preventive_maintenance_templates,id'],
             'name' => ['required', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:5000'],
             'maintenance_type' => ['required', 'string', 'max:40'],
-            'frequency_type' => ['required', Rule::enum(PreventiveMaintenanceFrequency::class)],
-            'interval_value' => ['required', 'integer', 'min:1', 'max:365'],
+            'frequency_type' => [Rule::requiredIf($calendar), 'nullable', Rule::enum(PreventiveMaintenanceFrequency::class)],
+            'interval_value' => [Rule::requiredIf($calendar), 'nullable', 'integer', 'min:1', 'max:365'],
             'month_day' => ['nullable', 'integer', 'min:1', 'max:31'], 'weekday' => ['nullable', 'integer', 'min:1', 'max:7'],
             'custom_unit' => ['nullable', Rule::in(['DAY', 'WEEK', 'MONTH'])],
-            'start_date' => ['required', 'date'], 'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
-            'available_time' => ['required', 'date_format:H:i'], 'due_time' => ['required', 'date_format:H:i', 'after:available_time'],
+            'start_date' => [Rule::requiredIf($calendar), 'nullable', 'date'], 'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'available_time' => [Rule::requiredIf($calendar), 'nullable', 'date_format:H:i'], 'due_time' => [Rule::requiredIf($calendar), 'nullable', 'date_format:H:i', 'after:available_time'],
             'checklist_label' => ['required', 'array', 'min:1'], 'checklist_label.*' => ['required', 'string', 'max:255'],
             'reading_label' => ['nullable', 'array'], 'reading_label.*' => ['nullable', 'string', 'max:255'],
             'reading_unit' => ['nullable', 'array'], 'reading_unit.*' => ['nullable', 'string', 'max:30'],
@@ -153,9 +173,38 @@ class PlanController extends Controller
         $data['verification_required'] = $request->boolean('verification_required');
         $data['is_active'] = $request->boolean('is_active', true);
         $data['save_as_template'] = $request->boolean('save_as_template');
+        $this->applyTrigger($data, $odometer, $existing);
         unset($data['month_day'], $data['weekday'], $data['custom_unit'], $data['checklist_label'], $data['reading_label'], $data['reading_unit']);
 
         return $data;
+    }
+
+    /**
+     * Calendar plans clear the mileage fields; odometer plans take placeholder schedule values and a computed next-due mileage.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function applyTrigger(array &$data, bool $odometer, ?PreventiveMaintenancePlan $existing): void
+    {
+        $data['trigger_type'] = $odometer ? 'ODOMETER' : 'CALENDAR';
+        if (! $odometer) {
+            $data['odometer_interval_km'] = $data['last_service_odometer_km'] = $data['due_soon_km'] = $data['next_due_odometer_km'] = null;
+
+            return;
+        }
+        $asset = InspectableAsset::findOrFail($data['inspectable_asset_id']);
+        if (! $asset->isVehicle()) {
+            throw ValidationException::withMessages(['inspectable_asset_id' => 'Odometer-based maintenance can only be set on Vehicle assets.']);
+        }
+        $baseline = $data['last_service_odometer_km'] ?? $existing?->last_service_odometer_km ?? $asset->current_odometer_km ?? 0;
+        $data['last_service_odometer_km'] = (int) $baseline;
+        $data['next_due_odometer_km'] = (int) $baseline + (int) $data['odometer_interval_km'];
+        $data['frequency_type'] = PreventiveMaintenanceFrequency::Custom->value;
+        $data['interval_value'] = 1;
+        $data['recurrence_config'] = ['unit' => 'MONTH'];
+        $data['start_date'] ??= now(config('app.timezone'))->toDateString();
+        $data['available_time'] ??= '08:00';
+        $data['due_time'] ??= '17:00';
     }
 
     private function syncAssignments(PreventiveMaintenancePlan $plan, array $ids, int $actorId): void

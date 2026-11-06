@@ -8,6 +8,7 @@ use App\Models\AssetMaintenanceRecord;
 use App\Models\InspectableAsset;
 use App\Models\InspectionItem;
 use App\Models\PreventiveMaintenanceOccurrence;
+use App\Models\TransportRequest;
 use App\Models\WorkOrder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder;
@@ -30,6 +31,7 @@ class AssetMaintenanceHistoryService
         'REPAIR_RECORD' => AssetMaintenanceRecord::class,
         'LIFECYCLE' => AssetLifecycleEvent::class,
         'WORK_ORDER' => WorkOrder::class,
+        'TRIP' => TransportRequest::class,
     ];
 
     /** @var array<string, array<int, string>> */
@@ -39,6 +41,7 @@ class AssetMaintenanceHistoryService
         'REPAIR_RECORD' => ['asset'],
         'LIFECYCLE' => ['asset'],
         'WORK_ORDER' => ['asset'],
+        'TRIP' => ['vehicle', 'driver.user'],
     ];
 
     /** Chronological history for an asset and its immediate child components, paginated by the database. */
@@ -88,7 +91,10 @@ class AssetMaintenanceHistoryService
                 ->whereIn('inspectable_asset_id', $assetIds)->whereNotIn('event', self::DUPLICATE_LIFECYCLE_EVENTS))
             ->unionAll(DB::table('work_orders')
                 ->selectRaw("'WORK_ORDER' as source, id, COALESCE(verified_at, submitted_at) as event_at")
-                ->whereIn('inspectable_asset_id', $assetIds));
+                ->whereIn('inspectable_asset_id', $assetIds))
+            ->unionAll(DB::table('transport_requests')
+                ->selectRaw("'TRIP' as source, id, COALESCE(actual_arrived_at, completed_at) as event_at")
+                ->whereIn('inspectable_asset_id', $assetIds)->where('status', 'COMPLETED'));
     }
 
     /** @return array{date: mixed, type: string, title: string, asset: ?string, summary: ?string, reference: ?string} */
@@ -113,6 +119,16 @@ class AssetMaintenanceHistoryService
             'LIFECYCLE' => [
                 'date' => $model->created_at, 'type' => $model->event, 'title' => str($model->event)->replace('_', ' ')->title()->value(), 'asset' => $model->asset?->name,
                 'summary' => $model->remarks, 'reference' => null,
+            ],
+            'TRIP' => [
+                'date' => $model->actual_arrived_at ?: $model->completed_at, 'type' => 'TRIP_COMPLETED', 'title' => 'Official Trip Completed', 'asset' => $model->vehicle?->name,
+                'summary' => collect([
+                    'Route: '.$model->route(),
+                    $model->driver?->user ? 'Driver: '.$model->driver->user->name : null,
+                    $model->distance_km !== null ? 'Distance: '.number_format($model->distance_km).' km' : null,
+                    $model->odometer_after !== null ? 'Odometer: '.number_format($model->odometer_after).' km' : null,
+                ])->filter()->join(' · '),
+                'reference' => $model->request_number,
             ],
             'WORK_ORDER' => [
                 'date' => $model->verified_at ?: $model->submitted_at, 'type' => $model->verified_at ? 'REPAIR_COMPLETED' : 'CORRECTIVE_WORK_ORDER',

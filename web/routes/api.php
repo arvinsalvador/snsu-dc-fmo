@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\PersonnelController;
 use App\Http\Controllers\Api\PreventiveMaintenanceController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\RoutineOperationsController;
+use App\Http\Controllers\Api\TransportRequestController;
 use App\Http\Controllers\Api\WorkOrderAssessmentController;
 use App\Http\Controllers\Api\WorkOrderAssignmentController;
 use App\Http\Controllers\Api\WorkOrderCategoryController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\Auth\ApiAuthController;
 use App\Http\Controllers\CommunicationAttachmentController;
 use App\Http\Controllers\RoutineOperations\AssetActionController;
 use App\Http\Controllers\RoutineOperations\AssetInspectionController;
+use App\Http\Controllers\RoutineOperations\OperationalAttachmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -53,6 +55,16 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/preventive-maintenance/tasks/{occurrence}', [PreventiveMaintenanceController::class, 'task']);
         Route::post('/preventive-maintenance/tasks/{occurrence}/start', [PreventiveMaintenanceController::class, 'start']);
         Route::post('/preventive-maintenance/tasks/{occurrence}/complete', [PreventiveMaintenanceController::class, 'complete']);
+        Route::get('/transport-requests', [TransportRequestController::class, 'index']);
+        Route::post('/transport-requests', [TransportRequestController::class, 'store']);
+        Route::get('/transport-requests/{transportRequest}', [TransportRequestController::class, 'show']);
+        Route::post('/transport-requests/{transportRequest}/approve', [TransportRequestController::class, 'approve']);
+        Route::post('/transport-requests/{transportRequest}/reject', [TransportRequestController::class, 'reject']);
+        Route::post('/transport-requests/{transportRequest}/assign', [TransportRequestController::class, 'assign']);
+        Route::patch('/transport-requests/{transportRequest}/trip', [TransportRequestController::class, 'trip']);
+        Route::post('/transport-requests/{transportRequest}/complete', [TransportRequestController::class, 'complete']);
+        Route::get('/transport-attachments/{attachment}/{variant?}', [OperationalAttachmentController::class, 'show'])
+            ->whereIn('variant', ['original', 'thumbnail'])->name('api.transport-attachments.show');
         Route::get('/inspectable-assets', [RoutineOperationsController::class, 'assets']);
         Route::get('/inspectable-assets/scan/{token}', [RoutineOperationsController::class, 'assetByQr']);
         Route::get('/inspectable-assets/{asset}', [RoutineOperationsController::class, 'asset']);

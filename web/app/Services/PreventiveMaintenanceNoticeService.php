@@ -12,6 +12,7 @@ class PreventiveMaintenanceNoticeService
     {
         $now = now(config('app.timezone'));
         PreventiveMaintenanceOccurrence::with(['asset', 'assignees.user'])
+            ->whereNotNull('due_at')
             ->whereIn('status', [PreventiveMaintenanceStatus::Available->value, PreventiveMaintenanceStatus::Overdue->value, PreventiveMaintenanceStatus::InProgress->value])
             ->where(fn ($query) => $query->whereNull('due_notice_sent_at')->orWhereNull('overdue_notice_sent_at'))
             ->chunkById(100, function ($occurrences) use ($now): void {

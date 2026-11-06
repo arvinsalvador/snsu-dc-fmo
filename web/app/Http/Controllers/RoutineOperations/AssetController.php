@@ -15,11 +15,13 @@ use App\Services\AssetLifecycleService;
 use App\Services\AssetMaintenanceAssignmentService;
 use App\Services\AssetMaintenanceHistoryService;
 use App\Services\AssetQrCodeService;
+use App\Services\OdometerMaintenanceService;
 use App\Services\OperationalEvidenceService;
 use App\Services\PreventiveMaintenanceAccessService;
 use App\Services\RoutineTaskAccessService;
 use App\Services\StoredFileTransaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -69,6 +71,9 @@ class AssetController extends Controller
                 $evidence->attach($asset, $data['placement_photos'], $request->user()->id, 'PLACEMENT_PHOTO');
             }
             $lifecycle->event($asset, $request->user(), 'ASSET_REGISTERED');
+            if ($asset->isVehicle()) {
+                app(OdometerMaintenanceService::class)->recalculate($asset->fresh());
+            }
         });
 
         return redirect()->route('assets.show', $asset)->with('status', 'Inspectable asset added.');
@@ -109,8 +114,11 @@ class AssetController extends Controller
         $nextPm = $asset->preventiveMaintenanceOccurrences()->open()->orderBy('due_at')->first();
         $lastRepair = $asset->workOrders()->whereNotNull('verified_at')->latest('verified_at')->first();
         $maintenanceHistory = $historyService->paginate($asset);
+        $tripHistory = $asset->isVehicle() && $request->user()->can('transport.history')
+            ? $asset->transportRequests()->with(['driver.user'])->where('status', 'COMPLETED')->orderByDesc('actual_departed_at')->paginate(10, ['*'], 'trips_page')
+            : null;
 
-        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction', 'qrSvg', 'assignedInspectionItems', 'repairAction', 'canMaintainAsset', 'maintenancePersonnel', 'managedInspectionRuns', 'currentPmTasks', 'lastPm', 'nextPm', 'lastRepair', 'maintenanceHistory'));
+        return view('routine-operations.assets.show', compact('asset', 'history', 'pendingAction', 'qrSvg', 'assignedInspectionItems', 'repairAction', 'canMaintainAsset', 'maintenancePersonnel', 'managedInspectionRuns', 'currentPmTasks', 'lastPm', 'nextPm', 'lastRepair', 'maintenanceHistory', 'tripHistory'));
     }
 
     public function edit(Request $request, InspectableAsset $asset)
@@ -132,6 +140,9 @@ class AssetController extends Controller
             if (! empty($data['placement_photos'])) {
                 $evidence->attach($asset, $data['placement_photos'], $request->user()->id, 'PLACEMENT_PHOTO');
             }
+            if ($asset->isVehicle()) {
+                app(OdometerMaintenanceService::class)->recalculate($asset->fresh());
+            }
         });
 
         return redirect()->route('assets.show', $asset)->with('status', 'Asset registry entry updated. Inspection history was preserved.');
@@ -151,6 +162,8 @@ class AssetController extends Controller
             'installed_at' => ['nullable', 'date'], 'inspection_frequency' => ['required', Rule::in(['DAILY', 'WEEKLY', 'MONTHLY'])],
             'condition' => ['required', Rule::in(['PRISTINE', 'GOOD', 'FAIR', 'NEEDS_REPAIR', 'DAMAGED', 'BROKEN', 'UNUSABLE'])],
             'notes' => ['nullable', 'string', 'max:5000'],
+            'plate_number' => ['nullable', 'string', 'max:20'], 'vehicle_year' => ['nullable', 'integer', 'min:1950', 'max:'.(now()->year + 1)],
+            'passenger_capacity' => ['nullable', 'integer', 'min:1', 'max:100'], 'current_odometer_km' => ['nullable', 'integer', 'min:0', 'max:99999999'],
             'asset_photos' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')],
             'asset_photos.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:'.config('work_orders.attachments.max_size_kb')],
             'placement_photos' => ['nullable', 'array', 'max:'.config('work_orders.attachments.max_count')],
@@ -182,6 +195,19 @@ class AssetController extends Controller
         }
 
         $data['asset_class'] = $data['asset_class'] ?? $asset?->asset_class?->value ?? 'EQUIPMENT';
+        if ($data['asset_class'] === 'VEHICLE') {
+            $specifications = Arr::except($asset?->specifications ?? [], ['plate_number', 'year', 'passenger_capacity']) + array_filter([
+                'plate_number' => $data['plate_number'] ?? null, 'year' => $data['vehicle_year'] ?? null, 'passenger_capacity' => $data['passenger_capacity'] ?? null,
+            ], fn ($value) => $value !== null && $value !== '');
+            $data['specifications'] = $specifications ?: null;
+            if (($data['current_odometer_km'] ?? null) !== null && (int) $data['current_odometer_km'] !== (int) $asset?->current_odometer_km) {
+                $data['odometer_updated_at'] = now(config('app.timezone'));
+            }
+        }
+        if ($data['asset_class'] !== 'VEHICLE' || ($data['current_odometer_km'] ?? null) === null) {
+            unset($data['current_odometer_km']);
+        }
+        unset($data['plate_number'], $data['vehicle_year'], $data['passenger_capacity']);
         $data['lifecycle_status'] = $asset?->lifecycle_status?->value ?? 'ACTIVE';
         $data['status'] = $asset?->status?->value ?? 'ACTIVE';
 

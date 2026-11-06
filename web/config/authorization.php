@@ -52,6 +52,8 @@ return [
         'preventive_maintenance.view', 'preventive_maintenance.manage_plans', 'preventive_maintenance.assign',
         'preventive_maintenance.perform', 'preventive_maintenance.verify', 'preventive_maintenance.view_all',
         'preventive_maintenance.reports',
+        'transport.request', 'transport.view_own', 'transport.approve', 'transport.approve_delegated', 'transport.dispatch',
+        'transport.view_all', 'transport.update_assigned_trip', 'transport.complete_assigned_trip', 'transport.history',
     ],
     'delegable_permissions' => [
         'users.view_pending_registrations',
@@ -84,6 +86,8 @@ return [
         'preventive_maintenance.view', 'preventive_maintenance.manage_plans', 'preventive_maintenance.assign',
         'preventive_maintenance.perform', 'preventive_maintenance.verify', 'preventive_maintenance.view_all',
         'preventive_maintenance.reports',
+        'transport.request', 'transport.view_own', 'transport.approve', 'transport.approve_delegated', 'transport.dispatch',
+        'transport.view_all', 'transport.update_assigned_trip', 'transport.complete_assigned_trip', 'transport.history',
     ],
     'core_roles' => [
         'Requester', 'FMO Staff', 'FMO Dispatcher', 'FMO Head',
