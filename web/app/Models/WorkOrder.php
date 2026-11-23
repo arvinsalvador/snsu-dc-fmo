@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Enums\WorkOrderStatus;
+use App\Services\GuidedDescriptionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 class WorkOrder extends Model
 {
@@ -87,6 +89,26 @@ class WorkOrder extends Model
             ->latest('created_at')
             ->latest('id')
             ->first();
+    }
+
+    /**
+     * Distinct, ordered list of the guided work actions recorded in the current execution cycle,
+     * shown as a checklist so verification can scan what was done separately from the prose summary.
+     *
+     * @return Collection<int, string>
+     */
+    public function completedWorkItems(): Collection
+    {
+        $labels = collect(app(GuidedDescriptionService::class)->profileForCategory($this->category)->actions)->pluck('label', 'code');
+
+        return $this->updates
+            ->where('execution_cycle', $this->execution_cycle)
+            ->sortBy('recorded_at')
+            ->flatMap(fn (WorkUpdate $update): array => $update->structured_actions ?? [])
+            ->unique()
+            ->map(fn (string $code): ?string => $labels[$code] ?? null)
+            ->filter()
+            ->values();
     }
 
     public function decisionMaker(): BelongsTo

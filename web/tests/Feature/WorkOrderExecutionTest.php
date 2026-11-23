@@ -216,6 +216,52 @@ class WorkOrderExecutionTest extends TestCase
         $this->assertSame($summary, $update->description);
     }
 
+    private function completionSection(string $html): string
+    {
+        preg_match('/<section id="completion".*?<\/section>/s', $html, $match);
+
+        return preg_replace('/\s+/', ' ', strip_tags($match[0] ?? ''));
+    }
+
+    public function test_verification_shows_work_performed_as_a_checklist_separate_from_the_summary(): void
+    {
+        $head = $this->user('FMO Head');
+        $staff = $this->user('FMO Staff');
+        $order = $this->ready($this->user('Requester'), $head, [$this->person($staff)]);
+        $this->seed(RoutineOperationsSeeder::class);
+        $this->actingAs($staff)->post("/work-orders/{$order->id}/start-work")->assertRedirect();
+        $session = $order->activeSessions()->firstOrFail();
+        $summary = 'Inspected the affected area, replaced the damaged electrical outlet, and tested the installation after repair. All required work is complete.';
+        $this->actingAs($staff)->post("/work-orders/{$order->id}/sessions/{$session->id}/end", [
+            'outcome' => 'WORK_ORDER_COMPLETION_SUBMITTED', 'summary' => $summary,
+            'guided_actions' => ['INSPECT_AREA', 'REPLACE_OUTLET', 'TEST_REPAIR'], 'guided_outcome' => 'RESOLVED',
+            'completion_summary' => $summary, 'work_performed_summary' => $summary,
+            'non_photo_reason' => 'The result is a restored power supply, which a photo cannot show.',
+        ])->assertRedirect();
+        $this->assertSame(WorkOrderStatus::ForVerification, $order->fresh()->status);
+
+        $labels = collect(app(GuidedDescriptionService::class)->profileForCategory($order->category)->actions)->pluck('label', 'code');
+        $expected = collect(['INSPECT_AREA', 'REPLACE_OUTLET', 'TEST_REPAIR'])->map(fn (string $code) => $labels[$code])->all();
+        $this->assertSame($expected, $order->fresh()->load('updates', 'category.guidedProfile')->completedWorkItems()->all());
+
+        $page = $this->actingAs($head)->get("/work-orders/{$order->id}")->assertOk()
+            ->assertSeeText('Completion summary')->assertSeeText('Work performed')->assertSeeInOrder($expected);
+        $this->assertSame(1, substr_count($this->completionSection($page->getContent()), $summary), 'The prose summary must not be repeated as work performed.');
+    }
+
+    public function test_legacy_completion_without_structured_actions_does_not_repeat_identical_text(): void
+    {
+        $head = $this->user('FMO Head');
+        $order = $this->ready($this->user('Requester'), $head, [$this->person($this->user('FMO Staff'))]);
+        $text = 'Replaced the damaged switch and restored power.';
+        $order->update(['status' => WorkOrderStatus::ForVerification, 'completion_summary' => $text, 'work_performed_summary' => $text, 'completion_submitted_at' => now()]);
+        $page = $this->actingAs($head)->get("/work-orders/{$order->id}")->assertOk();
+        $this->assertSame(1, substr_count($this->completionSection($page->getContent()), $text));
+
+        $order->update(['work_performed_summary' => 'Rewired the outlet and replaced the switch.']);
+        $this->actingAs($head)->get("/work-orders/{$order->id}")->assertSeeText('Work performed')->assertSeeText('Rewired the outlet and replaced the switch.');
+    }
+
     public function test_plain_language_stop_and_blocker_choices_map_to_existing_outcomes(): void
     {
         $head = $this->user('FMO Head');
