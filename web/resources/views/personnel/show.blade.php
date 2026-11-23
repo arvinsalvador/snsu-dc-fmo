@@ -3,7 +3,7 @@
 @section('content')
     <x-breadcrumbs :items="['FMO Staff' => route('personnel.index'), $personnel->user->name]" />
     <div class="flex flex-wrap items-start justify-between gap-4">
-        <div class="flex items-center gap-4"><x-avatar :name="$personnel->user->name" size="lg" /><div><h1>{{ $personnel->user->name }}</h1><p class="mt-1 text-sm text-slate-600">{{ $personnel->designation ?? 'FMO Personnel' }}</p><div class="mt-2"><x-status-badge :status="$personnel->personnel_status" /></div></div></div>
+        <div class="flex items-center gap-4"><x-user-avatar :user="$personnel->user" size="lg" /><div><h1>{{ $personnel->user->name }}</h1><p class="mt-1 text-sm text-slate-600">{{ $personnel->designation ?? 'FMO Personnel' }}</p><div class="mt-2"><x-status-badge :status="$personnel->personnel_status" /></div></div></div>
         @can('personnel.update')<a class="btn btn-primary" href="{{ route('personnel.edit', $personnel) }}"><x-icon name="pencil" />Edit profile</a>@endcan
     </div>
     <div class="mt-6 grid gap-6 lg:grid-cols-2">

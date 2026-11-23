@@ -54,6 +54,7 @@ return [
         'preventive_maintenance.reports',
         'transport.request', 'transport.view_own', 'transport.approve', 'transport.approve_delegated', 'transport.dispatch',
         'transport.view_all', 'transport.update_assigned_trip', 'transport.complete_assigned_trip', 'transport.history',
+        'users.reset_password',
     ],
     'delegable_permissions' => [
         'users.view_pending_registrations',

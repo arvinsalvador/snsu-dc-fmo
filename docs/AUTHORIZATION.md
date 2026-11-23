@@ -85,3 +85,18 @@ Routine operations use explicit Spatie permissions and server-side scope checks:
 
 FMO Staff receive assigned routine/inspection access. For inspections, list queries, details, QR actions, API responses, mutations, and protected item evidence all use the same active item-assignment rule. Template membership alone does not grant access to a generated run, and current-run assignment does not rewrite the template. FMO Dispatcher receives operational oversight and inspection-assignment capability but does not gain inspection performance unless separately granted the required capabilities and assigned to an item. FMO Head and System Administrator receive the complete management set. Campus Director has inspection oversight/assignment according to the seeded catalog, but management roles still cannot perform unassigned items.
 
+
+
+## Profiles and password management
+
+Every approved user manages their own profile, photo and password. `users.reset_password` (FMO Head, System Administrator) allows setting another user's password with re-authentication; only System Administrators may do this for System Administrators. See `web/docs/USER_PROFILES.md`.
+
+## Account status and sign-in
+
+| Status | Can sign in | After signing in |
+|---|---|---|
+| Approved | Yes | Full access per roles |
+| Pending, Needs correction | Yes | Only the registration status page (to see feedback and resubmit) |
+| **Rejected, Suspended, Deactivated** | **No** | Not applicable |
+
+A rejected, suspended or deactivated account is refused at the web login (after the password is verified, so a wrong password never reveals the status) and at API login (403). If an account is rejected or suspended while signed in, the `account.active` middleware reads the status from the database on the next request, ends the web session and returns to the login page with the reason, or answers API calls with 403 and deletes the user's tokens. Changing a status to anything other than Approved also deletes the user's API tokens and database sessions immediately. Reinstating the account restores normal sign-in.

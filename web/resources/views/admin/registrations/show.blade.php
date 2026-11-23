@@ -2,7 +2,7 @@
 @section('title', 'Review Registration')
 @section('content')
     <x-breadcrumbs :items="['Registration Approvals' => $returnUrl, $applicant->name]" />
-    <div class="flex items-center gap-4"><x-avatar :name="$applicant->name" size="lg" /><div><h1>{{ $applicant->name }}</h1><p class="mt-1 text-sm text-slate-600">{{ $applicant->email }}</p></div></div>
+    <div class="flex items-center gap-4"><x-user-avatar :user="$applicant" size="lg" /><div><h1>{{ $applicant->name }}</h1><p class="mt-1 text-sm text-slate-600">{{ $applicant->email }}</p></div></div>
     <section class="section-card mt-6"><div class="flex items-center justify-between gap-3"><h2 class="text-lg">Applicant Information</h2><x-status-badge :status="$applicant->status" /></div><dl class="definition-grid mt-5"><div><dt>Email</dt><dd>{{ $applicant->email }}</dd></div><div><dt>Institutional category</dt><dd>{{ ucfirst($applicant->user_type) }}</dd></div><div><dt>Registered</dt><dd>{{ $applicant->created_at->timezone('Asia/Manila')->format('F j, Y · g:i A') }}</dd></div><div><dt>Current status</dt><dd>{{ str($applicant->status->value)->replace('_', ' ')->title() }}</dd></div></dl></section>
     @if ($applicant->status === \App\Enums\AccountStatus::Pending)
         <section class="mt-7"><h2 class="text-lg">Review Actions</h2><p class="mt-1 text-sm text-slate-500">Choose one decision. The applicant will see the resulting account status.</p><div class="mt-4 grid gap-4 lg:grid-cols-3">
@@ -16,6 +16,12 @@
                 <form method="POST" action="{{ route('registrations.review', $applicant) }}" class="section-card" data-confirm="Reject this registration? The applicant will not be able to access the application.">@csrf<input type="hidden" name="action" value="reject"><input type="hidden" name="return_to" value="{{ $returnUrl }}"><span class="grid size-10 place-items-center rounded-full bg-rose-100 text-rose-800"><x-icon name="warning" /></span><h3 class="mt-4 font-semibold">Reject registration</h3><label class="mt-3 block">Reason <span class="text-rose-600">*</span><textarea name="reason" required></textarea></label><button class="btn btn-danger mt-5" type="submit">Reject</button></form>
             @endcan
         </div></section>
+    @endif
+    @if ($applicant->status === \App\Enums\AccountStatus::Rejected)
+        @can('users.approve_registration')
+            <section class="mt-7"><h2 class="text-lg">Reconsider Registration</h2><p class="mt-1 text-sm text-slate-500">This registration was rejected. Approving it lets the applicant sign in.</p>
+                <form method="POST" action="{{ route('registrations.review', $applicant) }}" class="section-card mt-4 max-w-xl" data-confirm="Reconsider this rejected registration and approve the account?">@csrf<input type="hidden" name="action" value="approve"><input type="hidden" name="return_to" value="{{ $returnUrl }}"><label>Note <span class="font-normal text-slate-400">— Optional</span><textarea name="reason" rows="2" maxlength="2000" placeholder="Why the decision changed"></textarea></label><button class="btn btn-success mt-4" type="submit"><x-icon name="check-circle" />Approve registration</button></form></section>
+        @endcan
     @endif
     <section class="mt-8"><h2 class="text-lg">Review History</h2><div class="section-card mt-4"><div class="space-y-0">@forelse ($reviews as $review)<article class="timeline-item"><p class="font-semibold text-slate-900">{{ str($review->action)->replace('_', ' ')->title() }}</p><p class="mt-1 text-sm text-slate-500">{{ $review->created_at->timezone('Asia/Manila')->format('F j, Y · g:i A') }} · {{ $review->reviewer?->name ?? 'Applicant / system' }}</p><p class="mt-1 text-sm text-slate-600">{{ $review->previous_status ?? 'New' }} → {{ $review->new_status }}</p>@if ($review->reason)<p class="mt-2 text-sm text-slate-700">{{ $review->reason }}</p>@endif</article>@empty<x-empty-state title="No review decisions yet" description="The review history will appear after an authorized action." />@endforelse</div></div></section>
 @endsection

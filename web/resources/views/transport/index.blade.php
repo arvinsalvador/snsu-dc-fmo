@@ -93,7 +93,7 @@
                 <tr>
                     <td><a class="font-semibold text-blue-800 hover:underline" href="{{ route('transport.show', $item) }}">{{ $item->request_number }}</a></td>
                     <td data-label="Date" class="whitespace-nowrap">{{ $dt($item->actual_departed_at ?? $item->travel_date) }}</td>
-                    <td data-label="Requester"><span class="inline-flex items-center gap-2"><x-avatar :name="$item->requester->name" size="sm" />{{ $item->requester->name }}</span></td>
+                    <td data-label="Requester"><span class="inline-flex items-center gap-2"><x-user-avatar :user="$item->requester" size="sm" />{{ $item->requester->name }}</span></td>
                     <td data-label="Route"><x-transport-route :from="$item->origin" :to="$item->destination" compact class="justify-end sm:justify-start" /></td>
                     <td data-label="Driver">{{ $item->driver?->user?->name ?? '—' }}</td>
                     <td data-label="Vehicle">{{ $item->vehicle?->name ?? '—' }}</td>
@@ -115,7 +115,7 @@
                         <p class="mt-0.5 text-xs font-normal text-slate-500">{{ \Illuminate\Support\Str::limit($item->purpose, 70) }}</p>
                     </td>
                     @if ($mode === 'all')
-                        <td data-label="Requester"><span class="inline-flex items-center gap-2"><x-avatar :name="$item->requester->name" size="sm" />{{ $item->requester->name }}</span></td>
+                        <td data-label="Requester"><span class="inline-flex items-center gap-2"><x-user-avatar :user="$item->requester" size="sm" />{{ $item->requester->name }}</span></td>
                     @endif
                     <td data-label="Driver & vehicle">
                         @if ($item->driver)

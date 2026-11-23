@@ -72,7 +72,7 @@
         <section class="section-card" aria-labelledby="approval-heading">
             <h2 id="approval-heading" class="text-lg">Approval record</h2>
             <div class="mt-4 flex items-start gap-3">
-                <x-avatar :name="$transport->approver->name" />
+                <x-user-avatar :user="$transport->approver" />
                 <div class="min-w-0">
                     <p class="font-semibold text-slate-900">{{ $transport->approver->name }}</p>
                     <p class="text-xs text-slate-500">{{ $transport->approver->getRoleNames()->join(', ') }} · {{ $dt($transport->approved_at) }}</p>
@@ -129,7 +129,7 @@
         <section class="section-card" aria-labelledby="trip-heading">
             <h2 id="trip-heading" class="text-lg">Trip record</h2>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                <div class="person-row"><x-avatar :name="$driverName ?? '—'" size="sm" /><div><p class="detail-label">Driver</p><p class="text-sm font-semibold text-slate-900">{{ $driverName ?? '—' }}</p></div></div>
+                <div class="person-row"><x-user-avatar :user="$transport->driver?->user" size="sm" /><div><p class="detail-label">Driver</p><p class="text-sm font-semibold text-slate-900">{{ $driverName ?? '—' }}</p></div></div>
                 <div class="person-row"><span class="grid size-9 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-800"><x-icon name="truck" size="size-4" /></span><div class="min-w-0"><p class="detail-label">Vehicle</p>
                     @if ($transport->vehicle)<a class="text-sm font-semibold text-blue-800 hover:underline" href="{{ route('assets.show', $transport->vehicle) }}">{{ $transport->vehicle->name }}</a><p class="text-xs text-slate-500">{{ $transport->vehicle->asset_code }}@if($transport->vehicle->specification('plate_number')) · {{ $transport->vehicle->specification('plate_number') }}@endif</p>@else<p class="text-sm">—</p>@endif</div></div>
             </div>
@@ -255,7 +255,7 @@
 <aside class="space-y-6 lg:sticky lg:top-24 lg:self-start">
     <section class="section-card">
         <h2 class="text-base">Requested by</h2>
-        <div class="mt-3 flex items-center gap-3"><x-avatar :name="$transport->requester->name" /><div class="min-w-0"><p class="truncate font-semibold text-slate-900">{{ $transport->requester->name }}</p><p class="text-xs text-slate-500">Submitted {{ $dt($transport->created_at) }}</p></div></div>
+        <div class="mt-3 flex items-center gap-3"><x-user-avatar :user="$transport->requester" /><div class="min-w-0"><p class="truncate font-semibold text-slate-900">{{ $transport->requester->name }}</p><p class="text-xs text-slate-500">Submitted {{ $dt($transport->created_at) }}</p></div></div>
     </section>
     <section class="section-card space-y-5">
         <h2 class="flex items-center gap-2 text-base"><x-icon name="paperclip" size="size-4" />Documents</h2>

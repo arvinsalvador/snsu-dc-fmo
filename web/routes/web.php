@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Auth\RegistrationStatusController;
 use App\Http\Controllers\Auth\WebAuthController;
+use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\CommunicationAttachmentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FmoContactController;
@@ -52,7 +53,7 @@ Route::middleware('guest')->group(function (): void {
     Route::post('/register', [WebAuthController::class, 'register'])->middleware('throttle:5,1');
 });
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware(['auth', 'account.active'])->group(function (): void {
     Route::post('/logout', [WebAuthController::class, 'logout'])->name('logout');
     Route::get('/registration/status', [RegistrationStatusController::class, 'show'])->name('registration.status');
     Route::put('/registration/correction', [RegistrationStatusController::class, 'resubmit'])->name('registration.resubmit');
@@ -205,6 +206,11 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('/locations/areas/{location}', [LocationManagementController::class, 'locationDelete'])->name('locations.destroy');
         Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
         Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+        Route::put('/profile/personal', [ProfileController::class, 'updatePersonal'])->middleware('throttle:20,1')->name('profile.personal');
+        Route::post('/profile/photo', [ProfileController::class, 'storePhoto'])->middleware('throttle:20,1')->name('profile.photo.store');
+        Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])->name('profile.photo.destroy');
+        Route::put('/profile/password', [ProfileController::class, 'password'])->middleware('throttle:6,1')->name('profile.password');
+        Route::get('/avatars/{user}', [AvatarController::class, 'show'])->name('avatars.show');
 
         Route::get('/personnel', [PersonnelController::class, 'index'])->name('personnel.index');
         Route::get('/personnel/create', [PersonnelController::class, 'create'])->name('personnel.create');
@@ -229,6 +235,8 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/admin/users/{user}/status', [UserController::class, 'status'])->name('users.status');
         Route::put('/admin/users/{user}/roles', [UserController::class, 'roles'])->name('users.roles');
         Route::put('/admin/users/{user}/permissions', [UserController::class, 'permissions'])->name('users.permissions');
+        Route::put('/admin/users/{user}/profile', [UserController::class, 'profile'])->name('users.profile');
+        Route::put('/admin/users/{user}/password', [UserController::class, 'password'])->middleware('throttle:10,1')->name('users.password');
 
         Route::get('/admin/roles', [RoleController::class, 'index'])->name('roles.index');
         Route::post('/admin/roles', [RoleController::class, 'store'])->name('roles.store');

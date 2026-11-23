@@ -125,9 +125,7 @@
                         <span class="ml-auto rounded-full bg-blue-500 px-2 py-0.5 text-[11px] font-bold text-white">{{ $headerUnreadNotificationCount > 99 ? '99+' : $headerUnreadNotificationCount }}</span>
                     @endif
                 </a>
-                @can('profiles.view_own')
-                    <a class="nav-link {{ request()->routeIs('profile.*') ? 'nav-link-active' : '' }}" href="{{ route('profile.show') }}"><x-icon name="user" /><span>My Profile</span></a>
-                @endcan
+                <a class="nav-link {{ request()->routeIs('profile.*') ? 'nav-link-active' : '' }}" href="{{ route('profile.show') }}"><x-icon name="user" /><span>My Profile</span></a>
             </div>
         </aside>
 
@@ -172,16 +170,21 @@
                                 @endif
                             </div>
                         </details>
-                        @can('profiles.view_own')
-                            <a href="{{ route('profile.show') }}" class="hidden items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50 sm:flex">
-                                <x-avatar :name="$user->name" size="sm" />
+                        <div class="relative" x-data="{ open: false }" @keydown.escape.window="open = false" @click.outside="open = false">
+                            <button type="button" class="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50 focus:outline-none focus-visible:ring-3 focus-visible:ring-blue-100" :aria-expanded="open" aria-haspopup="menu" aria-label="Account menu" @click="open = ! open">
+                                <x-user-avatar :user="$user" size="sm" />
                                 <span class="hidden text-left md:block"><span class="block text-sm font-semibold text-slate-800">{{ $user->name }}</span><span class="block text-xs text-slate-500">{{ $user->getRoleNames()->first() ?? ucfirst($user->user_type) }}</span></span>
-                            </a>
-                        @endcan
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button class="btn btn-secondary !min-h-9 !px-3" type="submit"><x-icon name="logout" size="size-4" /><span class="hidden sm:inline">Sign out</span></button>
-                        </form>
+                                <x-icon name="chevron-right" size="size-4" class="hidden rotate-90 text-slate-400 sm:block" />
+                            </button>
+                            <div x-show="open" x-cloak x-transition.opacity class="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" role="menu">
+                                <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-3"><x-user-avatar :user="$user" /><div class="min-w-0"><p class="truncate text-sm font-semibold text-slate-900">{{ $user->name }}</p><p class="truncate text-xs text-slate-500">{{ $user->email }}</p></div></div>
+                                <div class="p-1.5">
+                                    <a class="action-menu-item" role="menuitem" href="{{ route('profile.show') }}"><x-icon name="user" size="size-4" />My Profile</a>
+                                    <a class="action-menu-item" role="menuitem" href="{{ route('profile.show') }}#password"><x-icon name="lock" size="size-4" />Change Password</a>
+                                    <form method="POST" action="{{ route('logout') }}">@csrf<button class="action-menu-item action-menu-item-danger" role="menuitem" type="submit"><x-icon name="logout" size="size-4" />Logout</button></form>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </header>

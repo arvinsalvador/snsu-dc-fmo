@@ -65,6 +65,6 @@ class WorkOrderLocationLookupTest extends TestCase
         $this->actingAs($user)->getJson('/work-orders/location-options/buildings?campus_id=1')->assertForbidden();
         $user->assignRole('Requester');
         $user->forceFill(['status' => 'SUSPENDED'])->save();
-        $this->getJson('/work-orders/location-options/buildings?campus_id=1')->assertRedirect('/registration/status');
+        $this->getJson('/work-orders/location-options/buildings?campus_id=1')->assertRedirect('/login');
     }
 }

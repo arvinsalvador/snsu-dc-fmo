@@ -166,6 +166,7 @@ class AuthorizationSeeder extends Seeder
         Role::findByName('Campus Director', 'web')->givePermissionTo(['transport.approve', 'transport.view_all', 'transport.history']);
         Role::findByName('FMO Dispatcher', 'web')->givePermissionTo(['transport.approve_delegated', 'transport.dispatch', 'transport.view_all', 'transport.history']);
         Role::findByName('FMO Oversight', 'web')->givePermissionTo(['transport.view_all', 'transport.history']);
+        Role::findByName('FMO Head', 'web')->givePermissionTo('users.reset_password');
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }

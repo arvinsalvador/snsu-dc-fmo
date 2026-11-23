@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureApiToken;
 use App\Http\Middleware\EnsureApproved;
 use Illuminate\Foundation\Application;
@@ -15,7 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['approved' => EnsureApproved::class, 'api.token' => EnsureApiToken::class]);
+        $middleware->alias(['approved' => EnsureApproved::class, 'account.active' => EnsureAccountActive::class, 'api.token' => EnsureApiToken::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

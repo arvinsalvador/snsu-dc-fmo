@@ -139,7 +139,7 @@ class WebPageSmokeTest extends TestCase
         $this->get('/skills?search=missing')->assertDontSee('Electrical Repair');
         $this->get('/work-order-categories')->assertSee('Electrical')->assertSee('Add category');
         $this->get('/work-orders')->assertSee($order->work_order_number);
-        $this->get('/profile')->assertForbidden();
+        $this->get('/profile')->assertOk();
         $this->actingAs($admin)->get('/admin/users')->assertOk();
         $this->get('/admin/users/'.$requester->id)->assertOk();
         $this->get('/admin/roles')->assertOk();

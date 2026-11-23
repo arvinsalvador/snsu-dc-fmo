@@ -21,7 +21,7 @@
                     <tr>
                         <td><a class="font-semibold text-blue-800 hover:underline" href="{{ route('work-orders.show', $order) }}">{{ $order->work_order_number }}</a></td>
                         <td><span class="font-medium text-slate-900">{{ $order->submitted_at?->diffForHumans() }}</span><p class="mt-1 text-xs text-slate-500">{{ $order->submitted_at?->timezone('Asia/Manila')->format('F j, Y') }}</p></td>
-                        <td>{{ $order->requester->name }}</td>
+                        <td><span class="inline-flex items-center gap-2"><x-user-avatar :user="$order->requester" size="xs" />{{ $order->requester->name }}</span></td>
                         <td>{{ $order->category->name }}<p class="mt-1 text-xs text-slate-500">{{ $order->building->name }}</p></td>
                         <td><x-status-badge :status="$order->status" /></td>
                         <td>{{ $isScreening ? $order->subject : ($order->recommendation ?? 'Not recorded') }}</td>

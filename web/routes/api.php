@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\WorkOrderController;
 use App\Http\Controllers\Api\WorkOrderExecutionController;
 use App\Http\Controllers\Api\WorkOrderWorkflowController;
 use App\Http\Controllers\Auth\ApiAuthController;
+use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\CommunicationAttachmentController;
 use App\Http\Controllers\RoutineOperations\AssetActionController;
 use App\Http\Controllers\RoutineOperations\AssetInspectionController;
@@ -26,7 +27,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function (): void {
     Route::get('/health', static fn (): array => ['status' => 'ok']);
     Route::post('/auth/login', [ApiAuthController::class, 'login'])->middleware('throttle:5,1');
-    Route::middleware(['auth:sanctum', 'api.token', 'approved'])->group(function (): void {
+    Route::middleware(['auth:sanctum', 'api.token', 'account.active', 'approved'])->group(function (): void {
         Route::get('/me', [ApiAuthController::class, 'me']);
         Route::get('/notifications', [NotificationsController::class, 'index']);
         Route::get('/communication-attachments/{attachment}/{variant?}', [CommunicationAttachmentController::class, 'show'])
@@ -40,6 +41,12 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/mobile/operations', [MobileSyncController::class, 'operation']);
         Route::post('/mobile/media', [MobileSyncController::class, 'media']);
         Route::patch('/me/profile', [ProfileController::class, 'update']);
+        Route::get('/profile', [ProfileController::class, 'account']);
+        Route::patch('/profile', [ProfileController::class, 'updateAccount']);
+        Route::post('/profile/photo', [ProfileController::class, 'storePhoto']);
+        Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto']);
+        Route::put('/profile/password', [ProfileController::class, 'password'])->middleware('throttle:6,1');
+        Route::get('/avatars/{user}', [AvatarController::class, 'show'])->name('api.avatars.show');
         Route::get('/personnel', [PersonnelController::class, 'index']);
         Route::get('/personnel/{personnel}', [PersonnelController::class, 'show']);
         Route::get('/skills', [PersonnelController::class, 'skills']);

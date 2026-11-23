@@ -18,6 +18,6 @@
                 <form method="POST" action="{{ route('roles.destroy', $role) }}" class="mt-6 border-t border-slate-100 pt-5" data-confirm="Delete this unassigned custom role? This action cannot be undone.">@csrf @method('DELETE')<button class="btn btn-danger" type="submit"><x-icon name="trash" />Delete role</button></form>
             @endif
         </section>
-        <section class="section-card self-start"><h2 class="text-lg">Assigned Users</h2><div class="mt-4 space-y-3">@forelse ($users as $user)<div class="flex items-center gap-3"><x-avatar :name="$user->name" size="sm" /><span class="text-sm font-medium text-slate-800">{{ $user->name }}</span></div>@empty<p class="text-sm text-slate-500">No users have this role.</p>@endforelse</div><div class="mt-5">{{ $users->links() }}</div></section>
+        <section class="section-card self-start"><h2 class="text-lg">Assigned Users</h2><div class="mt-4 space-y-3">@forelse ($users as $user)<div class="flex items-center gap-3"><x-user-avatar :user="$user" size="sm" /><span class="text-sm font-medium text-slate-800">{{ $user->name }}</span></div>@empty<p class="text-sm text-slate-500">No users have this role.</p>@endforelse</div><div class="mt-5">{{ $users->links() }}</div></section>
     </div>
 @endsection

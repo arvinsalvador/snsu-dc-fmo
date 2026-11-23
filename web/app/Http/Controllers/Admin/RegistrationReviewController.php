@@ -97,7 +97,9 @@ class RegistrationReviewController extends Controller
 
         DB::transaction(function () use ($request, $user, $data): void {
             $applicant = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
-            abort_unless($applicant->status === AccountStatus::Pending, 409);
+            $previous = $applicant->status;
+            // A rejected registration may be reconsidered and approved; every other decision starts from Pending.
+            abort_unless($previous === AccountStatus::Pending || ($previous === AccountStatus::Rejected && $data['action'] === 'approve'), 409);
 
             $next = match ($data['action']) {
                 'approve' => AccountStatus::Approved,
@@ -120,9 +122,9 @@ class RegistrationReviewController extends Controller
                     'approve' => 'approved',
                     'reject' => 'rejected',
                 },
-                'previous_status' => AccountStatus::Pending->value,
+                'previous_status' => $previous->value,
                 'new_status' => $next->value,
-                'reason' => $data['reason'] ?? null,
+                'reason' => $data['reason'] ?? ($previous === AccountStatus::Rejected ? 'Reconsidered after rejection.' : null),
             ]);
         });
 

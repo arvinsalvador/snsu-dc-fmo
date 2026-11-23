@@ -26,7 +26,7 @@
                 {{ $plan->next_due_at ? \Illuminate\Support\Carbon::parse($plan->next_due_at)->format('M j, Y') : '—' }}
             @endif
         </td>
-        <td>{{ $plan->activeAssignees->pluck('user.name')->join(', ') ?: 'Unassigned' }}</td>
+        <td><x-user-stack :users="$plan->activeAssignees->pluck('user')" /></td>
         <td><x-status-badge :status="$odo ? $odo['state'] : ($plan->is_active ? 'ACTIVE' : 'INACTIVE')" />@if ($odo && ! $plan->is_active)<x-status-badge status="INACTIVE" />@endif</td>
         <td class="text-right"><a class="btn btn-secondary" href="{{ route('preventive-maintenance.plans.edit', $plan) }}">Edit</a></td>
     </tr>

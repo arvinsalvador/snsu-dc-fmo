@@ -135,7 +135,7 @@
                         <tr>
                             <td>
                                 <div class="flex items-center gap-3">
-                                    <x-avatar :name="$user->name" />
+                                    <x-user-avatar :user="$user" />
                                     <div class="min-w-0">
                                         <p class="truncate font-semibold text-slate-900">{{ $user->name }}</p>
                                         <p class="truncate text-xs text-slate-500">{{ $user->email }}</p>

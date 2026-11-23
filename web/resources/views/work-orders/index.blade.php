@@ -90,7 +90,7 @@
                         <p class="mt-0.5 inline-flex items-center gap-1.5 text-xs text-slate-500"><x-icon name="map-pin" size="size-3.5" />{{ $order->building->name }}@if ($order->location) · {{ $order->location->name }}@endif</p>
                     </td>
                     @if ($all)
-                        <td data-label="Requester"><span class="inline-flex items-center gap-2"><x-avatar :name="$order->requester?->name ?? '—'" size="sm" />{{ $order->requester?->name }}</span></td>
+                        <td data-label="Requester"><span class="inline-flex items-center gap-2"><x-user-avatar :user="$order->requester" size="sm" />{{ $order->requester?->name }}</span></td>
                     @endif
                     <td data-label="Submitted" class="whitespace-nowrap">
                         {{ $order->submitted_at?->timezone('Asia/Manila')->format('M j, Y') }}

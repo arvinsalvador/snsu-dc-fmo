@@ -44,7 +44,7 @@
                 @endphp
                 <tr>
                     <td><a class="font-semibold text-blue-800 hover:underline" href="{{ route('work-orders.show', $order) }}">{{ $order->work_order_number }}</a><p class="mt-1 max-w-xs text-sm text-slate-600">{{ $order->subject }}</p></td>
-                    <td>{{ $order->requester->name }}</td><td>{{ $order->category->name }}</td>
+                    <td><span class="inline-flex items-center gap-2"><x-user-avatar :user="$order->requester" size="xs" />{{ $order->requester->name }}</span></td><td>{{ $order->category->name }}</td>
                     @if($activeQueue)
                         <td><span class="font-medium text-slate-800">{{ $order->building->name }}</span><span class="mt-1 block text-xs text-slate-500">{{ collect([$order->floor?->name, $order->location?->name])->filter()->join(' • ') ?: 'Building-wide' }}</span></td>
                         <td><span class="block max-w-56 text-sm">{{ $team ?: 'No active assignee' }}</span>@if($mySession)<span class="mt-1 inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800">Your active session</span>@elseif($order->active_sessions_count)<span class="mt-1 block text-xs text-slate-500">{{ $order->active_sessions_count }} active {{ str('session')->plural($order->active_sessions_count) }}</span>@endif</td>

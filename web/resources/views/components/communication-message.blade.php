@@ -11,7 +11,7 @@
 <article class="rounded-xl border p-4 sm:p-5 {{ $internal ? 'border-amber-200 bg-amber-50/60' : ($own ? 'border-blue-200 bg-blue-50/60' : 'border-slate-200 bg-white') }}">
     <header class="flex flex-wrap items-start justify-between gap-2">
         <div class="flex min-w-0 items-center gap-3">
-            <x-avatar :name="$sender->name" size="sm" />
+            <x-user-avatar :user="$sender" size="sm" />
             <div class="min-w-0">
                 <p class="truncate text-sm font-semibold text-slate-900">{{ $sender->name }}</p>
                 <p class="text-xs text-slate-500">{{ $internal ? 'Internal Note' : $role }}</p>

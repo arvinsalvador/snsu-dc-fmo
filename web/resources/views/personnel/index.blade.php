@@ -27,7 +27,7 @@
         <table><thead><tr><th>Staff member</th><th>Personnel ID</th><th>Designation</th><th>Employment</th><th>Primary skill</th><th>Status</th><th>Availability</th><th class="text-right">Action</th></tr></thead><tbody>
             @forelse ($personnel as $member)
                 <tr>
-                    <td><div class="flex items-center gap-3"><x-avatar :name="$member->user->name" /><div><p class="font-semibold text-slate-900">{{ $member->user->name }}</p><p class="text-xs text-slate-500">{{ $member->user->email }}</p></div></div></td>
+                    <td><div class="flex items-center gap-3"><x-user-avatar :user="$member->user" /><div><p class="font-semibold text-slate-900">{{ $member->user->name }}</p><p class="text-xs text-slate-500">{{ $member->user->email }}</p></div></div></td>
                     <td>{{ $member->personnel_identifier ?? '—' }}</td>
                     <td>{{ $member->designation ?? '—' }}</td>
                     <td>{{ $member->employment_type ? str($member->employment_type->value)->replace('_', ' ')->title() : '—' }}</td>

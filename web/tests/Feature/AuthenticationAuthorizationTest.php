@@ -68,9 +68,84 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->post('/logout')->assertRedirect('/login');
         $this->get('/dashboard')->assertRedirect('/login');
 
-        foreach ([AccountStatus::Pending, AccountStatus::Rejected, AccountStatus::Suspended, AccountStatus::Deactivated] as $status) {
+        foreach ([AccountStatus::Pending, AccountStatus::NeedsCorrection] as $status) {
             $user->forceFill(['status' => $status])->save();
             $this->actingAs($user)->get('/dashboard')->assertRedirect('/registration/status');
+        }
+        foreach ([AccountStatus::Rejected, AccountStatus::Suspended, AccountStatus::Deactivated] as $status) {
+            $user->forceFill(['status' => $status])->save();
+            $this->actingAs($user)->get('/dashboard')->assertRedirect('/login');
+            $this->assertGuest();
+        }
+    }
+
+    public function test_rejected_suspended_and_deactivated_accounts_cannot_sign_in_with_valid_credentials(): void
+    {
+        foreach ([AccountStatus::Rejected, AccountStatus::Suspended, AccountStatus::Deactivated] as $status) {
+            $user = $this->user('Requester', $status);
+
+            $this->post('/login', ['email' => $user->email, 'password' => 'password'])
+                ->assertSessionHasErrors(['email' => $status->signInMessage()]);
+            $this->assertGuest();
+            $this->get('/dashboard')->assertRedirect('/login');
+            $this->get('/registration/status')->assertRedirect('/login');
+            $this->get('/profile')->assertRedirect('/login');
+        }
+    }
+
+    public function test_a_wrong_password_never_reveals_that_an_account_is_suspended(): void
+    {
+        $user = $this->user('Requester', AccountStatus::Suspended);
+
+        $this->post('/login', ['email' => $user->email, 'password' => 'wrong-password'])
+            ->assertSessionHasErrors(['email' => 'The provided credentials are incorrect.']);
+        $this->assertGuest();
+    }
+
+    public function test_pending_and_needs_correction_accounts_can_still_sign_in_to_see_their_registration_status(): void
+    {
+        foreach ([AccountStatus::Pending, AccountStatus::NeedsCorrection] as $status) {
+            $user = $this->user('Requester', $status);
+
+            $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertRedirect('/registration/status');
+            $this->assertAuthenticatedAs($user);
+            $this->get('/dashboard')->assertRedirect('/registration/status');
+            $this->post('/logout');
+        }
+    }
+
+    public function test_an_open_session_ends_on_the_next_request_after_suspension_and_works_again_when_reinstated(): void
+    {
+        $user = $this->user();
+        $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertRedirect('/dashboard');
+        $this->get('/dashboard')->assertOk();
+
+        $user->forceFill(['status' => AccountStatus::Suspended])->save();
+        $this->get('/dashboard')->assertRedirect('/login');
+        $this->assertGuest();
+        $this->get('/work-orders/my-tasks')->assertRedirect('/login');
+
+        $user->forceFill(['status' => AccountStatus::Approved])->save();
+        $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertAuthenticatedAs($user);
+        $this->get('/dashboard')->assertOk();
+    }
+
+    public function test_api_access_is_refused_for_rejected_suspended_and_deactivated_accounts(): void
+    {
+        foreach ([AccountStatus::Rejected, AccountStatus::Suspended, AccountStatus::Deactivated] as $status) {
+            $user = $this->user('Requester', $status);
+            $this->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => 'password', 'device_name' => 'phone'])->assertForbidden()->assertJsonPath('status', $status->value);
+            $this->assertSame(0, $user->tokens()->count());
+
+            $active = $this->user();
+            $token = $active->createToken('phone')->plainTextToken;
+            $this->app['auth']->forgetGuards();
+            $this->withToken($token)->getJson('/api/v1/me')->assertOk();
+            $active->forceFill(['status' => $status])->save();
+            $this->app['auth']->forgetGuards();
+            $this->withToken($token)->getJson('/api/v1/me')->assertForbidden()->assertJsonPath('message', $status->signInMessage());
+            $this->assertSame(0, $active->tokens()->count(), 'Tokens are deleted as soon as the refusal is seen.');
         }
     }
 
@@ -128,7 +203,10 @@ class AuthenticationAuthorizationTest extends TestCase
 
         $this->actingAs($approver)->post($url, ['action' => 'reject', 'reason' => 'Not eligible'])->assertRedirect();
         $this->assertSame(AccountStatus::Rejected, $applicant->fresh()->status);
-        $this->actingAs($applicant)->get('/registration/status')->assertSee('Not eligible');
+        $this->actingAs($applicant)->get('/registration/status')->assertRedirect('/login');
+        $this->assertGuest();
+        $this->post('/login', ['email' => $applicant->email, 'password' => 'password'])->assertSessionHasErrors('email');
+        $this->assertStringContainsString('Reason: Not eligible', session('errors')->first('email'));
         $this->assertDatabaseHas('registration_reviews', ['user_id' => $applicant->id, 'action' => 'rejected']);
     }
 
@@ -205,7 +283,7 @@ class AuthenticationAuthorizationTest extends TestCase
         ])->assertRedirect();
         $this->assertDatabaseCount('personal_access_tokens', 0);
         $this->withToken($token)->getJson('/api/v1/me')->assertUnauthorized();
-        $this->actingAs($user->fresh())->get('/dashboard')->assertRedirect('/registration/status');
+        $this->actingAs($user->fresh())->get('/dashboard')->assertRedirect('/login');
     }
 
     public function test_administration_pages_and_custom_roles_are_authorized(): void
@@ -285,5 +363,45 @@ class AuthenticationAuthorizationTest extends TestCase
             count(config('authorization.permissions')),
             Role::findByName('System Administrator')->permissions,
         );
+    }
+
+    public function test_a_rejected_registration_can_be_reconsidered_and_approved_from_the_registration_review(): void
+    {
+        $approver = $this->user('Campus Director');
+        $applicant = $this->user('Requester', AccountStatus::Pending);
+        $applicant->syncRoles([]);
+        $url = route('registrations.review', $applicant);
+
+        $this->actingAs($approver)->post($url, ['action' => 'reject', 'reason' => 'Incomplete details'])->assertRedirect();
+        $this->actingAs($approver)->get(route('registrations.show', $applicant))->assertOk()->assertSee('Reconsider Registration');
+        $this->actingAs($approver)->post($url, ['action' => 'request_correction', 'reason' => 'x'])->assertStatus(409);
+        $this->actingAs($approver)->post($url, ['action' => 'approve'])->assertRedirect()->assertSessionHas('success');
+
+        $applicant->refresh();
+        $this->assertSame(AccountStatus::Approved, $applicant->status);
+        $this->assertSame($approver->id, $applicant->approved_by);
+        $this->assertTrue($applicant->hasRole('Requester'));
+        $this->assertDatabaseHas('registration_reviews', ['user_id' => $applicant->id, 'action' => 'approved', 'previous_status' => 'REJECTED', 'new_status' => 'APPROVED']);
+        $this->post('/login', ['email' => $applicant->email, 'password' => 'password'])->assertRedirect('/dashboard');
+    }
+
+    public function test_a_rejected_account_can_be_approved_from_user_management_but_not_suspended(): void
+    {
+        $admin = $this->user('System Administrator');
+        $applicant = $this->user('Requester', AccountStatus::Rejected);
+        $applicant->syncRoles([]);
+
+        $this->actingAs($admin)->get(route('users.show', $applicant))->assertOk()->assertSee('This registration was rejected');
+        $this->actingAs($admin)->put(route('users.status', $applicant), ['status' => 'SUSPENDED', 'reason' => 'x'])->assertSessionHasErrors('status');
+        $this->assertSame(AccountStatus::Rejected, $applicant->fresh()->status);
+
+        $this->actingAs($admin)->put(route('users.status', $applicant), ['status' => 'APPROVED', 'reason' => 'Reconsidered after review'])->assertRedirect()->assertSessionHasNoErrors();
+
+        $applicant->refresh();
+        $this->assertSame(AccountStatus::Approved, $applicant->status);
+        $this->assertSame($admin->id, $applicant->approved_by);
+        $this->assertNotNull($applicant->approved_at);
+        $this->assertTrue($applicant->hasRole('Requester'));
+        $this->assertDatabaseHas('registration_reviews', ['user_id' => $applicant->id, 'action' => 'status_changed', 'previous_status' => 'REJECTED', 'new_status' => 'APPROVED']);
     }
 }

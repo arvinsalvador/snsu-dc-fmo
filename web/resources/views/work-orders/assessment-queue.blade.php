@@ -27,7 +27,7 @@
             @foreach($orders as $order)
                 <tr class="{{ $order->urgency === 'URGENT' ? 'bg-amber-50/40' : '' }}">
                     <td><a class="font-semibold text-blue-800 hover:underline" href="{{ route('work-orders.show', $order).'#assessment-review' }}">{{ $order->work_order_number }}</a><p class="mt-1 max-w-xs text-sm text-slate-600">{{ $order->subject }}</p></td>
-                    <td>{{ $order->requester->name }}</td><td>{{ $order->category->name }}</td>
+                    <td><span class="inline-flex items-center gap-2"><x-user-avatar :user="$order->requester" size="xs" />{{ $order->requester->name }}</span></td><td>{{ $order->category->name }}</td>
                     <td><span class="font-medium text-slate-800">{{ $order->building->name }}</span><span class="mt-1 block text-xs text-slate-500">{{ collect([$order->floor?->name, $order->location?->name])->filter()->join(' • ') ?: 'Building-wide' }}</span></td>
                     <td><span class="status-badge {{ $order->urgency === 'URGENT' ? 'status-danger' : 'status-neutral' }}">{{ str($order->urgency)->title() }}</span></td>
                     <td><span class="status-badge status-pending">● Awaiting Review</span>@if($order->assessments_max_assessed_at)<span class="mt-1 block whitespace-nowrap text-xs text-slate-500">Assessed {{ $order->assessments_max_assessed_at->timezone('Asia/Manila')->format('M j, Y') }}</span>@endif</td>
