@@ -8,6 +8,7 @@ use App\Models\WorkOrderWorkflowEvent;
 use App\Observers\RegistrationReviewObserver;
 use App\Observers\WorkOrderWorkflowEventObserver;
 use App\Services\StoredFileTransaction;
+use App\Services\WorkOrderAccessService;
 use App\View\Composers\NotificationComposer;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
@@ -29,8 +30,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::define('work-orders.create-request', static fn (User $user): bool => $user->can('work_orders.create')
-            && ! $user->personnelProfile()->exists()
-            && ! $user->hasAnyRole(['FMO Head', 'FMO Dispatcher', 'FMO Staff'])
+            && ! app(WorkOrderAccessService::class)->isFmoPersonnel($user)
         );
 
         WorkOrderWorkflowEvent::observe(WorkOrderWorkflowEventObserver::class);

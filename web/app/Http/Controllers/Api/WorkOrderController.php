@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderAttachment;
 use App\Services\StoredFileTransaction;
+use App\Services\WorkOrderAccessService;
 use App\Services\WorkOrderMessageReadService;
 use App\Services\WorkOrderPreferenceService;
 use App\Services\WorkOrderWorkflowService;
@@ -57,7 +58,7 @@ class WorkOrderController extends Controller
 
     public function storeDirect(Request $request, \App\Http\Controllers\WorkOrders\WorkOrderController $requests, WorkOrderWorkflowService $workflow)
     {
-        abort_unless($request->user()->can('work_orders.create_direct'), 403);
+        abort_unless($request->user()->can('work_orders.create_direct') && ! app(WorkOrderAccessService::class)->isFmoPersonnel($request->user()), 403);
 
         return $this->createOrder($request, $requests, $workflow, true);
     }
@@ -105,7 +106,7 @@ class WorkOrderController extends Controller
 
     private function data(WorkOrder $order): array
     {
-        $management = auth()->user()->can('work_orders.view_all') || auth()->user()->can('work_orders.screen') || auth()->user()->can('work_orders.approve') || auth()->user()->can('work_orders.view_assessments');
+        $management = app(WorkOrderAccessService::class)->canViewInternalWorkflow(auth()->user(), $order);
         $privateActions = ['RECOMMEND_APPROVAL', 'RECOMMEND_DISAPPROVAL', 'RETURN_TO_SCREENING', 'ASSIGNEE_ADDED', 'ASSIGNEE_REMOVED', 'ASSESSMENT_EXCEPTION', 'ASSESSMENT_HOLD_MATERIALS', 'ASSESSMENT_REFER_EXTERNAL', 'ASSESSMENT_BEYOND_SCOPE'];
         $events = $order->workflowEvents->when(! $management, fn ($events) => $events->filter(fn ($event) => ! in_array($event->action, $privateActions, true)));
 

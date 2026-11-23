@@ -37,6 +37,19 @@ class WorkflowNotificationService
                 $message = "{$number} needs information from you.";
                 $recipients->push($requester);
                 break;
+            case 'RESUBMIT':
+                $title = 'Request resubmitted';
+                $message = "{$number} was updated by the requester and needs review.";
+                $recipients = $event->to_status === 'FOR_ASSESSMENT'
+                    ? $this->assignees($order)->merge($this->withPermission('work_orders.resolve_assessment'))
+                    : $this->withPermission('work_orders.screen');
+                break;
+            case 'RECOMMEND_APPROVAL':
+            case 'RECOMMEND_DISAPPROVAL':
+                $title = 'Final decision needed';
+                $message = "{$number} completed screening and awaits a final decision.";
+                $recipients = $this->withPermission('work_orders.approve');
+                break;
             case 'APPROVE':
                 $title = 'Work Order approved';
                 $message = "{$number} was approved and is awaiting assignment.";
@@ -121,6 +134,9 @@ class WorkflowNotificationService
             return;
         }
         foreach ($recipients->filter()->unique('id') as $recipient) {
+            if (in_array($event->action, ['RESUBMIT', 'RECOMMEND_APPROVAL', 'RECOMMEND_DISAPPROVAL'], true) && $recipient->id === $event->actor_id) {
+                continue;
+            }
             if ($recipient->status !== AccountStatus::Approved) {
                 continue;
             }

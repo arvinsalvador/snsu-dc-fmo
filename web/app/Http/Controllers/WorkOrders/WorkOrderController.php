@@ -97,7 +97,7 @@ class WorkOrderController extends Controller
 
     public function storeDirect(Request $request, WorkOrderWorkflowService $workflow)
     {
-        abort_unless($request->user()->can('work_orders.create_direct'), 403);
+        abort_unless($request->user()->can('work_orders.create_direct') && ! app(WorkOrderAccessService::class)->isFmoPersonnel($request->user()), 403);
 
         return $this->createOrder($request, $workflow, true);
     }

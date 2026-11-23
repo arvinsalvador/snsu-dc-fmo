@@ -116,6 +116,9 @@ class WorkOrderWorkflowService
         }
         if ($action === 'resubmit') {
             abort_unless($order->requester_id === $actor->id, 403);
+        } else {
+            // Nobody screens, recommends, approves or disapproves their own request.
+            abort_if($order->requester_id === $actor->id, 403, 'You cannot review or decide your own Work Order request.');
         }
     }
 

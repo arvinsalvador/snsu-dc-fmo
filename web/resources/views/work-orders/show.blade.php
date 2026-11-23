@@ -4,7 +4,7 @@
 @php
     $user = auth()->user();
     $assignmentService = app(\App\Services\WorkOrderAssignmentService::class);
-    $management = $user->can('work_orders.view_all') || $user->can('work_orders.screen') || $user->can('work_orders.approve') || $user->can('work_orders.view_assessments');
+    $management = app(\App\Services\WorkOrderAccessService::class)->canViewInternalWorkflow($user, $order);
     $assigned = $user->can('work_orders.view_assigned') && $assignmentService->assignedTo($order, $user);
     $canAssign = $assignmentService->mayManage($order, $user, $order->status !== \App\Enums\WorkOrderStatus::Approved);
     $canViewAssessmentMedia = $user->can('work_orders.view_assessments') || $assigned;
