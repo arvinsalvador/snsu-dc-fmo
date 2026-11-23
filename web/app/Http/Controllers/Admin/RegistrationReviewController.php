@@ -95,19 +95,22 @@ class RegistrationReviewController extends Controller
         };
         abort_unless($request->user()->can($permission), 403);
 
-        DB::transaction(function () use ($request, $user, $data): void {
+        $target = match ($data['action']) {
+            'approve' => AccountStatus::Approved,
+            'reject' => AccountStatus::Rejected,
+            'request_correction' => AccountStatus::NeedsCorrection,
+        };
+
+        $outcome = DB::transaction(function () use ($request, $user, $data, $target): ?AccountStatus {
             $applicant = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             $previous = $applicant->status;
             // A rejected registration may be reconsidered and approved; every other decision starts from Pending.
-            abort_unless($previous === AccountStatus::Pending || ($previous === AccountStatus::Rejected && $data['action'] === 'approve'), 409);
+            if (! ($previous === AccountStatus::Pending || ($previous === AccountStatus::Rejected && $data['action'] === 'approve'))) {
+                return $previous;
+            }
 
-            $next = match ($data['action']) {
-                'approve' => AccountStatus::Approved,
-                'reject' => AccountStatus::Rejected,
-                'request_correction' => AccountStatus::NeedsCorrection,
-            };
-            $applicant->status = $next;
-            if ($next === AccountStatus::Approved) {
+            $applicant->status = $target;
+            if ($target === AccountStatus::Approved) {
                 $applicant->approved_at = now();
                 $applicant->approved_by = $request->user()->id;
                 if ($applicant->roles()->count() === 0) {
@@ -123,10 +126,21 @@ class RegistrationReviewController extends Controller
                     'reject' => 'rejected',
                 },
                 'previous_status' => $previous->value,
-                'new_status' => $next->value,
+                'new_status' => $target->value,
                 'reason' => $data['reason'] ?? ($previous === AccountStatus::Rejected ? 'Reconsidered after rejection.' : null),
             ]);
+
+            return null;
         });
+
+        if ($outcome !== null) {
+            // Stale or repeated submit: the registration was already decided. Never write a second decision.
+            $message = $outcome === $target
+                ? "This registration was already {$this->describe($outcome)}. No change was made."
+                : "This registration is no longer awaiting that decision; it is currently {$this->describe($outcome)}. Refresh the list to see the latest state.";
+
+            return redirect()->to($this->returnUrl($request))->with('warning', $message);
+        }
 
         $message = match ($data['action']) {
             'approve' => 'Registration approved successfully.',
@@ -135,6 +149,17 @@ class RegistrationReviewController extends Controller
         };
 
         return redirect()->to($this->returnUrl($request))->with('success', $message);
+    }
+
+    private function describe(AccountStatus $status): string
+    {
+        return match ($status) {
+            AccountStatus::Approved => 'approved',
+            AccountStatus::Rejected => 'rejected',
+            AccountStatus::NeedsCorrection => 'returned for correction',
+            AccountStatus::Pending => 'pending',
+            default => strtolower($status->name),
+        };
     }
 
     private function registrationScope(): Builder

@@ -67,16 +67,20 @@ class UserController extends Controller
         DB::transaction(function () use ($request, $user, $data): void {
             $approvedAdministrators = $this->approvedAdministratorCountLocked();
             $managed = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
-            abort_unless(in_array($managed->status, [
+            if (! in_array($managed->status, [
                 AccountStatus::Approved, AccountStatus::Suspended, AccountStatus::Deactivated, AccountStatus::Rejected,
-            ], true), 409);
+            ], true)) {
+                throw ValidationException::withMessages(['status' => 'This registration is still under review. Decide it from Registration Approvals.']);
+            }
             // A rejected registration can only be reconsidered and approved, not suspended or deactivated.
             if ($managed->status === AccountStatus::Rejected && $data['status'] !== AccountStatus::Approved->value) {
                 throw ValidationException::withMessages(['status' => 'A rejected registration can only be approved. Choose Approved to reconsider it.']);
             }
-            abort_if($managed->hasRole('System Administrator') &&
+            if ($managed->hasRole('System Administrator') &&
                 $data['status'] !== AccountStatus::Approved->value &&
-                $approvedAdministrators <= 1, 409);
+                $approvedAdministrators <= 1) {
+                throw ValidationException::withMessages(['status' => 'The last approved System Administrator cannot be suspended or deactivated.']);
+            }
 
             $previous = $managed->status->value;
             $managed->status = AccountStatus::from($data['status']);

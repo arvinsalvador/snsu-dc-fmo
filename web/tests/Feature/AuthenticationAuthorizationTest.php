@@ -365,6 +365,44 @@ class AuthenticationAuthorizationTest extends TestCase
         );
     }
 
+    public function test_repeated_or_stale_registration_decisions_are_harmless_and_friendly(): void
+    {
+        $approver = $this->user('Campus Director');
+        $applicant = $this->user('Requester', AccountStatus::Pending);
+        $applicant->syncRoles([]);
+        $url = route('registrations.review', $applicant);
+
+        $this->actingAs($approver)->post($url, ['action' => 'approve'])->assertRedirect()->assertSessionHas('success');
+        $approvedAt = $applicant->fresh()->approved_at;
+
+        $this->travel(5)->minutes();
+        $this->actingAs($approver)->post($url, ['action' => 'approve'])->assertRedirect()->assertSessionHas('warning');
+        $this->actingAs($approver)->post($url, ['action' => 'reject', 'reason' => 'late'])->assertRedirect()->assertSessionHas('warning');
+        $this->actingAs($approver)->post($url, ['action' => 'request_correction', 'reason' => 'late'])->assertRedirect()->assertSessionHas('warning');
+
+        $applicant->refresh();
+        $this->assertSame(AccountStatus::Approved, $applicant->status);
+        $this->assertEquals($approvedAt, $applicant->approved_at);
+        $this->assertSame(1, $applicant->reviews()->count());
+
+        $rejected = $this->user('Requester', AccountStatus::Pending);
+        $rejected->syncRoles([]);
+        $this->actingAs($approver)->post(route('registrations.review', $rejected), ['action' => 'reject', 'reason' => 'No'])->assertRedirect()->assertSessionHas('success');
+        $this->actingAs($approver)->post(route('registrations.review', $rejected), ['action' => 'reject', 'reason' => 'No'])->assertRedirect()->assertSessionHas('warning');
+        $this->assertSame(1, $rejected->reviews()->count());
+        $this->assertSame(AccountStatus::Rejected, $rejected->fresh()->status);
+    }
+
+    public function test_account_status_page_reports_registrations_still_in_review_without_a_server_error(): void
+    {
+        $admin = $this->user('System Administrator');
+        $pending = $this->user('Requester', AccountStatus::Pending);
+        $this->actingAs($admin)->from('/admin/users/'.$pending->id)
+            ->put("/admin/users/{$pending->id}/status", ['status' => 'APPROVED', 'reason' => 'Direct'])
+            ->assertRedirect('/admin/users/'.$pending->id)->assertSessionHasErrors('status');
+        $this->assertSame(AccountStatus::Pending, $pending->fresh()->status);
+    }
+
     public function test_a_rejected_registration_can_be_reconsidered_and_approved_from_the_registration_review(): void
     {
         $approver = $this->user('Campus Director');
@@ -374,7 +412,8 @@ class AuthenticationAuthorizationTest extends TestCase
 
         $this->actingAs($approver)->post($url, ['action' => 'reject', 'reason' => 'Incomplete details'])->assertRedirect();
         $this->actingAs($approver)->get(route('registrations.show', $applicant))->assertOk()->assertSee('Reconsider Registration');
-        $this->actingAs($approver)->post($url, ['action' => 'request_correction', 'reason' => 'x'])->assertStatus(409);
+        $this->actingAs($approver)->post($url, ['action' => 'request_correction', 'reason' => 'x'])->assertRedirect()->assertSessionHas('warning');
+        $this->assertSame(AccountStatus::Rejected, $applicant->fresh()->status);
         $this->actingAs($approver)->post($url, ['action' => 'approve'])->assertRedirect()->assertSessionHas('success');
 
         $applicant->refresh();
